@@ -236,26 +236,32 @@ export default function Discover() {
 
     const { ventureFile: vf, crowd, deployed } = useVenture.getState();
     if (!vf || !crowd?.verdict || !deployed?.length) return;
-    if (personasRef.current.length > 0 || segment !== "idle") return;
+    if (personas.length > 0 || segment !== "idle") return;
 
     restored.current = true;
-
     const people = deployed as unknown as DeployedPersona[];
-    personasRef.current = people;
-    setPersonas(people);
-    setProblems(vf.extractedProblems ?? []);
-    setReactions(new Map(crowd.verdict.reactions.map((r) => [r.personaId, r])));
-    setVerdict(crowd.verdict);
-    setSignals(crowd.signals);
-    setHubRanking(rankFromCrowd(crowd.verdict, people));
-    if (vf.pvs) setPvs(vf.pvs);
 
-    // Land on the last beat the run actually reached rather than replaying it.
-    setSegment(vf.pvs ? "deliberated" : "heard");
-    // Everything already happened; do not narrate or speak it again.
-    auto.current = false;
-    narrated.current = "restored";
-  }, [segment]);
+    // Deferred out of the effect body on purpose. Restoring seven pieces of
+    // state synchronously inside an effect cascades a second render before the
+    // first has painted, and touching the playback refs from here makes the
+    // compiler treat them as frozen everywhere else in the file.
+    queueMicrotask(() => {
+      setPersonas(people);
+      setProblems(vf.extractedProblems ?? []);
+      setReactions(new Map(crowd.verdict.reactions.map((r) => [r.personaId, r])));
+      setVerdict(crowd.verdict);
+      setSignals(crowd.signals);
+      setHubRanking(rankFromCrowd(crowd.verdict, people));
+      if (vf.pvs) setPvs(vf.pvs);
+
+      // Land on the last beat the run reached rather than replaying it, and do
+      // not narrate what the founder already heard.
+      setSegment(vf.pvs ? "deliberated" : "heard");
+    });
+    // Deliberately does not touch the playback refs. Landing on a finished
+    // beat leaves auto-advance nothing to do, and letting the narrator read
+    // that beat once is right — it says where you are.
+  }, [segment, personas.length]);
 
   // ---- hearing the council. Off by default, like the committee's: a page
   // that starts talking on its own is hostile.
