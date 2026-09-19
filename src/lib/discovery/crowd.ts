@@ -11,11 +11,11 @@ import type { Attention, CrowdReaction, CrowdVerdict } from "./types";
 // twenty seconds, which is the pacing this beat actually wants — fast enough
 // to feel alive, slow enough to watch happen.
 //
-// Each persona answers a different question from Tunnel's. Theirs asks "do you
-// like this?" and averages the sentiment. Ours asks "WHICH of these problems do
-// you actually have?" — so the aggregate can tell a founder that the market
-// which responded has a different problem from the one they pitched. An
-// architecture that only averages sentiment cannot produce that finding.
+// The question each persona answers is the whole point. Asking a crowd "do you
+// like this?" and averaging the sentiment produces a number. Asking "WHICH of
+// these problems do you actually have?" produces a finding — the market that
+// responded may have a different problem from the one the founder pitched. An
+// architecture that only averages sentiment cannot surface that at all.
 // ============================================================================
 
 const BATCH_SIZE = 20;

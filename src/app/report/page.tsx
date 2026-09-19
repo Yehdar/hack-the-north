@@ -46,8 +46,8 @@ export default function Report() {
 
   if (!vf || !deliberation || !verdict) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-black text-white">
-        <p className="font-mono text-sm text-white/50">
+      <main className="flex min-h-screen items-center justify-center bg-ground text-white">
+        <p className="font-mono text-sm text-muted">
           No committee has sat yet.{" "}
           <a href="/" className="underline">
             Convene one
@@ -64,16 +64,16 @@ export default function Report() {
   const dirty = Object.keys(overrides).length > 0;
 
   return (
-    <main className="min-h-screen bg-black text-white">
+    <main className="min-h-screen bg-ground text-white">
       <div className="mx-auto max-w-4xl px-8 py-12">
-        <header className="flex items-start justify-between border-b border-white/15 pb-6">
+        <header className="flex items-start justify-between border-b border-edge pb-6">
           <div>
-            <p className="font-mono text-[10px] uppercase tracking-widest text-white/40">
+            <p className="font-mono text-[10px] uppercase tracking-widest text-faint">
               {deliberation.firm || "Investment committee"}
             </p>
             <h1 className="mt-1 font-mono text-2xl">Diligence report</h1>
           </div>
-          <a href="/" className="font-mono text-xs text-white/40 hover:text-white">
+          <a href="/" className="font-mono text-xs text-faint hover:text-white">
             ← globe
           </a>
         </header>
@@ -85,7 +85,7 @@ export default function Report() {
               <p className="text-lg leading-relaxed text-white">
                 {vf.chosenProblem.statement}
               </p>
-              <dl className="mt-4 grid grid-cols-2 gap-3 font-mono text-xs text-white/60">
+              <dl className="mt-4 grid grid-cols-2 gap-3 font-mono text-xs text-muted">
                 <Fact k="Who has it" v={vf.chosenProblem.whoHasIt} />
                 <Fact k="Severity" v={`${vf.chosenProblem.severity}/100`} />
                 <Fact k="Workaround today" v={vf.chosenProblem.currentWorkaround} />
@@ -94,7 +94,7 @@ export default function Report() {
             </>
           ) : (
             <>
-              <p className="text-lg leading-relaxed text-white/80">
+              <p className="text-lg leading-relaxed text-ink/85">
                 &ldquo;{vf.solution}&rdquo;
               </p>
               <p className="mt-3 border border-amber-700/50 bg-amber-950/20 p-3 font-mono text-xs text-amber-300">
@@ -110,7 +110,7 @@ export default function Report() {
           <Section n="02" title="Problem validation score">
             <div className="flex items-baseline gap-3">
               <span className="font-mono text-4xl">{vf.pvs.total}</span>
-              <span className="font-mono text-xs text-white/40">
+              <span className="font-mono text-xs text-faint">
                 threshold {vf.pvs.threshold} · {vf.pvs.passed ? "cleared" : "not cleared"}
               </span>
             </div>
@@ -129,12 +129,12 @@ export default function Report() {
             {Object.values(vf.hubFindings)
               .sort((a, b) => b.fitScore - a.fitScore)
               .map((h) => (
-                <div key={h.hubId} className="mb-3 border border-white/15 p-3">
+                <div key={h.hubId} className="mb-3 border border-edge p-3">
                   <div className="flex justify-between font-mono text-xs">
                     <span className="uppercase tracking-widest">{h.hubId}</span>
-                    <span className="text-white/50">{h.fitScore}/100</span>
+                    <span className="text-muted">{h.fitScore}/100</span>
                   </div>
-                  <p className="mt-2 text-xs leading-relaxed text-white/70">{h.gapSummary}</p>
+                  <p className="mt-2 text-xs leading-relaxed text-muted">{h.gapSummary}</p>
                 </div>
               ))}
           </Section>
@@ -142,7 +142,7 @@ export default function Report() {
 
         {/* 4. The panel ---------------------------------------------------- */}
         <Section n="04" title="The panel">
-          <p className="mb-4 font-mono text-xs text-white/40">
+          <p className="mb-4 font-mono text-xs text-faint">
             Re-weight any seat. The verdict recomputes instantly — no model is called.
             {dirty && (
               <button
@@ -162,17 +162,17 @@ export default function Report() {
             return (
               <div
                 key={v.agentId}
-                className={`mb-3 border p-3 ${isDissent ? "border-amber-600/60 bg-amber-950/15" : "border-white/15"}`}
+                className={`mb-3 border p-3 ${isDissent ? "border-amber-600/60 bg-amber-950/15" : "border-edge"}`}
               >
                 <div className="flex items-baseline justify-between">
                   <span className="font-mono text-sm">{entry?.role ?? v.agentId}</span>
-                  <span className="font-mono text-xs text-white/50">
+                  <span className="font-mono text-xs text-muted">
                     stance {v.stance.toFixed(2)} · conf {v.confidence.toFixed(2)} ·{" "}
                     {(normalized[v.agentId] * 100 || 0).toFixed(0)}% of the vote
                   </span>
                 </div>
 
-                <p className="mt-2 text-xs leading-relaxed text-white/80">{v.position}</p>
+                <p className="mt-2 text-xs leading-relaxed text-ink/85">{v.position}</p>
 
                 {w > 0 && (
                   <input
@@ -211,7 +211,7 @@ export default function Report() {
           >
             {verdict.decision}
           </p>
-          <p className="mt-1 font-mono text-xs text-white/40">
+          <p className="mt-1 font-mono text-xs text-faint">
             score {verdict.score.toFixed(3)}
             {unanswered > 0 && ` · ${unanswered} unanswered objection${unanswered === 1 ? "" : "s"} cost ${(unanswered * 0.08).toFixed(2)}`}
           </p>
@@ -225,8 +225,8 @@ export default function Report() {
             </div>
           )}
 
-          <p className="mt-4 font-mono text-xs text-white/50">
-            Come back when: <span className="text-white/80">{verdict.comeBackWhen}</span>
+          <p className="mt-4 font-mono text-xs text-muted">
+            Come back when: <span className="text-ink/85">{verdict.comeBackWhen}</span>
           </p>
         </Section>
 
@@ -239,8 +239,8 @@ export default function Report() {
               .map((v) => {
                 const entry = deliberation.roster.find((r) => r.id === v.agentId);
                 return (
-                  <li key={v.agentId} className="border-l-2 border-white/25 pl-3">
-                    <p className="font-mono text-[10px] uppercase tracking-widest text-white/40">
+                  <li key={v.agentId} className="border-l-2 border-edge-bright pl-3">
+                    <p className="font-mono text-[10px] uppercase tracking-widest text-faint">
                       raised by {entry?.role ?? v.agentId}
                     </p>
                     <p className="mt-1 text-sm leading-relaxed text-white/85">
@@ -254,7 +254,7 @@ export default function Report() {
 
         {/* 7. How the room behaved ---------------------------------------- */}
         <Section n="07" title="How the room behaved">
-          <dl className="grid grid-cols-2 gap-2 font-mono text-xs text-white/60 sm:grid-cols-4">
+          <dl className="grid grid-cols-2 gap-2 font-mono text-xs text-muted sm:grid-cols-4">
             <Fact k="Challenges" v={String(deliberation.metrics.challenges)} />
             <Fact k="Rebuttals" v={String(deliberation.metrics.rebuttals)} />
             <Fact k="Concessions" v={String(deliberation.metrics.concessions)} />
@@ -278,7 +278,7 @@ export default function Report() {
           )}
         </Section>
 
-        <p className="mt-12 border-t border-white/10 pt-4 font-mono text-[10px] text-white/30">
+        <p className="mt-12 border-t border-edge pt-4 font-mono text-[10px] text-faint">
           AI simulation. Not affiliated with, endorsed by, or representing this firm.
           Partner personas are composites, not real individuals.
         </p>
@@ -289,9 +289,9 @@ export default function Report() {
 
 function Section({ n, title, children }: { n: string; title: string; children: React.ReactNode }) {
   return (
-    <section className="border-b border-white/10 py-8">
-      <p className="font-mono text-[10px] uppercase tracking-widest text-white/30">{n}</p>
-      <h2 className="mb-4 mt-1 font-mono text-sm uppercase tracking-widest text-white/70">
+    <section className="border-b border-edge py-8">
+      <p className="font-mono text-[10px] uppercase tracking-widest text-faint">{n}</p>
+      <h2 className="mb-4 mt-1 font-mono text-sm uppercase tracking-widest text-muted">
         {title}
       </h2>
       {children}
@@ -302,8 +302,8 @@ function Section({ n, title, children }: { n: string; title: string; children: R
 function Fact({ k, v }: { k: string; v: string }) {
   return (
     <div>
-      <dt className="text-white/35">{k}</dt>
-      <dd className="mt-0.5 text-white/80">{v}</dd>
+      <dt className="text-faint">{k}</dt>
+      <dd className="mt-0.5 text-ink/85">{v}</dd>
     </div>
   );
 }
@@ -311,7 +311,7 @@ function Fact({ k, v }: { k: string; v: string }) {
 function Bar({ label, value }: { label: string; value: number }) {
   return (
     <div>
-      <div className="flex justify-between font-mono text-[11px] text-white/50">
+      <div className="flex justify-between font-mono text-[11px] text-muted">
         <span>{label}</span>
         <span>{value}</span>
       </div>

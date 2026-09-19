@@ -5,8 +5,8 @@ import raw from "./library.json";
 // ============================================================================
 // PERSONA LIBRARY + RETRIEVAL
 //
-// Tunnel uses Cohere rerank to pick which personas see an idea. We do it with
-// attribute and keyword scoring instead — deliberately.
+// The obvious approach is a reranking model to pick which personas see an idea.
+// We use attribute and keyword scoring instead — deliberately.
 //
 // For 300 personas, embedding retrieval buys very little: the signal that
 // actually matters is "does this person work in the affected industry and can

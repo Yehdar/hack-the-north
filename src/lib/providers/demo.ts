@@ -12,17 +12,27 @@ import type { LLMProvider, LLMRequest } from "@/lib/llm";
 // LLM_PROVIDER=demo produces a full deliberation that looks like the real one.
 // ============================================================================
 
-type Seat = "gp" | "principal" | "skeptic" | "devil" | "chair";
+type Seat =
+  | "gp" | "principal" | "skeptic" | "devil" | "chair"
+  | "market" | "founder" | "customer" | "regulatory" | "capital" | "contrarian";
 
 function whoAmI(system: string): Seat {
+  // Investment committee
   if (system.includes("Devil's Advocate")) return "devil";
   if (system.includes("Anti-Portfolio")) return "skeptic";
   if (system.includes("Principal")) return "principal";
   if (system.includes("General Partner")) return "gp";
+  // Hub council
+  if (system.includes("Contrarian")) return "contrarian";
+  if (system.includes("Market Analyst")) return "market";
+  if (system.includes("Local Founder")) return "founder";
+  if (system.includes("Customer Proxy")) return "customer";
+  if (system.includes("Regulatory")) return "regulatory";
+  if (system.includes("Capital & Talent")) return "capital";
   return "chair";
 }
 
-const VERDICTS: Record<Seat, Record<string, unknown>> = {
+const VERDICTS: Record<string, Record<string, unknown>> = {
   gp: {
     stance: 0.45,
     confidence: 0.6,
@@ -70,7 +80,7 @@ const VERDICTS: Record<Seat, Record<string, unknown>> = {
   chair: { stance: 0, confidence: 0.5, position: "", reasoning: "", evidence: [], whatWouldChangeMyMind: "" },
 };
 
-const CHALLENGES: Record<Seat, { to: string; text: string }[]> = {
+const CHALLENGES: Record<string, { to: string; text: string }[]> = {
   gp: [
     {
       to: "skeptic",
@@ -93,7 +103,7 @@ const CHALLENGES: Record<Seat, { to: string; text: string }[]> = {
   chair: [],
 };
 
-const REBUTTALS: Record<Seat, Record<string, unknown>> = {
+const REBUTTALS: Record<string, Record<string, unknown>> = {
   gp: {
     response:
       "Both fair. I was describing an outcome rather than a mechanism, and I do not have the workflow. I am moving down but not off — the reframing is still the most interesting thing in this file.",
@@ -135,7 +145,7 @@ const TASKS = {
 const MODERATOR_ROTATION: Seat[] = ["principal", "skeptic", "gp"];
 let turnCounter = 0;
 
-const SPOKEN: Record<Seat, { line: string; objectionText: string }[]> = {
+const SPOKEN: Record<string, { line: string; objectionText: string }[]> = {
   gp: [
     {
       line: "Stop there. You keep describing what it does. Tell me why a team buys it this quarter rather than next year.",
@@ -170,6 +180,129 @@ const SPOKEN: Record<Seat, { line: string; objectionText: string }[]> = {
   chair: [{ line: "", objectionText: "" }],
 };
 
+
+// --- hub council -----------------------------------------------------------
+
+const HUB_VERDICTS: Record<string, Record<string, unknown>> = {
+  market: {
+    stance: 0.35,
+    confidence: 0.7,
+    position:
+      "The incidence is real but narrow — this is a serious problem for a specific seniority band, not a broad market.",
+    reasoning:
+      "The people who report this problem cluster at lead and above, which caps the seat count hard. That is not fatal, but it means the price has to carry the small numbers, and nothing in the crowd data suggests they would tolerate an enterprise price.",
+    evidence: ["crowd.problemVotes[0]", "crowd.attention"],
+    whatWouldChangeMyMind:
+      "Evidence that the buyer rolls it out to their whole team rather than using it alone.",
+  },
+  founder: {
+    stance: 0.6,
+    confidence: 0.65,
+    position:
+      "Buildable here, and sellable here — the first ten customers are all within two degrees of anyone already in this ecosystem.",
+    reasoning:
+      "This city produces exactly this kind of company, which cuts both ways: the talent is available and so are three competitors nobody has named yet. The network advantage is real for the first year and gone after that.",
+    evidence: ["hub.talent", "crowd.reactions"],
+    whatWouldChangeMyMind: "A founder with no existing network in this ecosystem.",
+  },
+  customer: {
+    stance: -0.25,
+    confidence: 0.8,
+    position:
+      "I would use it. I would not be the one who pays for it, and the person who pays has not been asked.",
+    reasoning:
+      "The crowd shows enthusiasm concentrated in people without budget authority and hesitation in the people who have it. That gap is the entire sale, and nothing here addresses it.",
+    evidence: ["crowd.reactions", "persona.budgetAuthority"],
+    whatWouldChangeMyMind: "One named buyer who signed, rather than a user who liked it.",
+  },
+  regulatory: {
+    stance: 0.1,
+    confidence: 0.55,
+    position:
+      "No hard blocker, but procurement here is slow enough to be a market characteristic rather than an inconvenience.",
+    reasoning:
+      "Nothing about this touches regulated data in a way that stops it. What will bite is the six-month cycle to get it approved at the company sizes where the budget actually lives.",
+    evidence: ["hub.regulatory"],
+    whatWouldChangeMyMind: "A bottoms-up motion that reaches the budget holder without procurement.",
+  },
+  capital: {
+    stance: 0.3,
+    confidence: 0.6,
+    position:
+      "Fundable here at seed, and the talent exists — but the people who have solved this exact problem before are elsewhere.",
+    reasoning:
+      "Local capital covers the first round comfortably. The constraint is domain depth: there are plenty of engineers and very few who have built risk attribution at scale, and training them is expensive talent on a delay.",
+    evidence: ["hub.capitalDensity", "hub.talentDepth"],
+    whatWouldChangeMyMind: "Two senior hires already committed.",
+  },
+  contrarian: {
+    stance: -0.55,
+    confidence: 0.5,
+    position:
+      "This council has converged on 'good problem, hard sale', which is the comfortable answer and the one every room reaches about every tool.",
+    reasoning:
+      "Three members independently reached for the budget-authority gap, which is the tell that they are pattern-matching a known failure shape rather than reasoning about this market. The gap is real and it is also solvable by pricing, which nobody here has considered.",
+    evidence: ["crowd.reactions"],
+    whatWouldChangeMyMind: "Someone in this room arguing a position they did not walk in with.",
+  },
+};
+
+const HUB_CHALLENGES: Record<string, { to: string; text: string }[]> = {
+  market: [
+    { to: "founder", text: "You say the first ten customers are within two degrees. Two degrees of whom? The founder has no network here in this file." },
+  ],
+  founder: [
+    { to: "customer", text: "You are treating the budget gap as fatal. Every bottoms-up tool in the last decade started exactly like this and got bought by the budget holder later." },
+  ],
+  customer: [
+    { to: "market", text: "You sized this on the people who reported the problem. I am telling you the people who pay are a different, smaller set. Your number is the optimistic one." },
+  ],
+  regulatory: [],
+  capital: [
+    { to: "market", text: "If the seat count is genuinely capped at leads and above, the price you are implying does not clear a fund-returning outcome. Say which one you are giving up." },
+  ],
+  contrarian: [],
+};
+
+const HUB_REBUTTALS: Record<string, Record<string, unknown>> = {
+  market: {
+    response:
+      "Granted — I sized incidence, not buyers, and those are different populations. Revising down and holding confidence.",
+    conceded: true,
+    revisedStance: 0.05,
+    revisedConfidence: 0.75,
+  },
+  founder: {
+    response:
+      "The network point stands for the first year and I said as much. I am not moving.",
+    conceded: false,
+    revisedStance: 0.6,
+    revisedConfidence: 0.6,
+  },
+  customer: {
+    response:
+      "Bottoms-up worked for tools an individual could adopt alone. This one only produces value once a team acts on it, which is precisely why the budget holder has to be in the room on day one. Position unchanged.",
+    conceded: false,
+    revisedStance: -0.25,
+    revisedConfidence: 0.85,
+  },
+  regulatory: { response: "", conceded: false, revisedStance: 0.1, revisedConfidence: 0.55 },
+  capital: { response: "", conceded: false, revisedStance: 0.3, revisedConfidence: 0.6 },
+  contrarian: { response: "", conceded: false, revisedStance: -0.55, revisedConfidence: 0.5 },
+};
+
+const HUB_TASKS = {
+  tasks: [
+    { question: "How many people in this city actually have this problem, and is that a market?", assignedTo: "market", why: "Market sizing." },
+    { question: "Can a team be assembled and the first customers found here?", assignedTo: "founder", why: "Execution reality." },
+    { question: "Would the person with the budget in this city pay for it?", assignedTo: "customer", why: "The buyer's lane." },
+    { question: "What operational or regulatory friction applies here?", assignedTo: "regulatory", why: "Constraints." },
+    { question: "Is there local capital and domain-deep talent?", assignedTo: "capital", why: "Inputs to building here." },
+  ],
+};
+
+const HUB_SEATS = new Set(["market", "founder", "customer", "regulatory", "capital", "contrarian"]);
+
 export class DemoProvider implements LLMProvider {
   readonly name = "demo";
 
@@ -185,13 +318,16 @@ export class DemoProvider implements LLMProvider {
 
     switch (req.schema?.name) {
       case "diligence_tasks":
-        return TASKS as T;
+        // The chair prompt names the room, so we can tell which council this is.
+        return (req.system.includes("investment committee") ? TASKS : HUB_TASKS) as T;
       case "agent_verdict":
-        return VERDICTS[seat] as T;
+        return (HUB_SEATS.has(seat) ? HUB_VERDICTS[seat] : VERDICTS[seat]) as T;
       case "challenges":
-        return { challenges: CHALLENGES[seat] } as T;
+        return {
+          challenges: HUB_SEATS.has(seat) ? (HUB_CHALLENGES[seat] ?? []) : CHALLENGES[seat],
+        } as T;
       case "rebuttal":
-        return REBUTTALS[seat] as T;
+        return (HUB_SEATS.has(seat) ? HUB_REBUTTALS[seat] : REBUTTALS[seat]) as T;
       case "problem_split":
         return demoProblems(req.user) as T;
 
@@ -200,7 +336,7 @@ export class DemoProvider implements LLMProvider {
 
       case "seat_pre_read":
         return {
-          initialLean: { gp: 0.3, principal: -0.1, skeptic: -0.5, devil: 0, chair: 0 }[seat],
+          initialLean: ({ gp: 0.3, principal: -0.1, skeptic: -0.5 } as Record<string, number>)[seat] ?? 0,
           topQuestions:
             seat === "gp"
               ? ["Why does this have to exist now?", "What stops an incumbent shipping it?"]

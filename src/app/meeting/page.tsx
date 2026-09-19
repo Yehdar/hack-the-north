@@ -110,21 +110,21 @@ export default function Meeting() {
   const unanswered = objections.filter((o) => o.status !== "answered").length;
 
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-200">
+    <main className="min-h-screen bg-ground text-ink">
       <div className="mx-auto max-w-6xl px-6 py-8">
-        <header className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-800 pb-6">
+        <header className="flex flex-wrap items-center justify-between gap-4 border-b border-edge pb-6">
           <div>
             <h1 className="text-2xl font-semibold tracking-tight text-white">
               Investment Committee — live
             </h1>
-            <p className="mt-1 max-w-xl text-sm text-slate-400">
+            <p className="mt-1 max-w-xl text-sm text-muted">
               {vf ? `\u201C${vf.solution}\u201D` : "Pitch out loud. They will interrupt."}
-              <span className="ml-2 rounded bg-slate-800 px-2 py-0.5 font-mono text-xs">
+              <span className="ml-2 rounded-[2px] bg-surface-2 px-2 py-0.5 font-mono text-xs">
                 voice: {tier ?? "…"}
               </span>
             </p>
           </div>
-          <a href="/" className="text-sm text-slate-500 underline-offset-4 hover:underline">
+          <a href="/" className="text-sm text-muted underline-offset-4 hover:underline">
             ← deliberation
           </a>
         </header>
@@ -137,7 +137,7 @@ export default function Meeting() {
         )}
 
         {tier === "browser" && (
-          <p className="mt-4 rounded-md border border-slate-800 bg-slate-900/40 p-3 text-xs text-slate-400">
+          <p className="mt-4 rounded-[2px] border border-edge bg-surface/40 p-3 text-xs text-muted">
             No ELEVENLABS_API_KEY set — using browser speech. The seats are
             distinguishable by pitch but not by character. Add the key to hear them properly.
           </p>
@@ -153,19 +153,19 @@ export default function Meeting() {
                 return (
                   <div
                     key={id}
-                    className={`rounded-lg border p-3 transition ${
+                    className={`rounded-[2px] border p-3 transition ${
                       active
                         ? "border-emerald-500 bg-emerald-950/30"
-                        : "border-slate-800 bg-slate-900/40"
+                        : "border-edge bg-surface/40"
                     }`}
                   >
                     <div className="flex items-center gap-2">
                       <span
                         className={`h-2 w-2 rounded-full ${
-                          active ? "animate-pulse bg-emerald-400" : "bg-slate-700"
+                          active ? "animate-pulse bg-emerald-400" : "bg-edge"
                         }`}
                       />
-                      <span className="text-sm font-medium text-slate-100">
+                      <span className="text-sm font-medium text-ink">
                         {SEAT_LABEL[id]}
                       </span>
                     </div>
@@ -180,10 +180,10 @@ export default function Meeting() {
             {/* transcript */}
             <div
               ref={feed}
-              className="mt-4 h-[420px] space-y-3 overflow-y-auto rounded-lg border border-slate-800 bg-slate-900/20 p-4"
+              className="mt-4 h-[420px] space-y-3 overflow-y-auto rounded-[2px] border border-edge bg-surface/20 p-4"
             >
               {!vf?.pitchTranscript.length && (
-                <p className="text-sm text-slate-600">
+                <p className="text-sm text-faint">
                   The room has read your file and is waiting. Open with the problem, not the product.
                 </p>
               )}
@@ -192,21 +192,21 @@ export default function Meeting() {
                   key={`${t.turn}-${t.at}`}
                   className={t.speaker === "founder" ? "text-right" : ""}
                 >
-                  <p className="mb-1 font-mono text-[10px] uppercase tracking-wider text-slate-500">
+                  <p className="mb-1 font-mono text-[10px] uppercase tracking-wider text-muted">
                     {t.speaker === "founder" ? "you" : SEAT_LABEL[t.speaker as SeatId]}
                   </p>
                   <p
-                    className={`inline-block max-w-[85%] rounded-lg px-3 py-2 text-sm leading-relaxed ${
+                    className={`inline-block max-w-[85%] rounded-[2px] px-3 py-2 text-sm leading-relaxed ${
                       t.speaker === "founder"
-                        ? "bg-slate-800 text-slate-200"
-                        : "border border-slate-700 bg-slate-900 text-slate-200"
+                        ? "bg-surface-2 text-ink"
+                        : "border border-edge-bright bg-surface text-ink"
                     }`}
                   >
                     {t.text}
                   </p>
                 </div>
               ))}
-              {thinking && <p className="animate-pulse text-xs text-slate-500">the room is considering…</p>}
+              {thinking && <p className="animate-pulse text-xs text-muted">the room is considering…</p>}
             </div>
 
             {/* controls */}
@@ -214,10 +214,10 @@ export default function Meeting() {
               <button
                 onClick={pressToTalk}
                 disabled={thinking || tier === "text" || !tier || !vf}
-                className={`rounded-md px-5 py-2.5 text-sm font-medium transition disabled:cursor-not-allowed disabled:bg-slate-800 disabled:text-slate-500 ${
+                className={`rounded-[2px] px-5 py-2.5 text-sm font-medium transition disabled:cursor-not-allowed disabled:bg-surface-2 disabled:text-muted ${
                   recording
                     ? "bg-red-600 text-white hover:bg-red-500"
-                    : "bg-emerald-600 text-white hover:bg-emerald-500"
+                    : "bg-emerald-600 text-white hover:brightness-110"
                 }`}
               >
                 {recording ? "■ Stop and send" : "● Hold the floor"}
@@ -237,12 +237,12 @@ export default function Meeting() {
                   value={typed}
                   onChange={(e) => setTyped(e.target.value)}
                   placeholder="…or type your pitch"
-                  className="min-w-0 flex-1 rounded-md border border-slate-800 bg-slate-900 px-3 py-2.5 text-sm text-slate-200 placeholder:text-slate-600 focus:border-slate-600 focus:outline-none"
+                  className="min-w-0 flex-1 rounded-[2px] border border-edge bg-surface px-3 py-2.5 text-sm text-ink placeholder:text-faint focus:border-edge-bright focus:outline-none"
                 />
                 <button
                   type="submit"
                   disabled={thinking || !typed.trim() || !vf}
-                  className="rounded-md border border-slate-700 px-4 py-2.5 text-sm text-slate-300 transition hover:bg-slate-800 disabled:opacity-40"
+                  className="rounded-[2px] border border-edge-bright px-4 py-2.5 text-sm text-ink/85 transition hover:bg-surface-2 disabled:opacity-40"
                 >
                   Send
                 </button>
@@ -255,7 +255,7 @@ export default function Meeting() {
           {/* objection tracker */}
           <section>
             <div className="flex items-baseline justify-between">
-              <h2 className="text-xs font-semibold uppercase tracking-widest text-slate-500">
+              <h2 className="text-xs font-semibold uppercase tracking-widest text-muted">
                 On the table
               </h2>
               {unanswered > 0 && (
@@ -265,18 +265,18 @@ export default function Meeting() {
 
             <div className="mt-3 space-y-2">
               {objections.length === 0 && (
-                <p className="text-xs text-slate-600">
+                <p className="text-xs text-faint">
                   Nothing yet. Every challenge they raise lands here, and anything you leave
                   unanswered counts against you at the vote.
                 </p>
               )}
               {objections.map((o) => (
-                <div key={o.id} className={`rounded border p-2.5 ${STATUS_STYLE[o.status]}`}>
+                <div key={o.id} className={`rounded-[2px] border p-2.5 ${STATUS_STYLE[o.status]}`}>
                   <div className="flex items-center justify-between font-mono text-[10px] uppercase tracking-wider">
                     <span>{o.seatId}</span>
                     <span>{o.status}</span>
                   </div>
-                  <p className="mt-1 text-xs leading-relaxed text-slate-200">{o.text}</p>
+                  <p className="mt-1 text-xs leading-relaxed text-ink">{o.text}</p>
                 </div>
               ))}
             </div>

@@ -7,10 +7,12 @@ import { AgentBoot } from "@/components/hud/AgentBoot";
 import { ProcessingPanel } from "@/components/hud/ProcessingPanel";
 import { AgentFeed, type FeedItem } from "@/components/hud/AgentFeed";
 import { Intake } from "@/components/Intake";
+import { SystemPanel } from "@/components/hud/SystemPanel";
 import { useVenture } from "@/lib/store";
 import { streamPost } from "@/lib/sse";
 import type { ProblemStatement } from "@/lib/types";
 import type { CrowdReaction, CrowdVerdict } from "@/lib/discovery/types";
+import type { AgentVerdict, PVSBreakdown } from "@/lib/types";
 
 // ============================================================================
 // PART 1 — DISCOVERY.
@@ -33,6 +35,23 @@ type DeployedPersona = {
 };
 
 type Phase = "idle" | "problems" | "deploy" | "react" | "done";
+
+type HubRank = {
+  hubId: string;
+  fitScore: number;
+  asked: number;
+  haveIt: number;
+  wouldPay: number;
+};
+
+type CouncilMsg = {
+  id: string;
+  round: number;
+  from: string;
+  to: string;
+  kind: FeedItem["kind"];
+  text: string;
+};
 
 const PHASE_LABEL: Record<Phase, string> = {
   idle: "Idle",
@@ -70,6 +89,15 @@ export default function Discover() {
   // way the feed can name who is speaking.
   const personasRef = useRef<DeployedPersona[]>([]);
 
+  // ---- beat 6 and 7: the hub council and the score
+  const [hubRanking, setHubRanking] = useState<HubRank[]>([]);
+  const [councilHub, setCouncilHub] = useState<string | null>(null);
+  const [councilRunning, setCouncilRunning] = useState(false);
+  const [councilRoster, setCouncilRoster] = useState<{ id: string; role: string; weight: number }[]>([]);
+  const [councilStances, setCouncilStances] = useState<Record<string, AgentVerdict>>({});
+  const [councilLog, setCouncilLog] = useState<CouncilMsg[]>([]);
+  const [pvs, setPvs] = useState<PVSBreakdown | null>(null);
+
   useEffect(() => {
     if (!booting && !ventureFile) setShowIntake(true);
   }, [booting, ventureFile]);
@@ -87,6 +115,8 @@ export default function Discover() {
     setFeed([]); setVerdict(null); setShowReveal(false); setFocus(null);
     setProgress({ done: 0, total: 0 });
     personasRef.current = [];
+    setHubRanking([]); setCouncilHub(null); setCouncilLog([]);
+    setCouncilStances({}); setPvs(null);
 
     void streamPost(
       "/api/discovery/run",
@@ -143,6 +173,7 @@ export default function Discover() {
           case "verdict": {
             const v = ev.verdict as CrowdVerdict;
             setVerdict(v);
+            setHubRanking(rankFromCrowd(v, personasRef.current));
             setPhase("done");
             setRunning(false);
             if (v.mismatch) setTimeout(() => setShowReveal(true), 600);
@@ -161,6 +192,53 @@ export default function Discover() {
     });
   }, [ventureFile]);
 
+  /** Beat 6: convene the five-agent council on one city. Same engine as the
+   *  investment committee, different roster. */
+  const runCouncil = useCallback(
+    (hubId: string) => {
+      const problem = problems.find((p) => p.id === verdict?.marketProblemId);
+      if (!problem || !verdict) return;
+
+      setCouncilHub(hubId);
+      setCouncilRunning(true);
+      setCouncilLog([]); setCouncilStances({}); setPvs(null);
+
+      void streamPost(
+        "/api/discovery/council",
+        { hubId, problem, crowd: verdict },
+        (ev) => {
+          switch (ev.type) {
+            case "start":
+              setCouncilRoster(ev.roster as typeof councilRoster);
+              setHubRanking(ev.hubRanking as HubRank[]);
+              break;
+            case "message": {
+              const m = ev.message as CouncilMsg;
+              setCouncilLog((l) => [...l, m]);
+              setFeed((f) =>
+                [{ id: m.id, agent: m.from, message: m.text, kind: m.kind }, ...f].slice(0, 5)
+              );
+              break;
+            }
+            case "verdict": {
+              const v = ev.verdict as AgentVerdict;
+              setCouncilStances((s) => ({ ...s, [v.agentId]: v }));
+              break;
+            }
+            case "pvs":
+              setPvs(ev.pvs as PVSBreakdown);
+              break;
+            case "done":
+            case "error":
+              setCouncilRunning(false);
+              break;
+          }
+        }
+      ).catch(() => setCouncilRunning(false));
+    },
+    [problems, verdict]
+  );
+
   /** Accept the market's problem and carry it into Part 2. */
   const acceptMarketProblem = useCallback(() => {
     if (!ventureFile || !verdict?.marketProblemId) return;
@@ -172,9 +250,28 @@ export default function Discover() {
       version: ventureFile.version + 1,
       extractedProblems: problems,
       chosenProblem: chosen,
+      // Whatever Part 1 has established travels with it. The committee reads
+      // exactly these fields, so the handoff needs no new contract.
+      pvs: pvs ?? ventureFile.pvs,
+      hubFindings: councilHub
+        ? {
+            ...ventureFile.hubFindings,
+            [councilHub]: {
+              hubId: councilHub,
+              fitScore: hubRanking.find((h) => h.hubId === councilHub)?.fitScore ?? 0,
+              verdicts: Object.values(councilStances),
+              gapSummary:
+                Object.values(councilStances)
+                  .map((v) => v.position)
+                  .join(" ") || "",
+              incumbents: [],
+              unserved: "",
+            },
+          }
+        : ventureFile.hubFindings,
     });
     setShowReveal(false);
-  }, [ventureFile, verdict, problems, replaceVenture]);
+  }, [ventureFile, verdict, problems, replaceVenture, pvs, councilHub, hubRanking, councilStances]);
 
   const visible = onlyEngaged
     ? personas.filter((p) => reactions.get(p.id)?.attention === "full")
@@ -291,6 +388,7 @@ export default function Discover() {
           </div>
 
           <AgentFeed items={feed} onDismiss={dismiss} />
+          <SystemPanel />
 
           {/* ------------------------------------------------- persona card */}
           <AnimatePresence>
@@ -400,7 +498,146 @@ export default function Discover() {
             )}
           </div>
 
+          {/* ---- beat 6: pick a city, convene the council ---- */}
+          {hubRanking.length > 0 && (
+            <div className="border-b border-edge p-4">
+              <p className="label">Where it lands</p>
+              <div className="mt-3 space-y-1">
+                {hubRanking.slice(0, 6).map((h) => (
+                  <button
+                    key={h.hubId}
+                    onClick={() => runCouncil(h.hubId)}
+                    disabled={councilRunning}
+                    className={`w-full p-2 text-left transition disabled:opacity-40 ${
+                      councilHub === h.hubId ? "glow-accent" : "panel hover:panel-bright"
+                    }`}
+                  >
+                    <div className="flex items-baseline justify-between">
+                      <span className="text-[11px] uppercase tracking-wider text-ink/90">
+                        {h.hubId}
+                      </span>
+                      <span className="num text-[10px] text-muted">{h.fitScore}</span>
+                    </div>
+                    <div className="mt-1 h-1 bg-edge">
+                      <div
+                        className="h-full transition-all duration-500"
+                        style={{
+                          width: `${h.fitScore}%`,
+                          background: councilHub === h.hubId ? "var(--accent)" : "var(--border-bright)",
+                        }}
+                      />
+                    </div>
+                    <p className="num mt-1 text-[9px] text-faint">
+                      {h.haveIt}/{h.asked} have it · {h.wouldPay} would pay
+                    </p>
+                  </button>
+                ))}
+              </div>
+              {!councilHub && (
+                <p className="mt-2 text-[10px] leading-relaxed text-faint">
+                  Pick a city and five agents will argue about whether the problem is
+                  worth solving there.
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* ---- the council room ---- */}
+          {councilRoster.length > 0 && (
+            <div className="border-b border-edge p-4">
+              <div className="flex items-baseline justify-between">
+                <p className="label">The council · {councilHub}</p>
+                {councilRunning && (
+                  <span className="num animate-pulse text-[10px] text-accent">deliberating</span>
+                )}
+              </div>
+              <div className="mt-3 space-y-1.5">
+                {councilRoster.map((a) => {
+                  const v = councilStances[a.id];
+                  return (
+                    <div key={a.id}>
+                      <div className="flex justify-between num text-[10px]">
+                        <span className="text-muted">{a.role}</span>
+                        <span className="text-faint">
+                          {v ? v.stance.toFixed(2) : "—"}
+                        </span>
+                      </div>
+                      <div className="relative mt-1 h-1 bg-edge">
+                        <div className="absolute left-1/2 top-0 h-full w-px bg-edge-bright" />
+                        {v && (
+                          <div
+                            className="absolute top-0 h-full"
+                            style={{
+                              width: `${Math.abs(v.stance) * 50}%`,
+                              left: v.stance >= 0 ? "50%" : `${50 - Math.abs(v.stance) * 50}%`,
+                              background: v.stance >= 0 ? "var(--positive)" : "var(--negative)",
+                            }}
+                          />
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* ---- beat 7: the score ---- */}
+          {pvs && (
+            <div className={`border-b border-edge p-4 ${pvs.passed ? "" : "glow-accent"}`}>
+              <div className="flex items-baseline justify-between">
+                <p className="label">Problem validation</p>
+                <span className="num text-2xl text-ink">{pvs.total}</span>
+              </div>
+              <div className="mt-3 space-y-1.5">
+                <AttentionBar label="Severity" n={pvs.problemSeverity} total={100} tone="accent" />
+                <AttentionBar label="Market gap" n={pvs.marketGap} total={100} tone="muted" />
+                <AttentionBar label="Hub fit" n={pvs.hubFit} total={100} tone="muted" />
+                <AttentionBar label="Evidence" n={pvs.evidenceStrength} total={100} tone="cold" />
+              </div>
+              <p className="mt-3 text-[10px] leading-relaxed text-muted">
+                {pvs.passed
+                  ? `Clears the bar of ${pvs.threshold}. The committee will still find the weak component.`
+                  : `Below the bar of ${pvs.threshold}. You can pitch anyway — the committee will be told you did.`}
+              </p>
+              <a
+                href="/committee"
+                onClick={acceptMarketProblem}
+                className="mt-3 block bg-accent px-4 py-2 text-center font-mono text-[11px] uppercase tracking-[0.14em] text-ground transition hover:brightness-110"
+              >
+                Take it to the committee
+              </a>
+            </div>
+          )}
+
           <div ref={listRef} className="flex-1 overflow-y-auto p-4">
+            {councilLog.length > 0 && (
+              <>
+                <p className="label">Council transcript</p>
+                <div className="mt-3 mb-5 space-y-2">
+                  {councilLog.map((m) => (
+                    <div
+                      key={m.id}
+                      className="border-l-2 pl-3"
+                      style={{
+                        borderColor:
+                          m.kind === "challenge"
+                            ? "var(--accent)"
+                            : m.kind === "concession"
+                              ? "var(--positive)"
+                              : "var(--border-bright)",
+                      }}
+                    >
+                      <p className="label">
+                        {m.from} {m.to === "room" ? "→ room" : `→ ${m.to}`} · {m.kind}
+                      </p>
+                      <p className="mt-0.5 text-[11px] leading-relaxed text-ink/75">{m.text}</p>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+
             <p className="label">What they said</p>
             <div className="mt-3 space-y-2">
               {[...reactions.values()]
@@ -504,6 +741,46 @@ export default function Discover() {
       </AnimatePresence>
     </main>
   );
+}
+
+/**
+ * Hub ranking computed on the client from the reactions we already have — no
+ * round trip, so the founder can pick a city the instant the crowd lands.
+ * Same shape the council route returns, so the two agree.
+ */
+function rankFromCrowd(crowd: CrowdVerdict, personas: DeployedPersona[]): HubRank[] {
+  const hubOf = new Map(personas.map((p) => [p.id, p.hubId]));
+  const rows = new Map<string, { asked: number; haveIt: number; pay: number; severity: number }>();
+
+  for (const r of crowd.reactions) {
+    const hubId = hubOf.get(r.personaId);
+    if (!hubId) continue;
+    const row = rows.get(hubId) ?? { asked: 0, haveIt: 0, pay: 0, severity: 0 };
+    row.asked++;
+    if (r.problemId === crowd.marketProblemId) {
+      row.haveIt++;
+      row.severity += r.problemSeverity;
+      if (r.wouldPay) row.pay++;
+    }
+    rows.set(hubId, row);
+  }
+
+  return [...rows.entries()]
+    .map(([hubId, row]) => {
+      const incidence = row.asked ? row.haveIt / row.asked : 0;
+      const payRate = row.haveIt ? row.pay / row.haveIt : 0;
+      const meanSeverity = row.haveIt ? row.severity / row.haveIt : 0;
+      return {
+        hubId,
+        fitScore: Math.round(incidence * 55 + payRate * 30 + (meanSeverity / 100) * 15),
+        asked: row.asked,
+        haveIt: row.haveIt,
+        wouldPay: row.pay,
+      };
+    })
+    // A city where we asked almost nobody is not a finding.
+    .filter((h) => h.asked >= 3)
+    .sort((a, b) => b.fitScore - a.fitScore);
 }
 
 function AttentionBar({

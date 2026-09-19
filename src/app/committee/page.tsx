@@ -169,7 +169,7 @@ export default function Home() {
   ];
 
   return (
-    <main className="relative h-screen overflow-hidden bg-black text-white">
+    <main className="relative h-screen overflow-hidden bg-ground text-white">
       {booting && <AgentBoot onComplete={() => setBooting(false)} />}
       <AnimatePresence>
         {showIntake && !booting && <Intake onDone={() => setShowIntake(false)} />}
@@ -192,7 +192,7 @@ export default function Home() {
                 <h1 className="font-mono text-xl tracking-tight">Atlas</h1>
                 {ventureFile ? (
                   <>
-                    <p className="mt-2 max-w-xs font-mono text-xs leading-relaxed text-white/70">
+                    <p className="mt-2 max-w-xs font-mono text-xs leading-relaxed text-muted">
                       &ldquo;{ventureFile.solution}&rdquo;
                     </p>
                     <button
@@ -200,13 +200,13 @@ export default function Home() {
                         resetVenture();
                         setShowIntake(true);
                       }}
-                      className="mt-2 font-mono text-[10px] uppercase tracking-widest text-white/35 underline-offset-4 hover:text-white/70 hover:underline"
+                      className="mt-2 font-mono text-[10px] uppercase tracking-widest text-faint underline-offset-4 hover:text-muted hover:underline"
                     >
                       Different idea
                     </button>
                   </>
                 ) : (
-                  <p className="mt-1 max-w-xs font-mono text-xs leading-relaxed text-white/50">
+                  <p className="mt-1 max-w-xs font-mono text-xs leading-relaxed text-muted">
                     {firm || "An investment committee that argues with itself before it argues with you."}
                   </p>
                 )}
@@ -232,7 +232,7 @@ export default function Home() {
                 initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: 12 }}
-                className="absolute bottom-28 left-8 z-40 w-96 border border-white/30 bg-black/95 p-4 backdrop-blur-md"
+                className="absolute bottom-28 left-8 z-40 w-96 border border-edge-bright bg-surface/95 p-4 backdrop-blur-md"
               >
                 {(() => {
                   const entry = roster.find((r) => r.id === selected);
@@ -248,21 +248,21 @@ export default function Home() {
                           <p className="font-mono text-sm text-white">
                             {entry?.role ?? selected}
                           </p>
-                          <p className="font-mono text-[10px] uppercase tracking-widest text-white/40">
+                          <p className="font-mono text-[10px] uppercase tracking-widest text-faint">
                             weight {((entry?.weight ?? 0) * 100).toFixed(0)}% ·{" "}
                             {v ? `stance ${v.stance.toFixed(2)} · conf ${v.confidence.toFixed(2)}` : "no position yet"}
                           </p>
                         </div>
                         <button
                           onClick={() => setSelected(null)}
-                          className="px-2 font-mono text-xs text-white/40 hover:text-white"
+                          className="px-2 font-mono text-xs text-faint hover:text-white"
                         >
                           ✕
                         </button>
                       </div>
 
                       {v && (
-                        <p className="mt-3 text-xs leading-relaxed text-white/80">{v.position}</p>
+                        <p className="mt-3 text-xs leading-relaxed text-ink/85">{v.position}</p>
                       )}
 
                       {moved && (
@@ -278,8 +278,8 @@ export default function Home() {
                             Challenged by
                           </p>
                           {against.map((m) => (
-                            <p key={m.id} className="mt-1 text-[11px] leading-relaxed text-white/60">
-                              <span className="font-mono text-white/40">{m.from}: </span>
+                            <p key={m.id} className="mt-1 text-[11px] leading-relaxed text-muted">
+                              <span className="font-mono text-faint">{m.from}: </span>
                               {m.text}
                             </p>
                           ))}
@@ -287,7 +287,7 @@ export default function Home() {
                       )}
 
                       {said.length > 0 && (
-                        <p className="mt-3 font-mono text-[10px] text-white/30">
+                        <p className="mt-3 font-mono text-[10px] text-faint">
                           {said.length} contribution{said.length === 1 ? "" : "s"} this session
                         </p>
                       )}
@@ -300,30 +300,30 @@ export default function Home() {
 
           {/* controls */}
           <div className="absolute bottom-8 left-1/2 z-40 -translate-x-1/2">
-            <div className="flex items-center gap-3 border border-white/30 bg-black/90 p-2 backdrop-blur-md">
+            <div className="flex items-center gap-3 border border-edge-bright bg-surface/90 p-2 backdrop-blur-md">
               <button
                 onClick={run}
                 disabled={running}
-                className="bg-white px-5 py-2 font-mono text-xs uppercase tracking-widest text-black transition hover:bg-white/80 disabled:bg-white/20 disabled:text-white/40"
+                className="bg-white px-5 py-2 font-mono text-xs uppercase tracking-widest text-black transition hover:bg-white/80 disabled:bg-white/20 disabled:text-faint"
               >
                 {running ? "Deliberating" : decision ? "Run again" : "Convene committee"}
               </button>
               <a
                 href="/meeting"
-                className="px-4 py-2 font-mono text-xs uppercase tracking-widest text-white/60 transition hover:text-white"
+                className="px-4 py-2 font-mono text-xs uppercase tracking-widest text-muted transition hover:text-white"
               >
                 Defend it →
               </a>
               {decision && (
                 <a
                   href="/report"
-                  className="px-4 py-2 font-mono text-xs uppercase tracking-widest text-white/60 transition hover:text-white"
+                  className="px-4 py-2 font-mono text-xs uppercase tracking-widest text-muted transition hover:text-white"
                 >
                   Report →
                 </a>
               )}
               {provider && (
-                <span className="px-2 font-mono text-[10px] uppercase tracking-widest text-white/30">
+                <span className="px-2 font-mono text-[10px] uppercase tracking-widest text-faint">
                   {provider}
                 </span>
               )}
@@ -332,19 +332,19 @@ export default function Home() {
         </div>
 
         {/* ------------------------------ sidebar ------------------------------ */}
-        <aside className="flex w-96 flex-col border-l border-white/10 bg-black">
-          <div className="border-b border-white/10 p-4">
-            <h2 className="font-mono text-[10px] uppercase tracking-widest text-white/40">
+        <aside className="flex w-96 flex-col border-l border-edge bg-ground">
+          <div className="border-b border-edge p-4">
+            <h2 className="font-mono text-[10px] uppercase tracking-widest text-faint">
               The room
             </h2>
             <div className="mt-3 space-y-2">
               {roster.filter((r) => r.weight > 0).map((r) => {
                 const v = stances[r.id];
                 return (
-                  <div key={r.id} className="border border-white/15 p-2">
+                  <div key={r.id} className="border border-edge p-2">
                     <div className="flex items-baseline justify-between font-mono text-xs">
-                      <span className="text-white/90">{r.role}</span>
-                      <span className="text-white/40">{(r.weight * 100).toFixed(0)}%</span>
+                      <span className="text-ink">{r.role}</span>
+                      <span className="text-faint">{(r.weight * 100).toFixed(0)}%</span>
                     </div>
                     <div className="relative mt-2 h-1 bg-white/10">
                       <div className="absolute left-1/2 top-0 h-full w-px bg-white/30" />
@@ -360,7 +360,7 @@ export default function Home() {
                       )}
                     </div>
                     {v && (
-                      <p className="mt-1 font-mono text-[10px] text-white/40">
+                      <p className="mt-1 font-mono text-[10px] text-faint">
                         {v.stance.toFixed(2)} · conf {v.confidence.toFixed(2)}
                       </p>
                     )}
@@ -368,39 +368,39 @@ export default function Home() {
                 );
               })}
               {roster.length === 0 && (
-                <p className="font-mono text-xs text-white/30">Not yet convened.</p>
+                <p className="font-mono text-xs text-faint">Not yet convened.</p>
               )}
             </div>
           </div>
 
           <div ref={sidebar} className="flex-1 overflow-y-auto p-4">
-            <h2 className="font-mono text-[10px] uppercase tracking-widest text-white/40">
+            <h2 className="font-mono text-[10px] uppercase tracking-widest text-faint">
               Transcript
             </h2>
             <div className="mt-3 space-y-2">
               {messages.map((m) => (
-                <div key={m.id} className="border-l-2 border-white/20 pl-3">
-                  <div className="font-mono text-[10px] uppercase tracking-wider text-white/40">
+                <div key={m.id} className="border-l-2 border-edge-bright pl-3">
+                  <div className="font-mono text-[10px] uppercase tracking-wider text-faint">
                     {m.from} {m.to === "room" ? "→ room" : `→ ${m.to}`} · {m.kind}
                   </div>
-                  <p className="mt-1 text-xs leading-relaxed text-white/80">{m.text}</p>
+                  <p className="mt-1 text-xs leading-relaxed text-ink/85">{m.text}</p>
                 </div>
               ))}
               {messages.length === 0 && (
-                <p className="font-mono text-xs text-white/30">Nothing said yet.</p>
+                <p className="font-mono text-xs text-faint">Nothing said yet.</p>
               )}
             </div>
           </div>
 
           {(decision || mindChanges.length > 0) && (
-            <div className="border-t border-white/10 p-4">
+            <div className="border-t border-edge p-4">
               {mindChanges.length > 0 && (
                 <div className="mb-3">
                   <h2 className="font-mono text-[10px] uppercase tracking-widest text-emerald-500">
                     Minds changed
                   </h2>
                   {mindChanges.map((c) => (
-                    <p key={c.agentId} className="mt-1 font-mono text-[11px] text-white/70">
+                    <p key={c.agentId} className="mt-1 font-mono text-[11px] text-muted">
                       {c.agentId} {c.from.toFixed(2)} → {c.to.toFixed(2)}
                       {c.conceded && <span className="ml-1 text-emerald-400">conceded</span>}
                     </p>
@@ -409,7 +409,7 @@ export default function Home() {
               )}
               {decision && (
                 <>
-                  <h2 className="font-mono text-[10px] uppercase tracking-widest text-white/40">
+                  <h2 className="font-mono text-[10px] uppercase tracking-widest text-faint">
                     Verdict
                   </h2>
                   <p
@@ -423,7 +423,7 @@ export default function Home() {
                   >
                     {decision.decision}
                   </p>
-                  <p className="font-mono text-[11px] text-white/40">
+                  <p className="font-mono text-[11px] text-faint">
                     score {decision.score.toFixed(3)}
                     {decision.dissents.length > 0 && ` · dissent: ${decision.dissents.join(", ")}`}
                   </p>

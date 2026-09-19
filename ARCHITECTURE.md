@@ -30,12 +30,11 @@ average at the end.** It has three specific failures:
 3. **Personas collapse.** One model prompted N ways regresses to one opinion in
    N costumes. Fan-out has no mechanism that would even detect this.
 
-Hack the North 2025's winning project, Tunnel, is built this way — its
-`generate-opinions` route is a `Promise.all` over independent per-persona calls
-returning `{attention, sentiment, reason}`, with sentiment averaged afterward.
-That is a reasonable engineering choice for simulating a *market*, where you
-want independent samples. It is the wrong choice for simulating a *committee*,
-where the argument between members is the product.
+This is how almost every "multi-agent" demo is actually built: a `Promise.all`
+over independent per-persona calls returning a sentiment score, averaged
+afterward. It is a reasonable engineering choice for sampling a *market*, where
+independence is exactly what you want. It is the wrong choice for a
+*committee*, where the argument between members is the product.
 
 **We build the argument.**
 

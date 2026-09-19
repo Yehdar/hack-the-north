@@ -65,10 +65,10 @@ export type CrowdReaction = {
   /** 0 hostile .. 1 enthusiastic */
   sentiment: number;
   /**
-   * THE differentiator. Tunnel's crowd answers "do you like this?" and the
-   * result is an average. Ours answers "which of these problems do you
-   * actually have?" — so the aggregate can tell a founder they pitched
-   * problem A while the market that responded has problem C.
+   * THE differentiator. The usual approach asks a crowd "do you like this?"
+   * and averages the answer. We ask "which of these problems do you actually
+   * have?" — so the aggregate can tell a founder they pitched problem A while
+   * the market that responded has problem C.
    *
    * null means: none of these are my problem.
    */
