@@ -19,6 +19,16 @@ surfaced rather than averaged away.
 > All partner personas are AI simulations. Not affiliated with, endorsed by, or
 > representing any real firm. Personas are composites, never real individuals.
 
+## Docs
+
+| | |
+|---|---|
+| [OVERVIEW.md](./OVERVIEW.md) | one page, everything |
+| [TUTORIAL.md](./TUTORIAL.md) | what every screen means, in order |
+| [DEMO.md](./DEMO.md) | the three-minute script |
+| [ARCHITECTURE.md](./ARCHITECTURE.md) | the agent protocol |
+| [HANDOFF.md](./HANDOFF.md) | picking the codebase up cold |
+
 ## Picking this up cold
 
 Read [HANDOFF.md](./HANDOFF.md) — current state, decisions that should not be
