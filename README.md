@@ -22,9 +22,15 @@ cp .env.example .env.local   # works with no keys — falls back to mocks
 npm run dev
 ```
 
-No API keys are required to run the app. The LLM layer falls back to a mock
-provider and voice falls back to browser speech, so any feature can be built
-and demoed before keys land.
+Then open http://localhost:3000 and press **Convene the committee**.
+
+**No API keys are required.** With no key set, the app uses a demo provider
+that returns realistic, differentiated agent output — so you can watch a full
+five-round deliberation, with challenges, concessions and a verdict, having
+configured nothing. It is also the stage insurance policy if venue wifi dies.
+
+Provider is chosen automatically: `OPENAI_API_KEY` if present, else
+`ANTHROPIC_API_KEY`, else demo. Force one with `LLM_PROVIDER=openai|anthropic|demo|mock`.
 
 ```bash
 npm test         # vitest

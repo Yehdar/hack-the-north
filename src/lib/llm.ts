@@ -1,4 +1,6 @@
 import OpenAI from "openai";
+import Anthropic from "@anthropic-ai/sdk";
+import { DemoProvider } from "@/lib/providers/demo";
 
 // ============================================================================
 // LLM PROVIDER SEAM — shared, frozen after the 1.5h sync.
@@ -89,6 +91,52 @@ class OpenAIProvider implements LLMProvider {
   }
 }
 
+const ANTHROPIC_DEEP = process.env.ANTHROPIC_MODEL ?? "claude-opus-5";
+const ANTHROPIC_FAST = process.env.ANTHROPIC_FAST_MODEL ?? "claude-haiku-4-5-20251001";
+
+/**
+ * Anthropic path. Claude has no response_format, so the schema is enforced by
+ * instruction plus a prefilled assistant turn that opens the JSON object —
+ * the model cannot then preface it with prose.
+ */
+class AnthropicProvider implements LLMProvider {
+  readonly name = "anthropic";
+  private client: Anthropic;
+
+  constructor(apiKey: string) {
+    this.client = new Anthropic({ apiKey });
+  }
+
+  async complete(req: LLMRequest): Promise<string> {
+    const schemaInstruction = req.schema
+      ? `\n\nRespond with JSON only, matching this schema:\n${JSON.stringify(req.schema.schema)}`
+      : "";
+
+    const res = await this.client.messages.create({
+      model: req.tier === "fast" ? ANTHROPIC_FAST : ANTHROPIC_DEEP,
+      max_tokens: req.maxTokens ?? 800,
+      temperature: req.temperature ?? 0.7,
+      system: req.system + schemaInstruction,
+      messages: [
+        { role: "user", content: req.user },
+        ...(req.schema ? [{ role: "assistant" as const, content: "{" }] : []),
+      ],
+    });
+
+    const text = res.content
+      .filter((b): b is Anthropic.TextBlock => b.type === "text")
+      .map((b) => b.text)
+      .join("");
+
+    // Put back the brace we prefilled.
+    return req.schema ? `{${text}` : text;
+  }
+
+  async completeJSON<T>(req: LLMRequest): Promise<T> {
+    return parseJSON<T>(await this.complete(req));
+  }
+}
+
 /**
  * Deterministic stand-in. Returns structurally valid, obviously-fake output so
  * a feature can be built and typechecked end to end with no key and no network.
@@ -113,11 +161,30 @@ let cached: LLMProvider | null = null;
 export function getLLM(): LLMProvider {
   if (cached) return cached;
 
-  const key = process.env.OPENAI_API_KEY;
-  const forceMock = process.env.LLM_PROVIDER === "mock";
-
-  cached = !key || forceMock ? new MockProvider() : new OpenAIProvider(key);
+  cached = selectProvider();
+  console.log(`[llm] provider: ${cached.name}`);
   return cached;
+}
+
+/**
+ * Explicit LLM_PROVIDER wins. Otherwise whichever key is present, OpenAI
+ * first. With no key at all we fall to the demo provider, which returns
+ * realistic differentiated content — so the app is runnable and demoable by
+ * anyone who clones it, with nothing configured.
+ */
+function selectProvider(): LLMProvider {
+  const forced = process.env.LLM_PROVIDER;
+  const openaiKey = process.env.OPENAI_API_KEY;
+  const anthropicKey = process.env.ANTHROPIC_API_KEY;
+
+  if (forced === "mock") return new MockProvider();
+  if (forced === "demo") return new DemoProvider();
+  if (forced === "openai" && openaiKey) return new OpenAIProvider(openaiKey);
+  if (forced === "anthropic" && anthropicKey) return new AnthropicProvider(anthropicKey);
+
+  if (openaiKey) return new OpenAIProvider(openaiKey);
+  if (anthropicKey) return new AnthropicProvider(anthropicKey);
+  return new DemoProvider();
 }
 
 /** Models sometimes wrap JSON in prose or a fenced block. Recover rather than throw. */
