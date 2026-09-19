@@ -38,13 +38,40 @@ export function hubById(id: string): GlobePoint | undefined {
   return HUB_POINTS.find((h) => h.id === id);
 }
 
+type SeatKey = SeatId | "devils-advocate";
+
+const SEATS: { id: SeatKey; label: string }[] = [
+  { id: "gp", label: "General Partner" },
+  { id: "principal", label: "Principal" },
+  { id: "skeptic", label: "Skeptic" },
+  { id: "devils-advocate", label: "Devil's Advocate" },
+];
+
 /**
- * The committee sits at the firm's HQ, fanned out slightly so seats in the same
- * city stay individually clickable rather than overlapping into one dot.
+ * The committee sits round a table at the firm's HQ: four seats on a small
+ * ring about the city, wide enough that each dot stays individually clickable
+ * instead of merging into one. Longitude is stretched by latitude so the ring
+ * stays round in Stockholm as well as in Lagos.
  */
-export const SEAT_POINTS: Record<SeatId | "devils-advocate", GlobePoint> = {
-  gp: { id: "gp", label: "General Partner", lat: 37.77, lon: -122.42 },
-  principal: { id: "principal", label: "Principal", lat: 37.42, lon: -122.14 },
-  skeptic: { id: "skeptic", label: "Skeptic", lat: 37.49, lon: -122.79 },
-  "devils-advocate": { id: "devils-advocate", label: "Devil's Advocate", lat: 38.15, lon: -122.6 },
-};
+export function seatPointsAt(hubId: string): Record<SeatKey, GlobePoint> {
+  const hub = hubById(hubId) ?? hubById("sf")!;
+  const ring = 1.6;
+  const stretch = 1 / Math.max(0.35, Math.cos((hub.lat * Math.PI) / 180));
+
+  return Object.fromEntries(
+    SEATS.map((s, i) => {
+      const a = (i / SEATS.length) * Math.PI * 2 + Math.PI / 4;
+      return [
+        s.id,
+        {
+          id: s.id,
+          label: s.label,
+          lat: hub.lat + Math.sin(a) * ring,
+          lon: hub.lon + Math.cos(a) * ring * stretch,
+        },
+      ];
+    })
+  ) as Record<SeatKey, GlobePoint>;
+}
+
+export const SEAT_POINTS = seatPointsAt("sf");

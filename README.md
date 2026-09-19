@@ -48,10 +48,11 @@ Provider is chosen automatically: `OPENAI_API_KEY` if present, else
 
 | Route | What happens |
 | --- | --- |
-| `/` | Enter your product. Candidate problems fan out, 120 people are selected and deployed onto the globe, reactions stream in, and the market's problem is compared against yours. Pick a city and five agents deliberate about it. |
-| `/committee` | The investment committee deliberates over five rounds before you ever speak. |
+| `/` | Enter your product. Candidate problems fan out, 120 people are selected and deployed onto the globe, reactions stream in, and the market's problem is compared against yours. Rewrite the pitch around their problem and ask the same people again, or convene five agents on the best city. A narrator line and one next-step button walk you through every beat. |
+| `/committee` | Through the door from Part 1. The firm's partners sit at its own HQ and deliberate over five rounds before you ever speak — drawn live as who challenged whom. |
 | `/meeting` | Pitch by voice. Partners interrupt; the objection tracker fills. |
 | `/report` | The diligence report. Re-weight any seat and the verdict recomputes instantly. |
+| `/dashboard` | Every run, saved. A rewrite sits against the run it came from, with what moved. |
 
 ## How it works
 
@@ -86,5 +87,6 @@ Replay is keyed on a hash of each exact prompt, so a replayed run is the same
 deliberation rather than an approximation. An unrecorded prompt degrades to the
 demo provider instead of throwing in front of an audience.
 
-`fixtures/llm.json` currently holds a run recorded from the demo provider, which
-proves the path works. **Re-record it against a real model before presenting.**
+`fixtures/llm.json` currently holds a run recorded from the demo provider, and
+prompts have changed since, so replay falls back to the demo provider (still
+fully offline). **Re-record it against a real model before presenting.**

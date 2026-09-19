@@ -64,6 +64,7 @@
   --color-negative: var(--negative);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --font-serif: var(--font-instrument-serif);
 }
 
 body {
@@ -131,6 +132,145 @@ body {
     var(--border) 0 3px,
     transparent 3px 6px
   );
+}
+
+/* Film grain over everything: the difference between a screen and a surface. */
+.grain {
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  opacity: 0.07;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+}
+
+/* Headlines on the printed layer. */
+.headline {
+  font-family: var(--font-instrument-serif), ui-serif, Georgia, serif;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+  line-height: 1.12;
+}
+
+/* The reveal: the founder's framing is struck out, line by line. */
+.strike {
+  background-image: linear-gradient(var(--negative), var(--negative));
+  background-repeat: no-repeat;
+  background-position: 0 58%;
+  background-size: 0% 1.5px;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+  animation: strike 650ms cubic-bezier(0.6, 0, 0.2, 1) 450ms forwards;
+}
+@keyframes strike {
+  to { background-size: 100% 1.5px; }
+}
+
+/* Words arriving one at a time, out of focus into focus. */
+.blur-word {
+  display: inline-block;
+  opacity: 0;
+  filter: blur(8px);
+  transform: translateY(6px);
+  animation: blur-in 520ms ease-out forwards;
+}
+@keyframes blur-in {
+  to { opacity: 1; filter: blur(0); transform: translateY(0); }
+}
+
+/* A light that travels round a card's border. */
+.beam {
+  position: relative;
+  isolation: isolate;
+}
+.beam::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1px;
+  background: conic-gradient(
+    from var(--beam-angle),
+    transparent 0deg,
+    transparent 290deg,
+    color-mix(in srgb, var(--accent) 90%, white) 330deg,
+    transparent 360deg
+  );
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  animation: beam-spin 3.2s linear infinite;
+  pointer-events: none;
+  z-index: 1;
+}
+@property --beam-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+@keyframes beam-spin {
+  to { --beam-angle: 360deg; }
+}
+
+/* Deliberation edges: a dash that travels from speaker to target. */
+@keyframes flow {
+  to { stroke-dashoffset: -28; }
+}
+.flow {
+  stroke-dasharray: 6 8;
+  animation: flow 900ms linear infinite;
+}
+
+/* The narrator: each new line eases in. */
+.narrate {
+  animation: narrate 480ms ease-out both;
+}
+@keyframes narrate {
+  from { opacity: 0; filter: blur(6px); transform: translateY(4px); }
+  to { opacity: 1; filter: blur(0); transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .strike { animation-duration: 1ms; animation-delay: 0ms; }
+  .blur-word { animation-duration: 1ms; animation-delay: 0ms !important; }
+  .beam::before, .flow { animation: none; }
+  .narrate { animation: none; }
+}
+
+/* The door between the two parts. Two leaves meet on a hairline seam. */
+.door-leaf {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 50.5%;
+  background: var(--ground);
+  transition: transform 700ms cubic-bezier(0.7, 0, 0.2, 1);
+}
+.door-left {
+  left: 0;
+  border-right: 1px solid var(--border-bright);
+}
+.door-right {
+  right: 0;
+  border-left: 1px solid var(--border-bright);
+}
+.door-left[data-state="open"] { transform: translateX(-101%); }
+.door-right[data-state="open"] { transform: translateX(101%); }
+.door-leaf[data-state="closed"] { transform: translateX(0); }
+
+.door-plate {
+  transition: opacity 260ms ease;
+}
+.door-plate[data-state="open"] { opacity: 0; }
+.door-plate[data-state="closed"] { opacity: 1; transition-delay: 380ms; }
+
+@media (prefers-reduced-motion: reduce) {
+  .door-leaf,
+  .door-plate {
+    transition-duration: 1ms;
+    transition-delay: 0ms;
+  }
 }
 
 ::-webkit-scrollbar { width: 8px; height: 8px; }

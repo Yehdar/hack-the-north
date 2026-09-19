@@ -1,8 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import type { Objection, SeatId } from "@/lib/types";
 import { useVenture } from "@/lib/store";
+import { PartTwoNav } from "@/components/PartTwoNav";
+import { Wordmark } from "@/components/Logo";
+import { FIRMS } from "@/data/firms";
 import {
   detectTier,
   speak,
@@ -22,9 +26,9 @@ const SEAT_LABEL: Record<SeatId, string> = {
 };
 
 const STATUS_STYLE: Record<Objection["status"], string> = {
-  open: "border-amber-600/60 bg-amber-950/25 text-amber-300",
-  dodged: "border-red-700/60 bg-red-950/25 text-red-300",
-  answered: "border-emerald-700/60 bg-emerald-950/25 text-emerald-300",
+  open: "border-edge-bright bg-surface text-muted",
+  dodged: "border-negative/60 bg-negative/10 text-negative",
+  answered: "border-positive/50 bg-positive/10 text-positive",
 };
 
 export default function Meeting() {
@@ -34,6 +38,7 @@ export default function Meeting() {
   // the idea they actually entered rather than the built-in mock.
   const vf = useVenture((v) => v.ventureFile);
   const setVf = useVenture((v) => v.replace);
+  const firmId = useVenture((v) => v.firmId);
   const [recording, setRecording] = useState(false);
   const [thinking, setThinking] = useState(false);
   const [speaking, setSpeaking] = useState<SeatId | null>(null);
@@ -65,7 +70,7 @@ export default function Meeting() {
         const res = await fetch("/api/vc/turn", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ segment, ventureFile: vf ?? undefined }),
+          body: JSON.stringify({ segment, ventureFile: vf ?? undefined, firmId }),
         });
         const json = await res.json();
         if (!res.ok) throw new Error(json.error ?? "turn failed");
@@ -83,7 +88,7 @@ export default function Meeting() {
         setThinking(false);
       }
     },
-    [vf, tier]
+    [vf, tier, firmId, setVf]
   );
 
   const pressToTalk = useCallback(async () => {
@@ -108,36 +113,56 @@ export default function Meeting() {
 
   const objections = vf?.objections ?? [];
   const unanswered = objections.filter((o) => o.status !== "answered").length;
+  const firm = FIRMS[firmId] ?? FIRMS.bessemer;
+
+  // A founder facing a silent room does not know what to say first. These
+  // fill the box — never send — so the words stay theirs.
+  const openObjection = objections.find((o) => o.status === "open");
+  const openers = [
+    vf?.chosenProblem && {
+      label: "Lead with the problem",
+      text: `${vf.chosenProblem.statement} That is the problem we solve, for ${vf.chosenProblem.whoHasIt
+        .replace(/\.$/, "")
+        .replace(/^[A-Z][a-z]/, (m) => m.toLowerCase())}.`,
+    },
+    openObjection && {
+      label: "Answer the open objection",
+      text: `On "${openObjection.text.toLowerCase()}": `,
+    },
+    { label: "Name who pays", text: "The person who signs for this is " },
+  ].filter((o): o is { label: string; text: string } => Boolean(o));
 
   return (
     <main className="min-h-screen bg-ground text-ink">
-      <div className="mx-auto max-w-6xl px-6 py-8">
-        <header className="flex flex-wrap items-center justify-between gap-4 border-b border-edge pb-6">
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight text-white">
-              Investment Committee — live
-            </h1>
+      <div className="mx-auto max-w-6xl px-6 py-6">
+        <header className="flex flex-wrap items-center justify-between gap-4 border-b border-edge pb-5">
+          <div className="min-w-0">
+            <Wordmark size={18} />
+            <p className="label mt-3" style={{ color: "var(--accent)" }}>
+              Part two · the pitch · {firm.name}
+            </p>
             <p className="mt-1 max-w-xl text-sm text-muted">
               {vf ? `\u201C${vf.solution}\u201D` : "Pitch out loud. They will interrupt."}
-              <span className="ml-2 rounded-[2px] bg-surface-2 px-2 py-0.5 font-mono text-xs">
+              <span className="num ml-2 bg-surface-2 px-2 py-0.5 text-[10px]">
                 voice: {tier ?? "…"}
               </span>
             </p>
           </div>
-          <a href="/" className="text-sm text-muted underline-offset-4 hover:underline">
-            ← deliberation
-          </a>
+          <PartTwoNav current="/meeting" />
         </header>
 
         {!vf && (
-          <p className="mt-4 border border-amber-700/50 bg-amber-950/20 p-3 font-mono text-xs text-amber-300">
-            No idea entered yet. <a href="/" className="underline">Start on the globe</a> so the
-            committee has a venture file to read before you pitch.
+          <p className="mt-4 border border-edge-bright bg-surface p-3 font-mono text-xs text-muted">
+            No idea entered yet.{" "}
+            <Link href="/" className="text-ink underline">
+              Start in Part one
+            </Link>{" "}
+            so the committee has a venture file to read before you pitch.
           </p>
         )}
 
         {tier === "browser" && (
-          <p className="mt-4 rounded-[2px] border border-edge bg-surface/40 p-3 text-xs text-muted">
+          <p className="mt-4 border border-edge bg-surface/40 p-3 text-xs text-muted">
             No ELEVENLABS_API_KEY set — using browser speech. The seats are
             distinguishable by pitch but not by character. Add the key to hear them properly.
           </p>
@@ -153,16 +178,14 @@ export default function Meeting() {
                 return (
                   <div
                     key={id}
-                    className={`rounded-[2px] border p-3 transition ${
-                      active
-                        ? "border-emerald-500 bg-emerald-950/30"
-                        : "border-edge bg-surface/40"
+                    className={`border p-3 transition ${
+                      active ? "glow-accent" : "border-edge bg-surface/40"
                     }`}
                   >
                     <div className="flex items-center gap-2">
                       <span
                         className={`h-2 w-2 rounded-full ${
-                          active ? "animate-pulse bg-emerald-400" : "bg-edge"
+                          active ? "animate-pulse bg-accent" : "bg-edge"
                         }`}
                       />
                       <span className="text-sm font-medium text-ink">
@@ -170,7 +193,7 @@ export default function Meeting() {
                       </span>
                     </div>
                     {info?.valid === false && (
-                      <p className="mt-1 text-[10px] text-red-400">voice id not on account</p>
+                      <p className="mt-1 text-[10px] text-negative">voice id not on account</p>
                     )}
                   </div>
                 );
@@ -180,7 +203,7 @@ export default function Meeting() {
             {/* transcript */}
             <div
               ref={feed}
-              className="mt-4 h-[420px] space-y-3 overflow-y-auto rounded-[2px] border border-edge bg-surface/20 p-4"
+              className="mt-4 h-[420px] space-y-3 overflow-y-auto border border-edge bg-surface/20 p-4"
             >
               {!vf?.pitchTranscript.length && (
                 <p className="text-sm text-faint">
@@ -196,7 +219,7 @@ export default function Meeting() {
                     {t.speaker === "founder" ? "you" : SEAT_LABEL[t.speaker as SeatId]}
                   </p>
                   <p
-                    className={`inline-block max-w-[85%] rounded-[2px] px-3 py-2 text-sm leading-relaxed ${
+                    className={`inline-block max-w-[85%] px-3 py-2 text-sm leading-relaxed ${
                       t.speaker === "founder"
                         ? "bg-surface-2 text-ink"
                         : "border border-edge-bright bg-surface text-ink"
@@ -214,10 +237,8 @@ export default function Meeting() {
               <button
                 onClick={pressToTalk}
                 disabled={thinking || tier === "text" || !tier || !vf}
-                className={`rounded-[2px] px-5 py-2.5 text-sm font-medium transition disabled:cursor-not-allowed disabled:bg-surface-2 disabled:text-muted ${
-                  recording
-                    ? "bg-red-600 text-white hover:bg-red-500"
-                    : "bg-emerald-600 text-white hover:brightness-110"
+                className={`px-5 py-2.5 font-mono text-[11px] uppercase tracking-[0.14em] transition hover:brightness-110 disabled:cursor-not-allowed disabled:bg-surface-2 disabled:text-muted ${
+                  recording ? "bg-negative text-ink" : "bg-accent text-ground"
                 }`}
               >
                 {recording ? "■ Stop and send" : "● Hold the floor"}
@@ -237,29 +258,56 @@ export default function Meeting() {
                   value={typed}
                   onChange={(e) => setTyped(e.target.value)}
                   placeholder="…or type your pitch"
-                  className="min-w-0 flex-1 rounded-[2px] border border-edge bg-surface px-3 py-2.5 text-sm text-ink placeholder:text-faint focus:border-edge-bright focus:outline-none"
+                  className="min-w-0 flex-1 border border-edge bg-surface px-3 py-2.5 text-sm text-ink placeholder:text-faint focus:border-edge-bright focus:outline-none"
                 />
                 <button
                   type="submit"
                   disabled={thinking || !typed.trim() || !vf}
-                  className="rounded-[2px] border border-edge-bright px-4 py-2.5 text-sm text-ink/85 transition hover:bg-surface-2 disabled:opacity-40"
+                  className="border border-edge-bright px-4 py-2.5 font-mono text-[11px] uppercase tracking-[0.14em] text-ink/85 transition hover:bg-surface-2 disabled:opacity-40"
                 >
                   Send
                 </button>
               </form>
             </div>
 
-            {error && <p className="mt-3 text-xs text-red-400">{error}</p>}
+            {vf && (
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <span className="label">Not sure what to say?</span>
+                {openers.map((o) => (
+                  <button
+                    key={o.label}
+                    onClick={() => setTyped(o.text)}
+                    className="border border-edge px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.12em] text-muted transition hover:border-edge-bright hover:text-ink"
+                  >
+                    {o.label}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {error && <p className="mt-3 text-xs text-negative">{error}</p>}
+
+            {(vf?.pitchTranscript.length ?? 0) > 0 && (
+              <div className="mt-6 flex items-center justify-between border-t border-edge pt-4">
+                <p className="text-xs text-muted">
+                  Every objection still open costs you at the vote.
+                </p>
+                <Link
+                  href="/report"
+                  className="bg-accent px-4 py-2 font-mono text-[11px] uppercase tracking-[0.14em] text-ground transition hover:brightness-110"
+                >
+                  See the verdict →
+                </Link>
+              </div>
+            )}
           </section>
 
           {/* objection tracker */}
           <section>
             <div className="flex items-baseline justify-between">
-              <h2 className="text-xs font-semibold uppercase tracking-widest text-muted">
-                On the table
-              </h2>
+              <p className="label">On the table</p>
               {unanswered > 0 && (
-                <span className="font-mono text-xs text-amber-400">{unanswered} unanswered</span>
+                <span className="num text-xs text-accent">{unanswered} unanswered</span>
               )}
             </div>
 
@@ -271,7 +319,7 @@ export default function Meeting() {
                 </p>
               )}
               {objections.map((o) => (
-                <div key={o.id} className={`rounded-[2px] border p-2.5 ${STATUS_STYLE[o.status]}`}>
+                <div key={o.id} className={`border p-2.5 ${STATUS_STYLE[o.status]}`}>
                   <div className="flex items-center justify-between font-mono text-[10px] uppercase tracking-wider">
                     <span>{o.seatId}</span>
                     <span>{o.status}</span>

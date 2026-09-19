@@ -1,7 +1,7 @@
 import { extractProblems } from "@/lib/discovery/problems";
 import { aggregate, runCrowd } from "@/lib/discovery/crowd";
 import { analyseSignals } from "@/lib/discovery/signals";
-import { inferIndustries, selectRelevant } from "@/data/personas";
+import { inferIndustries, selectByIds, selectRelevant } from "@/data/personas";
 import { getLLM } from "@/lib/llm";
 import type { ProblemStatement, VentureFile } from "@/lib/types";
 
@@ -31,6 +31,8 @@ type RunRequest = {
   crowdSize?: number;
   /** Skip extraction and use these instead — for the refine loop. */
   problems?: ProblemStatement[];
+  /** Ask exactly these people again — also the refine loop. */
+  personaIds?: number[];
 };
 
 export async function POST(req: Request) {
@@ -45,6 +47,9 @@ export async function POST(req: Request) {
   }
 
   const crowdSize = Math.min(Math.max(body?.crowdSize ?? 120, 20), 300);
+  const personaIds = Array.isArray(body?.personaIds)
+    ? body.personaIds.filter((id): id is number => Number.isInteger(id)).slice(0, 300)
+    : [];
   const encoder = new TextEncoder();
 
   const stream = new ReadableStream({
@@ -70,7 +75,10 @@ export async function POST(req: Request) {
 
         // ---- ③ deploy ---------------------------------------------------
         send({ type: "phase", phase: "deploy", label: "Deploying the crowd" });
-        const hits = selectRelevant(solution, { limit: crowdSize });
+        const hits =
+          personaIds.length > 0
+            ? selectByIds(solution, personaIds)
+            : selectRelevant(solution, { limit: crowdSize });
         send({
           type: "deploy",
           personas: hits.map((h) => ({

@@ -7,7 +7,7 @@ import { Logo } from "@/components/Logo";
 // Boot sequence. Buys the pre-read call its latency back by making the wait
 // feel like the system coming online rather than a spinner.
 
-const STEPS = [
+export const COMMITTEE_STEPS = [
   "Waking the room",
   "Loading firm thesis and anti-portfolio",
   "Seating partners",
@@ -16,7 +16,24 @@ const STEPS = [
   "Committee ready",
 ];
 
-export function AgentBoot({ onComplete }: { onComplete: () => void }) {
+export const MARKET_STEPS = [
+  "Loading 326 people across 20 hubs",
+  "Reading seven attributes each",
+  "Calibrating who can actually buy",
+  "Seating the hub council",
+  "Ready to listen",
+];
+
+export function AgentBoot({
+  onComplete,
+  steps = COMMITTEE_STEPS,
+  tagline = "see the problem · defend the answer",
+}: {
+  onComplete: () => void;
+  steps?: string[];
+  tagline?: string;
+}) {
+  const STEPS = steps;
   const [step, setStep] = useState(0);
   const [progress, setProgress] = useState(0);
   const [done, setDone] = useState(false);
@@ -24,7 +41,9 @@ export function AgentBoot({ onComplete }: { onComplete: () => void }) {
   // Held in a ref so an inline arrow from the parent cannot restart the
   // sequence on every re-render.
   const finish = useRef(onComplete);
-  finish.current = onComplete;
+  useEffect(() => {
+    finish.current = onComplete;
+  });
 
   useEffect(() => {
     const total = 3600;
@@ -47,7 +66,7 @@ export function AgentBoot({ onComplete }: { onComplete: () => void }) {
     }, 50);
 
     return () => clearInterval(tick);
-  }, []);
+  }, [STEPS.length]);
 
   const BARS = 32;
   const filled = Math.floor((progress / 100) * BARS);
@@ -68,7 +87,7 @@ export function AgentBoot({ onComplete }: { onComplete: () => void }) {
               {/* The mark opens as it loads, so the logo IS the progress. */}
               <Logo size={44} open={progress / 100} className="text-ink" />
               <h1 className="mt-4 font-mono text-2xl text-ink">Vision</h1>
-              <p className="label mt-1">see the problem · defend the answer</p>
+              <p className="label mt-1">{tagline}</p>
             </div>
 
             <motion.p
@@ -85,7 +104,7 @@ export function AgentBoot({ onComplete }: { onComplete: () => void }) {
                 <div
                   key={i}
                   className={`h-3 flex-1 transition-colors duration-200 ${
-                    i < filled ? "bg-white" : "bg-edge"
+                    i < filled ? "bg-ink" : "bg-edge"
                   }`}
                 />
               ))}

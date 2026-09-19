@@ -7,6 +7,8 @@ to set it up, and everything after it exists to cash it in.
 
 **Before you start:** fresh browser profile, `DEMO_MODE=1`, network off to prove
 it. Clear `localStorage` so intake appears. Have the system panel collapsed.
+The screen narrates itself (the line above the button says what is happening),
+so you can talk over it rather than explain it.
 
 ---
 
@@ -38,9 +40,10 @@ is what makes the reveal land.
 
 ## 0:45 — deploy and listen
 
-The globe fills; the counter climbs; reactions stream top-right.
+The globe turns to Waterloo and arcs fly out to twenty cities; every answer
+ripples on the map; reactions stream top-right.
 
-> "Three hundred simulated professionals, each with seven attributes —
+> "Your idea just left Hack the North for twenty cities. Three hundred simulated professionals, each with seven attributes —
 > including whether they can actually sign a cheque, and how much friction they
 > tolerate before they complain. A hundred and twenty are selected for this
 > idea, and every selection is explainable."
@@ -66,14 +69,28 @@ Point at the vote counts: incidence, severity, and pay rate side by side.
 > "Ranked by weight of feeling, not headcount. Twelve people who hurt badly and
 > would pay beat thirty who are mildly inconvenienced."
 
-## 1:40 — the council *(the multi-agent story)*
+## 1:30 — rewrite and ask again *(iteration — nobody demos it)*
 
-Pick the top city. Five agents deliberate.
+Press **Rewrite around it · ask again**, accept the draft, run it.
+
+> "Same product, pitched at their problem. Same hundred and twenty people, same
+> four problems — the only thing that changed is how the founder said it."
+
+The card comes back **aligned**, with what moved: mismatched → aligned,
+sentiment up, full attention up. The dashboard keeps both runs side by side.
+
+*Short on time? Skip this beat and press "Take theirs · convene" instead.*
+
+## 1:50 — the council *(the multi-agent story)*
+
+Press **Convene the San Francisco council**. The globe turns to the city; five
+agents deliberate, drawn live in the sidebar.
 
 > "Now five agents argue about whether that problem is worth solving in that
 > city. And they are not voting in parallel — they read each other."
 
-Point at a **directed challenge**, then at a **concession**:
+Point at the graph: coral lines are **directed challenges**, green is a
+**concession**, the ring is who changed their mind:
 
 > "The Market Analyst sized the market on people who reported the problem. The
 > Customer Proxy pointed out those are not the people who pay. The analyst
@@ -84,18 +101,23 @@ Point at a **directed challenge**, then at a **concession**:
 
 This is the sentence that wins a multi-agent prize. Say it slowly.
 
-## 2:10 — the score, and the gate
+## 2:15 — the score, and the gate
 
 > "That produces a validation score. Below sixty we tell the founder to fix it
 > first — and let them pitch anyway, because founders do."
 
-## 2:20 — the committee
+Press **Take it to the committee**. Part one closes on a printed card — what
+the market said, the city, the score — then the doors close and open on the
+committee room at the firm's own headquarters.
 
-Click through. Pitch one sentence out loud; a partner interrupts.
+## 2:25 — the committee
 
-> "Same deliberation engine, different roster. The partners read the Part 1
-> findings, so weak research makes them measurably harsher. Anything you dodge
-> is logged and costs you at the vote."
+Convene them. The same graph draws the partners arguing. Then **Now defend
+it**: pitch one sentence out loud; a partner interrupts.
+
+> "Same deliberation engine, different roster — you can see it's the same
+> drawing. The partners read the Part 1 findings, so weak research makes them
+> measurably harsher. Anything you dodge is logged and costs you at the vote."
 
 ## 2:45 — the report, and the close
 

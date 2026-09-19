@@ -32,7 +32,7 @@ export function SystemPanel() {
   if (!info) return null;
 
   return (
-    <div className="absolute bottom-6 right-6 z-40 text-right">
+    <div className="absolute bottom-6 left-6 z-40 text-left">
       <AnimatePresence>
         {open && (
           <motion.div

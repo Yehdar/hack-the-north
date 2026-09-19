@@ -26,8 +26,9 @@ from each persona's real attributes, so every feature runs and the mechanism is
 visible. Keys only make the *content* real.
 
 ```bash
-npm test          # 52 tests
-npm run typecheck
+npm test          # 66 tests
+npm run typecheck # run a build first: LayoutProps is generated into .next/types
+npm run lint      # clean — 0 problems. Keep it that way.
 npm run build
 npm run personas  # regenerate the persona library from hubs.json
 ```
@@ -86,21 +87,35 @@ src/lib/llm.ts            provider seam: OpenAI / Anthropic / demo / replay
 src/lib/providers/demo.ts attribute-driven fake output, 607 lines
 src/lib/providers/fixtures.ts  record + replay for DEMO_MODE
 src/lib/store.ts          venture file (persisted, key vision.session)
-src/lib/sessions.ts       saved runs + diff — WRITTEN, NOT WIRED UP
+src/lib/sessions.ts       saved runs + diff (key vision.sessions). recordVerdict()
+                          only writes to the active run if it is the idea pitched.
+src/lib/discovery/refine.ts  rewrite the pitch around the market's problem
 
 src/data/hubs.json        20 hubs. SINGLE SOURCE — the persona generator and
                           the globe both read this. Do not duplicate it.
 src/data/firms.ts         25 firms across 17 hubs
 src/data/personas/library.json   326 generated personas (committed)
 
-src/app/page.tsx          Part 1 — discovery. 863 lines, the main screen.
-src/app/committee/page.tsx  Part 2 — deliberation
+src/app/page.tsx          Part 1 — discovery, the main screen. Owns the guide
+                          (narrator line + the one next-step button).
+src/app/committee/page.tsx  Part 2 — deliberation, seats at the firm's HQ
 src/app/meeting/page.tsx    Part 2 — the voice pitch
 src/app/report/page.tsx     the diligence report with live weight sliders
+src/app/dashboard/page.tsx  saved runs; rewrites diffed against their parent
+
+src/components/globe/Globe.tsx  dotted land, atmosphere, ripples, arcs, beacon
+src/components/globe/geo.ts     PURE globe maths (focus, land mask, arcs) — tested
+src/components/DeliberationGraph.tsx  who challenged whom, for BOTH councils
+src/components/Reveal.tsx       the reveal card (+ run-two diff, refine action)
+src/components/Finding.tsx      Part 1's closing card
+src/components/Door.tsx         the Part 1 → Part 2 transition
+src/components/Narrator.tsx     one line: what is happening and why
+src/components/PartTwoNav.tsx   room → pitch → verdict, on every Part 2 page
 ```
 
-Routes: `/api/discovery/{run,council,persona}`, `/api/vc/{deliberate,preread,turn,firms}`,
-`/api/voice/{stt,tts,status}`, `/api/system`.
+Routes: `/api/discovery/{run,council,persona,refine}`, `/api/vc/{deliberate,preread,turn,firms}`,
+`/api/voice/{stt,tts,status}`, `/api/system`. Pages: `/`, `/committee`,
+`/meeting`, `/report`, `/dashboard`.
 
 ---
 
@@ -155,55 +170,68 @@ rather than pass/fail, and survives colourblindness.
 | Persona call | talk to any one of 326, push-to-talk or typed |
 | Crowd signals | which attributes separate the engaged from everyone else |
 | Globe | three.js, coastlines, one merged `LineSegments`, click-to-drill |
-| Stage rail | 8 stages, Part One / Part Two, derived from real state |
-| Skin | warm ink + bone inserts + coral; aperture logo that opens as it loads |
+| Stage rail | 8 stages, Part One / Part Two, derived from real state; done stages are clickable |
+| Skin | warm ink + bone inserts + coral; Instrument Serif on the inserts; film grain |
 | Demo mode | record/replay keyed on prompt hash, works offline |
 | Docs | `README`, `ARCHITECTURE.md`, `DEMO.md` |
+| Dashboard | `/dashboard`: every run saved as a summary; rewrites diffed against their parent |
+| Refine loop | reveal → "Rewrite around it · ask again" → editable rewrite → same 120 people, same problems → run two, with what moved |
+| Part 1 → 2 | closing "finding" card → doors close → `/committee` opens them (no boot replay) |
+| Guidance | narrator line + one evolving next-step button on `/` and `/committee`; hero intake with "how it works"; `?` hints on jargon; meeting openers |
+| Globe | dot-matrix continents, coral atmosphere, a ripple per answer, arcs from Waterloo on deploy, beacon on the council/HQ; focus orbits the camera (maths tested) |
+| Deliberation graph | both councils drawn live: challenges, rebuttals, concessions, adversary pulse |
+| Committee at HQ | seats ring the chosen firm's own city; the file it read is shown |
 
-**52 tests, clean build.**
+**66 tests, lint clean, clean build.** Verified end to end in a browser, and
+with `DEMO_MODE=1` on a production server.
+
+### Fixed along the way (worth knowing about)
+
+- **Report sliders were missing.** The committee's `done` handler read `firm`
+  and `roster` from state captured when the stream started — empty on the first
+  run — so the report had no roster, 0% vote shares and score 0.000. Now carried
+  in locals. Same trap as the one documented below for `page.tsx`.
+- **Part 1 sidebar was unreachable** on laptop-height screens: only the last
+  section scrolled, so "Where it lands", the council, PVS and "Take it to the
+  committee" were cut off. The whole sidebar scrolls now, newest stage on top.
+- **Globe focus was wrong** for most cities (Euler YXZ tilted before spinning;
+  SF landed 57° off-centre). The camera now orbits instead; `geo.test.ts` proves
+  every hub ends up facing the viewer.
+- **Globe dots vanished in dev** after StrictMode's double mount (meshes stayed
+  in the discarded scene). Cleanup now clears the dot, label and arc maps.
+- **The meeting never sent `firmId`**, so partners always spoke as Bessemer.
+- **Every city scored identically** in demo mode. The demo council now leans on
+  the city's real crowd numbers and capital density (added to the hub context).
+- Intake sat underneath the controls (z-30 vs z-40); `RecordingProvider` used
+  `JSON.parse` and would throw on a real model's fenced JSON.
 
 ---
 
 ## Next, in priority order
 
-### 1. Wire up the dashboard — `src/lib/sessions.ts` exists and is unused
+### 1. Re-record fixtures against a real model — needs an API key
 
-The store is written and tested-by-typecheck but **nothing calls it**. Needed:
+`fixtures/llm.json` holds a run recorded from the **demo** provider, and the
+prompts have since changed (hub context gained capital density; the refine call
+is new), so replay now misses and falls back to the demo provider — which still
+works offline. With a key: `RECORD_FIXTURES=1 npm run dev`, do one full run
+**including the rewrite and a committee**, commit the file.
 
-- `src/app/dashboard/page.tsx` — a grid of saved runs: solution, the reveal
-  (pitched vs market problem), PVS, committee decision. Click to reload one.
-- Call `useSessions().begin(solution)` when a run starts in `src/app/page.tsx`,
-  and `record(summariseCrowd(...))` when the crowd verdict lands. Same for PVS
-  and the committee decision.
-- Surface `diffSessions(prev, next)` when a run has a `parentId`.
+### 2. Watch it in a real, visible browser once
 
-### 2. The refine loop — the reason the dashboard matters
+Automated tabs here are backgrounded, so `requestAnimationFrame` never runs and
+framer-motion animations freeze mid-way (screenshots force single frames). The
+globe maths is unit-tested and the static states are verified, but nobody has
+watched the motion at 60fps: the camera turning to Waterloo on deploy and to the
+HQ in Part 2, the arcs, the door opening, the reveal's strike and word-by-word
+headline. Five minutes with a fresh profile before presenting.
 
-After the reveal, offer *"rewrite it around the market's problem and run again"*.
-Pass `parentId` so the two runs are linked, then show the diff: sentiment moved,
-engagement moved, PVS moved. **Nobody demos iteration.** The architecture already
-supports it — `diffSessions` is written.
+### 3. Rehearse DEMO.md with the new beats
 
-### 3. Make the two parts feel like different places
+The script now includes the rewrite beat and the door. Time it; cut the rewrite
+beat if the run is long.
 
-`/` → `/committee` is currently a link. It should be a transition: Part 1 closes
-on a verdict card, Part 2 opens like a door. Biggest presentation win left for
-the effort.
-
-### 4. Re-record fixtures against a real model
-
-`fixtures/llm.json` currently holds a run recorded from the **demo** provider.
-It proves the replay path works and would replay canned content on stage.
-`RECORD_FIXTURES=1 npm run dev`, do one full run, commit.
-
-### 5. Verify the globe's focus easing
-
-Never confirmed visually. `requestAnimationFrame` is suspended in a backgrounded
-automated tab, so the render loop never ran during testing — screenshots still
-paint because CDP forces them. The maths was checked against the at-rest state.
-**Just open it and watch whether the globe rotates to the committee.**
-
-### 6. Smaller gaps
+### 4. Smaller gaps
 
 - Web scout (Playwright + Readability) for real cited evidence — planned, never
   built. Highest risk item; keep it out of the critical path.
@@ -244,6 +272,26 @@ because head count is driven by `hubs.json`.
 
 **Next 16, not 15.** `create-next-app@latest` installs 16.3.5. App Router API is
 unchanged for what we use.
+
+**The door only works with client-side navigation.** "Arrived through the door"
+travels in module state (`src/components/Door.tsx`), which survives
+`router.push`/`<Link>` and deliberately not a full reload. An `<a href>` to
+`/committee` silently skips the door and replays the boot instead.
+
+**The demo provider now maps problems by what they say, not where they sit.**
+`SEGMENTS` in `demo.ts` recognises the buyer / compliance / tedium problems by
+keywords, because the refine loop reorders the list. If you reword the demo's
+canned problems, keep those keywords or the refine run stops aligning (the
+refine test will fail — that is what it is for).
+
+**A rewrite run holds the crowd and the problems fixed.** It re-sends the same
+`personaIds` and the same `problems` (market's problem first), so the diff is
+the pitch and nothing else. Do not "improve" this by re-extracting problems.
+
+**Stream handlers: carry what the stream establishes in locals.** Both pages
+bit this. `page.tsx` uses refs; `committee/page.tsx` uses locals inside `run()`.
+Anything a later event needs from an earlier one in the same stream must not be
+read from React state.
 
 ---
 

@@ -1,16 +1,33 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
+import { AnimatePresence, motion } from "framer-motion";
 import { Globe, type GlobeDot } from "@/components/globe/Globe";
 import { AgentBoot } from "@/components/hud/AgentBoot";
 import { ProcessingPanel } from "@/components/hud/ProcessingPanel";
 import { AgentFeed, type FeedItem } from "@/components/hud/AgentFeed";
-import { HUB_POINTS, SEAT_POINTS } from "@/data/globePoints";
-import { AnimatePresence, motion } from "framer-motion";
-import { useVenture } from "@/lib/store";
 import { FirmPicker } from "@/components/FirmPicker";
-import { streamPost } from "@/lib/sse";
 import { Intake } from "@/components/Intake";
+import { Door, disarmDoor, doorArmed } from "@/components/Door";
+import { PartTwoNav } from "@/components/PartTwoNav";
+import { Wordmark } from "@/components/Logo";
+import { Narrator } from "@/components/Narrator";
+import { DeliberationGraph } from "@/components/DeliberationGraph";
+import { Hint } from "@/components/Hint";
+import { HUB_POINTS, hubById, seatPointsAt } from "@/data/globePoints";
+import { FIRMS } from "@/data/firms";
+import { useVenture, type DeliberationSnapshot } from "@/lib/store";
+import { recordVerdict } from "@/lib/sessions";
+import { streamPost } from "@/lib/sse";
+import type { ICVerdict } from "@/lib/types";
+
+// ============================================================================
+// PART 2 — THE ROOM.
+//
+// The committee sits at the firm's own HQ and has read the file Part 1 wrote.
+// It deliberates over five rounds before the founder says a word.
+// ============================================================================
 
 type Msg = {
   id: string;
@@ -33,10 +50,25 @@ const ROUND_LABEL: Record<number, string> = {
 // 3 findings + 3 challenges + up to 3 rebuttals + 1 adversary
 const EXPECTED_TURNS = 10;
 
-export default function Home() {
-  const [booting, setBooting] = useState(true);
+// What each round is for, in a sentence — the protocol explained while it runs.
+const ROUND_MEANING: Record<number, string> = {
+  0: "The chair splits the decision into questions and gives each to the one partner whose lane owns it.",
+  1: "Each partner answers only their own questions, blind — nobody can anchor on anybody.",
+  2: "Now they read each other, and challenge specific claims by name.",
+  3: "Challenged partners answer, and may change their minds. Every change is recorded.",
+  4: "The Devil's Advocate attacks wherever the room settled.",
+};
+
+export default function Committee() {
+  // Arriving through the door from Part 1 replaces the boot sequence: the
+  // doors are the transition, so the room should already be waiting.
+  const [throughDoor] = useState(doorArmed);
+  const [door, setDoor] = useState<"none" | "open" | "closed">(() =>
+    doorArmed() ? "closed" : "none"
+  );
+  const [booting, setBooting] = useState(() => !doorArmed());
+
   const [running, setRunning] = useState(false);
-  const [firm, setFirm] = useState("");
   const [provider, setProvider] = useState("");
   const [roster, setRoster] = useState<RosterEntry[]>([]);
   const [messages, setMessages] = useState<Msg[]>([]);
@@ -45,21 +77,30 @@ export default function Home() {
   const [active, setActive] = useState<Set<string>>(new Set());
   const [round, setRound] = useState(0);
   const [step, setStep] = useState("Idle");
-  const [decision, setDecision] = useState<{ decision: string; score: number; dissents: string[] } | null>(null);
-  const [mindChanges, setMindChanges] = useState<{ agentId: string; from: number; to: number; conceded: boolean }[]>([]);
+  const [decision, setDecision] = useState<ICVerdict | null>(null);
+  const [mindChanges, setMindChanges] = useState<DeliberationSnapshot["metrics"]["mindChanges"]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const ventureFile = useVenture((v) => v.ventureFile);
   const replaceVenture = useVenture((v) => v.replace);
   const resetVenture = useVenture((v) => v.reset);
   const setDeliberation = useVenture((v) => v.setDeliberation);
   const firmId = useVenture((v) => v.firmId);
-  const [showIntake, setShowIntake] = useState(false);
   const sidebar = useRef<HTMLDivElement>(null);
 
-  // Intake opens once booting finishes and there is no file yet.
+  const firm = FIRMS[firmId] ?? FIRMS.bessemer;
+  const hq = hubById(firm.hqHubId) ?? hubById("sf")!;
+  const seats = seatPointsAt(firm.hqHubId);
+
   useEffect(() => {
-    if (!booting && !ventureFile) setShowIntake(true);
-  }, [booting, ventureFile]);
+    if (!throughDoor) return;
+    disarmDoor();
+    const open = setTimeout(() => setDoor("open"), 900);
+    const gone = setTimeout(() => setDoor("none"), 1800);
+    return () => {
+      clearTimeout(open);
+      clearTimeout(gone);
+    };
+  }, [throughDoor]);
 
   useEffect(() => {
     sidebar.current?.scrollTo({ top: sidebar.current.scrollHeight, behavior: "smooth" });
@@ -70,22 +111,27 @@ export default function Home() {
   }, []);
 
   const run = useCallback(() => {
-    if (!ventureFile) {
-      setShowIntake(true);
-      return;
-    }
+    const vf = useVenture.getState().ventureFile;
+    if (!vf) return;
 
     setRunning(true);
     setMessages([]); setFeed([]); setStances({}); setDecision(null);
     setMindChanges([]); setRound(0); setStep("Convening"); setSelected(null);
 
-    void streamPost("/api/vc/deliberate", { ventureFile, firmId }, (ev) => {
+    // What the start event establishes is needed again at the end of the same
+    // stream. State would still hold the previous run's values by then, so it
+    // is carried in locals — reading `roster` here once left the report with
+    // an empty panel and every slider missing.
+    let firmName = "";
+    let seated: RosterEntry[] = [];
+
+    void streamPost("/api/vc/deliberate", { ventureFile: vf, firmId }, (ev) => {
       switch (ev.type) {
         case "start": {
-          const firmInfo = ev.firm as { name: string };
-          setFirm(firmInfo.name);
+          firmName = (ev.firm as { name: string }).name;
+          seated = ev.roster as RosterEntry[];
           setProvider(ev.provider as string);
-          setRoster(ev.roster as RosterEntry[]);
+          setRoster(seated);
           setStep("Decomposing the decision");
           break;
         }
@@ -118,25 +164,34 @@ export default function Home() {
 
         case "done": {
           const result = ev.result as {
-            metrics: { mindChanges: typeof mindChanges } & Record<string, never>;
-            finalVerdicts: never[];
-            messages: never[];
+            finalVerdicts: DeliberationSnapshot["verdicts"];
+            messages: DeliberationSnapshot["messages"];
+            metrics: DeliberationSnapshot["metrics"];
           };
+          const verdict = ev.verdict as ICVerdict;
+
           setDeliberation({
-            firm,
+            firm: firmName,
             verdicts: result.finalVerdicts,
             messages: result.messages,
-            roster,
-            metrics: result.metrics as never,
+            roster: seated,
+            metrics: result.metrics,
           });
-          setDecision(ev.verdict as typeof decision);
+          setDecision(verdict);
           setMindChanges(result.metrics.mindChanges);
           setStep("Committee concluded");
           setActive(new Set());
           setRunning(false);
           // Persist the verdict onto the venture file so the report and the
           // meeting both see it.
-          replaceVenture({ ...ventureFile, verdict: ev.verdict as never });
+          replaceVenture({ ...vf, verdict });
+          recordVerdict(vf.solution, {
+            firmId,
+            firmName,
+            decision: verdict.decision,
+            score: verdict.score,
+            killShot: verdict.killShot,
+          });
           break;
         }
 
@@ -149,32 +204,57 @@ export default function Home() {
       setStep("Failed");
       setRunning(false);
     });
-  }, [ventureFile, replaceVenture, setDeliberation, firm, roster, firmId]);
+  }, [replaceVenture, setDeliberation, firmId]);
 
+  const seatDots = Object.values(seats);
   const dots: GlobeDot[] = [
     ...HUB_POINTS.map((h) => ({
       id: `hub:${h.id}`,
       lat: h.lat,
       lon: h.lon,
       label: h.label,
-      weight: 0.25,
+      weight: h.id === hq.id ? 0.5 : 0.25,
     })),
-    ...Object.values(SEAT_POINTS).map((s) => ({
+    ...seatDots.map((s) => ({
       id: s.id,
       lat: s.lat,
       lon: s.lon,
-      label: s.label,
+      // Four seats round one city would stack four labels on top of each
+      // other. Only whoever is speaking is named.
+      label: active.has(s.id) ? s.label : "",
       stance: stances[s.id]?.stance,
       weight: roster.find((r) => r.id === s.id)?.weight ?? 0.4,
       active: active.has(s.id),
     })),
   ];
 
+  const problem = ventureFile?.chosenProblem;
+  const pvs = ventureFile?.pvs;
+  const researchedIn = ventureFile ? Object.values(ventureFile.hubFindings)[0] : undefined;
+  const conceded = new Set(messages.filter((m) => m.kind === "concession").map((m) => m.from));
+
+  const narration = decision
+    ? {
+        title: `Verdict · ${decision.decision}`,
+        line: `Score ${decision.score.toFixed(2)}. ${
+          decision.dissents.length > 0 ? "Dissent is kept, not averaged away. " : ""
+        }Now defend it out loud — every question you dodge costs you at the vote.`,
+      }
+    : running
+      ? { title: round ? ROUND_LABEL[round] : "Round 0 · decompose", line: ROUND_MEANING[round] }
+      : {
+          title: "The room",
+          line: `${firm.name}'s partners have read your file. Convene them — they argue with each other before you say a word.`,
+        };
+
   return (
-    <main className="relative h-screen overflow-hidden bg-ground text-white">
+    <main className="relative h-screen overflow-hidden bg-ground text-ink">
       {booting && <AgentBoot onComplete={() => setBooting(false)} />}
+      {door !== "none" && (
+        <Door state={door} title="The committee" subtitle={`${firm.name} · ${hq.label}`} />
+      )}
       <AnimatePresence>
-        {showIntake && !booting && <Intake onDone={() => setShowIntake(false)} />}
+        {!booting && !ventureFile && <Intake onDone={() => undefined} />}
       </AnimatePresence>
 
       <div className="flex h-full">
@@ -183,50 +263,90 @@ export default function Home() {
           <Globe
             dots={dots}
             onDotClick={(id) => setSelected(id.startsWith("hub:") ? null : id)}
-            focus={running || decision ? { lat: SEAT_POINTS.gp.lat, lon: SEAT_POINTS.gp.lon } : null}
+            focus={{ lat: hq.lat, lon: hq.lon }}
+            beacon={{ lat: hq.lat, lon: hq.lon }}
             className="h-full w-full"
           />
 
-          {/* header */}
-          <div className="pointer-events-none absolute left-8 top-8 z-40">
-            {!running && !decision && (
-              <div className="pointer-events-auto">
-                <h1 className="font-mono text-xl tracking-tight">Vision</h1>
-                {ventureFile ? (
-                  <>
-                    <p className="mt-2 max-w-xs font-mono text-xs leading-relaxed text-muted">
-                      &ldquo;{ventureFile.solution}&rdquo;
-                    </p>
-                    <button
-                      onClick={() => {
-                        resetVenture();
-                        setShowIntake(true);
-                      }}
-                      className="mt-2 font-mono text-[10px] uppercase tracking-widest text-faint underline-offset-4 hover:text-muted hover:underline"
-                    >
-                      Different idea
-                    </button>
-                  </>
-                ) : (
-                  <p className="mt-1 max-w-xs font-mono text-xs leading-relaxed text-muted">
-                    {firm || "An investment committee that argues with itself before it argues with you."}
-                  </p>
-                )}
-              </div>
-            )}
-            <AnimatePresence>
-              {running && (
+          <div className="absolute left-1/2 top-6 z-40 -translate-x-1/2">
+            <PartTwoNav current="/committee" />
+          </div>
+          {ventureFile && (
+            <div className="absolute bottom-[76px] left-1/2 z-30 w-[520px] max-w-[calc(100%-48px)] -translate-x-1/2">
+              <Narrator title={narration.title} line={narration.line} />
+            </div>
+          )}
+
+          {/* header: the room, and the file it read — below the Part 2 bar */}
+          <div className="absolute left-6 top-20 z-40 w-[300px]">
+            <AnimatePresence mode="wait">
+              {running ? (
                 <ProcessingPanel
+                  key="proc"
                   step={step}
                   done={messages.length}
                   total={EXPECTED_TURNS}
                   round={round ? ROUND_LABEL[round] : undefined}
                 />
+              ) : (
+                <motion.div key="idle" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+                  <Wordmark size={18} />
+                  <p className="label mt-3" style={{ color: "var(--accent)" }}>
+                    Part two · the committee
+                  </p>
+                  <p className="mt-1 text-sm text-ink">{firm.name}</p>
+                  <p className="label mt-0.5">
+                    {hq.label} · {firm.decisionStyle}
+                  </p>
+
+                  {ventureFile && (
+                    <div className="panel mt-4 p-3">
+                      <p className="label">The file they read</p>
+                      {problem ? (
+                        <p className="mt-1.5 text-[11px] leading-relaxed text-ink/85">
+                          {problem.statement}
+                        </p>
+                      ) : (
+                        <p className="mt-1.5 text-[11px] leading-relaxed text-muted">
+                          &ldquo;{ventureFile.solution}&rdquo; — no validated problem. The
+                          committee will treat that as a finding.
+                        </p>
+                      )}
+                      <div className="num mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-muted">
+                        {pvs && (
+                          <span>
+                            PVS {pvs.total}
+                            <span className={pvs.passed ? "text-positive" : "text-negative"}>
+                              {pvs.passed ? " · cleared" : " · below the bar"}
+                            </span>
+                          </span>
+                        )}
+                        {researchedIn && (
+                          <span>
+                            {hubById(researchedIn.hubId)?.label ?? researchedIn.hubId} fit{" "}
+                            {researchedIn.fitScore}
+                          </span>
+                        )}
+                        {problem &&
+                          ventureFile.extractedProblems[0] &&
+                          ventureFile.extractedProblems[0].id !== problem.id && (
+                            <span>research moved the framing</span>
+                          )}
+                      </div>
+                      <button
+                        onClick={() => resetVenture()}
+                        className="label mt-2 underline-offset-4 hover:text-ink hover:underline"
+                      >
+                        Different idea
+                      </button>
+                    </div>
+                  )}
+                </motion.div>
               )}
             </AnimatePresence>
           </div>
 
-          <AgentFeed items={feed} onDismiss={dismiss} />
+          <AgentFeed items={feed} onDismiss={dismiss} top="top-20" />
 
           <AnimatePresence>
             {selected && (
@@ -234,7 +354,7 @@ export default function Home() {
                 initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: 12 }}
-                className="absolute bottom-28 left-8 z-40 w-96 border border-edge-bright bg-surface/95 p-4 backdrop-blur-md"
+                className="panel panel-bright absolute bottom-28 left-6 z-40 w-96 p-4"
               >
                 {(() => {
                   const entry = roster.find((r) => r.id === selected);
@@ -247,28 +367,24 @@ export default function Home() {
                     <>
                       <div className="flex items-start justify-between">
                         <div>
-                          <p className="font-mono text-sm text-white">
-                            {entry?.role ?? selected}
-                          </p>
-                          <p className="font-mono text-[10px] uppercase tracking-widest text-faint">
+                          <p className="font-mono text-sm text-ink">{entry?.role ?? selected}</p>
+                          <p className="label mt-0.5">
                             weight {((entry?.weight ?? 0) * 100).toFixed(0)}% ·{" "}
                             {v ? `stance ${v.stance.toFixed(2)} · conf ${v.confidence.toFixed(2)}` : "no position yet"}
                           </p>
                         </div>
                         <button
                           onClick={() => setSelected(null)}
-                          className="px-2 font-mono text-xs text-faint hover:text-white"
+                          className="px-2 font-mono text-xs text-faint hover:text-ink"
                         >
                           ✕
                         </button>
                       </div>
 
-                      {v && (
-                        <p className="mt-3 text-xs leading-relaxed text-ink/85">{v.position}</p>
-                      )}
+                      {v && <p className="mt-3 text-xs leading-relaxed text-ink/85">{v.position}</p>}
 
                       {moved && (
-                        <p className="mt-3 border border-emerald-900/60 bg-emerald-950/20 p-2 font-mono text-[11px] text-emerald-300">
+                        <p className="num mt-3 border border-positive/40 p-2 text-[11px] text-positive">
                           moved {moved.from.toFixed(2)} → {moved.to.toFixed(2)}
                           {moved.conceded && " after conceding"}
                         </p>
@@ -276,7 +392,7 @@ export default function Home() {
 
                       {against.length > 0 && (
                         <div className="mt-3">
-                          <p className="font-mono text-[10px] uppercase tracking-widest text-amber-500">
+                          <p className="label" style={{ color: "var(--accent)" }}>
                             Challenged by
                           </p>
                           {against.map((m) => (
@@ -289,7 +405,7 @@ export default function Home() {
                       )}
 
                       {said.length > 0 && (
-                        <p className="mt-3 font-mono text-[10px] text-faint">
+                        <p className="label mt-3">
                           {said.length} contribution{said.length === 1 ? "" : "s"} this session
                         </p>
                       )}
@@ -301,91 +417,110 @@ export default function Home() {
           </AnimatePresence>
 
           {/* controls */}
-          <div className="absolute bottom-8 left-1/2 z-40 -translate-x-1/2">
-            <div className="flex items-center gap-3 border border-edge-bright bg-surface/90 p-2 backdrop-blur-md">
+          <div className="absolute bottom-6 left-1/2 z-40 -translate-x-1/2">
+            <div className="panel flex items-center gap-1 whitespace-nowrap p-1.5">
               <FirmPicker disabled={running} />
-              <button
-                onClick={run}
-                disabled={running}
-                className="bg-white px-5 py-2 font-mono text-xs uppercase tracking-widest text-black transition hover:bg-white/80 disabled:bg-white/20 disabled:text-faint"
-              >
-                {running ? "Deliberating" : decision ? "Run again" : "Convene committee"}
-              </button>
-              <a
-                href="/meeting"
-                className="px-4 py-2 font-mono text-xs uppercase tracking-widest text-muted transition hover:text-white"
-              >
-                Defend it →
-              </a>
-              {decision && (
-                <a
-                  href="/report"
-                  className="px-4 py-2 font-mono text-xs uppercase tracking-widest text-muted transition hover:text-white"
+              {decision && !running ? (
+                <>
+                  <Link
+                    href="/meeting"
+                    className="beam bg-accent px-5 py-2 font-mono text-[11px] uppercase tracking-[0.14em] text-ground transition hover:brightness-110"
+                  >
+                    Now defend it →
+                  </Link>
+                  <button
+                    onClick={run}
+                    className="px-3 py-2 font-mono text-[11px] uppercase tracking-[0.14em] text-faint transition hover:text-ink"
+                  >
+                    Run again
+                  </button>
+                </>
+              ) : (
+                <button
+                  onClick={run}
+                  disabled={running || !ventureFile}
+                  className={`bg-accent px-5 py-2 font-mono text-[11px] uppercase tracking-[0.14em] text-ground transition hover:brightness-110 disabled:bg-edge disabled:text-faint ${
+                    running || !ventureFile ? "" : "beam"
+                  }`}
                 >
-                  Report →
-                </a>
+                  {running ? "Deliberating…" : "Convene the committee"}
+                </button>
               )}
-              {provider && (
-                <span className="px-2 font-mono text-[10px] uppercase tracking-widest text-faint">
-                  {provider}
-                </span>
-              )}
+              {provider && <span className="label px-2">{provider}</span>}
             </div>
           </div>
         </div>
 
         {/* ------------------------------ sidebar ------------------------------ */}
-        <aside className="flex w-96 flex-col border-l border-edge bg-ground">
+        <aside className="flex w-96 shrink-0 flex-col border-l border-edge bg-surface/40">
           <div className="border-b border-edge p-4">
-            <h2 className="font-mono text-[10px] uppercase tracking-widest text-faint">
+            <p className="label">
               The room
-            </h2>
-            <div className="mt-3 space-y-2">
-              {roster.filter((r) => r.weight > 0).map((r) => {
-                const v = stances[r.id];
-                return (
-                  <div key={r.id} className="border border-edge p-2">
-                    <div className="flex items-baseline justify-between font-mono text-xs">
-                      <span className="text-ink">{r.role}</span>
-                      <span className="text-faint">{(r.weight * 100).toFixed(0)}%</span>
-                    </div>
-                    <div className="relative mt-2 h-1 bg-white/10">
-                      <div className="absolute left-1/2 top-0 h-full w-px bg-white/30" />
-                      {v && (
-                        <motion.div
-                          layout
-                          className={`absolute top-0 h-full ${v.stance >= 0 ? "bg-emerald-400" : "bg-red-400"}`}
-                          style={{
-                            width: `${Math.abs(v.stance) * 50}%`,
-                            left: v.stance >= 0 ? "50%" : `${50 - Math.abs(v.stance) * 50}%`,
-                          }}
-                        />
-                      )}
-                    </div>
-                    {v && (
-                      <p className="mt-1 font-mono text-[10px] text-faint">
-                        {v.stance.toFixed(2)} · conf {v.confidence.toFixed(2)}
-                      </p>
-                    )}
-                  </div>
-                );
-              })}
-              {roster.length === 0 && (
-                <p className="font-mono text-xs text-faint">Not yet convened.</p>
-              )}
-            </div>
+              <Hint align="left">
+                Five-round protocol: the chair assigns questions by lane, partners answer
+                blind, then challenge each other by name, rebut (and may concede), and the
+                Devil&apos;s Advocate attacks the consensus. Circle size is voting weight;
+                colour is stance; a green ring means that partner conceded.
+              </Hint>
+            </p>
+            {roster.length > 0 ? (
+              <>
+                <div className="mt-2">
+                  <DeliberationGraph
+                    seats={roster}
+                    stances={stances}
+                    messages={messages}
+                    active={active}
+                    conceded={conceded}
+                  />
+                </div>
+                <div className="mt-3 space-y-1 border-t border-edge pt-3">
+                  {roster.filter((r) => r.weight > 0).map((r) => {
+                    const v = stances[r.id];
+                    return (
+                      <button
+                        key={r.id}
+                        onClick={() => setSelected(r.id)}
+                        className="num flex w-full items-baseline justify-between text-left text-[11px] transition hover:text-ink"
+                      >
+                        <span className="text-ink/85">
+                          {r.role} <span className="text-faint">{(r.weight * 100).toFixed(0)}%</span>
+                        </span>
+                        <span className={v ? (v.stance >= 0 ? "text-positive" : "text-negative") : "text-faint"}>
+                          {v ? `${v.stance > 0 ? "+" : ""}${v.stance.toFixed(2)} · conf ${v.confidence.toFixed(2)}` : "—"}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            ) : (
+              <p className="mt-3 font-mono text-xs leading-relaxed text-faint">
+                Not yet convened. Three partners, a Devil&apos;s Advocate, and a chair who
+                routes the questions but never votes.
+              </p>
+            )}
           </div>
 
           <div ref={sidebar} className="flex-1 overflow-y-auto p-4">
-            <h2 className="font-mono text-[10px] uppercase tracking-widest text-faint">
-              Transcript
-            </h2>
+            <p className="label">Transcript</p>
             <div className="mt-3 space-y-2">
               {messages.map((m) => (
-                <div key={m.id} className="border-l-2 border-edge-bright pl-3">
-                  <div className="font-mono text-[10px] uppercase tracking-wider text-faint">
+                <div
+                  key={m.id}
+                  className="border-l-2 pl-3"
+                  style={{
+                    borderColor:
+                      m.kind === "challenge"
+                        ? "var(--accent)"
+                        : m.kind === "concession"
+                          ? "var(--positive)"
+                          : "var(--border-bright)",
+                  }}
+                >
+                  <p className="label">
                     {m.from} {m.to === "room" ? "→ room" : `→ ${m.to}`} · {m.kind}
-                  </div>
+                  </p>
                   <p className="mt-1 text-xs leading-relaxed text-ink/85">{m.text}</p>
                 </div>
               ))}
@@ -399,37 +534,43 @@ export default function Home() {
             <div className="border-t border-edge p-4">
               {mindChanges.length > 0 && (
                 <div className="mb-3">
-                  <h2 className="font-mono text-[10px] uppercase tracking-widest text-emerald-500">
-                    Minds changed
-                  </h2>
+                  <p className="label text-positive">Minds changed</p>
                   {mindChanges.map((c) => (
-                    <p key={c.agentId} className="mt-1 font-mono text-[11px] text-muted">
+                    <p key={c.agentId} className="num mt-1 text-[11px] text-muted">
                       {c.agentId} {c.from.toFixed(2)} → {c.to.toFixed(2)}
-                      {c.conceded && <span className="ml-1 text-emerald-400">conceded</span>}
+                      {c.conceded && <span className="ml-1 text-positive">conceded</span>}
                     </p>
                   ))}
                 </div>
               )}
               {decision && (
                 <>
-                  <h2 className="font-mono text-[10px] uppercase tracking-widest text-faint">
-                    Verdict
-                  </h2>
+                  <p className="label">Verdict</p>
                   <p
                     className={`mt-1 font-mono text-2xl uppercase ${
                       decision.decision === "invest"
-                        ? "text-emerald-400"
+                        ? "text-positive"
                         : decision.decision === "pass"
-                          ? "text-red-400"
-                          : "text-amber-400"
+                          ? "text-negative"
+                          : "text-ink"
                     }`}
                   >
                     {decision.decision}
                   </p>
-                  <p className="font-mono text-[11px] text-faint">
+                  <p className="num text-[11px] text-faint">
                     score {decision.score.toFixed(3)}
-                    {decision.dissents.length > 0 && ` · dissent: ${decision.dissents.join(", ")}`}
+                    {decision.dissents.length > 0 && (
+                      <span className="text-accent"> · dissent: {decision.dissents.join(", ")}</span>
+                    )}
                   </p>
+                  <div className="mt-2 flex gap-4">
+                    <Link href="/meeting" className="label transition hover:text-ink">
+                      Pitch them →
+                    </Link>
+                    <Link href="/report" className="label transition hover:text-ink">
+                      Read the report
+                    </Link>
+                  </div>
                 </>
               )}
             </div>

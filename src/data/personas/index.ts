@@ -108,6 +108,18 @@ export function selectRelevant(
   return scored.sort((a, b) => b.score - a.score).slice(0, limit);
 }
 
+/**
+ * A crowd chosen earlier, re-explained against new wording. The refine loop
+ * shows the rewritten pitch to exactly the same people, so any difference
+ * between the two runs is the pitch and not a different sample.
+ */
+export function selectByIds(idea: string, ids: number[]): RetrievalHit[] {
+  const explained = new Map(
+    selectRelevant(idea, { limit: PERSONAS.length }).map((h) => [h.persona.id, h])
+  );
+  return ids.flatMap((id) => explained.get(id) ?? []);
+}
+
 export function personasByHub(): Record<HubId, Persona[]> {
   const out: Record<string, Persona[]> = {};
   for (const p of PERSONAS) (out[p.hubId] ??= []).push(p);

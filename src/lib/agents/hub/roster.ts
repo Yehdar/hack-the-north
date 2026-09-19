@@ -2,6 +2,7 @@ import type { AgentTemplate } from "@/lib/types";
 import type { CrowdVerdict } from "@/lib/discovery/types";
 import type { ProblemStatement } from "@/lib/types";
 import { PERSONAS } from "@/data/personas";
+import { hubById } from "@/data/globePoints";
 
 // ============================================================================
 // THE HUB COUNCIL — five agents who argue about whether a problem is worth
@@ -183,13 +184,18 @@ export function hubContext(
     })
     .join("\n");
 
+  const hub = hubById(hubId);
+  const facts = hub?.capitalDensity !== undefined
+    ? `\n  Capital density ${hub.capitalDensity}/100. ${hub.note ?? ""}`.trimEnd()
+    : "";
+
   return `THE PROBLEM UNDER ASSESSMENT:
 "${problem.statement}"
   Felt by: ${problem.whoHasIt}
   Severity claimed: ${problem.severity}/100
   Today they cope by: ${problem.currentWorkaround}
 
-THE CITY: ${hubName}
+THE CITY: ${hubName}${facts}
 
 WHAT THE CROWD IN THIS CITY SAID (${local.length} people asked):
   ${withProblem.length} of them have this specific problem

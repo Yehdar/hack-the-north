@@ -16,20 +16,23 @@ export type FeedItem = {
 };
 
 const ACCENT: Record<FeedItem["kind"], string> = {
-  finding: "bg-white",
-  challenge: "bg-amber-400",
-  rebuttal: "bg-sky-400",
-  concession: "bg-emerald-400",
+  finding: "bg-ink",
+  challenge: "bg-accent",
+  rebuttal: "bg-muted",
+  concession: "bg-positive",
 };
 
 export function AgentFeed({
   items,
   onDismiss,
   ttlMs = 9000,
+  top = "top-8",
 }: {
   items: FeedItem[];
   onDismiss: (id: string) => void;
   ttlMs?: number;
+  /** Tailwind top offset, for pages with a bar across the top. */
+  top?: string;
 }) {
   // Cards expire on their own. Without this they pile up on top of each other
   // and the stack becomes an unreadable smear — which is exactly what it did
@@ -42,7 +45,7 @@ export function AgentFeed({
   }, [newest, items, onDismiss, ttlMs]);
 
   return (
-    <div className="pointer-events-none absolute right-8 top-8 z-50 w-80">
+    <div className={`pointer-events-none absolute right-8 z-50 w-80 ${top}`}>
       <AnimatePresence>
         {items.map((item, index) => {
           // Newest is index 0 and sits on top; older cards sink and shrink.
@@ -62,23 +65,24 @@ export function AgentFeed({
               exit={{ opacity: 0, x: 100, scale: 0.8 }}
               transition={{ type: "spring", stiffness: 400, damping: 30 }}
               style={{ zIndex: 50 + index }}
-              className="pointer-events-auto absolute right-0 top-0 border border-white/30 bg-black/90 p-3 shadow-xl backdrop-blur-md"
+              className="panel panel-bright pointer-events-auto absolute right-0 top-0 w-80 p-3 shadow-xl"
             >
               <div className="flex items-start gap-2">
                 <div className={`mt-1.5 h-2 w-2 flex-shrink-0 ${ACCENT[item.kind]}`} />
                 <div className="min-w-0 flex-1">
                   <div className="mb-1 flex items-center justify-between gap-2">
-                    <span className="truncate font-mono text-xs font-semibold uppercase tracking-wider text-white/95">
+                    <span className="truncate font-mono text-[11px] font-semibold uppercase tracking-wider text-ink">
                       {item.agent}
                     </span>
                     <button
                       onClick={() => onDismiss(item.id)}
-                      className="flex h-4 w-4 flex-shrink-0 items-center justify-center bg-white/10 transition-colors hover:bg-white/25"
+                      aria-label="Dismiss"
+                      className="flex h-4 w-4 flex-shrink-0 items-center justify-center bg-surface-2 transition-colors hover:bg-edge-bright"
                     >
-                      <X className="h-2.5 w-2.5 text-white/70" />
+                      <X className="h-2.5 w-2.5 text-muted" />
                     </button>
                   </div>
-                  <p className="line-clamp-3 break-words text-xs leading-relaxed text-white/80">
+                  <p className="line-clamp-3 break-words text-xs leading-relaxed text-ink/80">
                     {item.message}
                   </p>
                 </div>

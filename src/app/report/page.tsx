@@ -1,7 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useVenture } from "@/lib/store";
+import { recordVerdict } from "@/lib/sessions";
+import { PartTwoNav } from "@/components/PartTwoNav";
+import { Wordmark } from "@/components/Logo";
+import { hubById } from "@/data/globePoints";
 import {
   buildVerdict,
   countUnanswered,
@@ -44,14 +49,27 @@ export default function Report() {
     );
   }, [deliberation, vf, weights]);
 
+  const dirty = Object.keys(overrides).length > 0;
+
+  // The run's saved verdict is the room's own weighting after the meeting —
+  // never a what-if from the sliders.
+  useEffect(() => {
+    if (!vf || !verdict || dirty) return;
+    recordVerdict(vf.solution, {
+      decision: verdict.decision,
+      score: verdict.score,
+      killShot: verdict.killShot,
+    });
+  }, [vf, verdict, dirty]);
+
   if (!vf || !deliberation || !verdict) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-ground text-white">
+      <main className="flex min-h-screen items-center justify-center bg-ground text-ink">
         <p className="font-mono text-sm text-muted">
           No committee has sat yet.{" "}
-          <a href="/" className="underline">
+          <Link href="/committee" className="text-ink underline">
             Convene one
-          </a>
+          </Link>
           .
         </p>
       </main>
@@ -61,28 +79,27 @@ export default function Report() {
   const normalized = normalizeWeights(weights);
   const dissents = detectDissents(deliberation.verdicts, verdict.score);
   const unanswered = countUnanswered(vf.objections);
-  const dirty = Object.keys(overrides).length > 0;
+  const roleOf = (id: string) => deliberation.roster.find((r) => r.id === id)?.role ?? id;
 
   return (
-    <main className="min-h-screen bg-ground text-white">
-      <div className="mx-auto max-w-4xl px-8 py-12">
-        <header className="flex items-start justify-between border-b border-edge pb-6">
+    <main className="min-h-screen bg-ground text-ink">
+      <div className="mx-auto max-w-4xl px-8 py-8">
+        <header className="flex flex-wrap items-start justify-between gap-4 border-b border-edge pb-6">
           <div>
-            <p className="font-mono text-[10px] uppercase tracking-widest text-faint">
-              {deliberation.firm || "Investment committee"}
+            <Wordmark size={18} />
+            <p className="label mt-3" style={{ color: "var(--accent)" }}>
+              Part two · the verdict · {deliberation.firm || "Investment committee"}
             </p>
             <h1 className="mt-1 font-mono text-2xl">Diligence report</h1>
           </div>
-          <a href="/" className="font-mono text-xs text-faint hover:text-white">
-            ← globe
-          </a>
+          <PartTwoNav current="/report" />
         </header>
 
         {/* 1. The problem ------------------------------------------------- */}
         <Section n="01" title="The problem you are actually solving">
           {vf.chosenProblem ? (
             <>
-              <p className="text-lg leading-relaxed text-white">
+              <p className="text-lg leading-relaxed text-ink">
                 {vf.chosenProblem.statement}
               </p>
               <dl className="mt-4 grid grid-cols-2 gap-3 font-mono text-xs text-muted">
@@ -97,7 +114,7 @@ export default function Report() {
               <p className="text-lg leading-relaxed text-ink/85">
                 &ldquo;{vf.solution}&rdquo;
               </p>
-              <p className="mt-3 border border-amber-700/50 bg-amber-950/20 p-3 font-mono text-xs text-amber-300">
+              <p className="glow-accent mt-3 p-3 font-mono text-xs text-ink/85">
                 Discovery has not run, so no validated problem statement exists. The
                 committee was told this, and it counted against you.
               </p>
@@ -131,7 +148,9 @@ export default function Report() {
               .map((h) => (
                 <div key={h.hubId} className="mb-3 border border-edge p-3">
                   <div className="flex justify-between font-mono text-xs">
-                    <span className="uppercase tracking-widest">{h.hubId}</span>
+                    <span className="uppercase tracking-widest">
+                      {hubById(h.hubId)?.label ?? h.hubId}
+                    </span>
                     <span className="text-muted">{h.fitScore}/100</span>
                   </div>
                   <p className="mt-2 text-xs leading-relaxed text-muted">{h.gapSummary}</p>
@@ -147,7 +166,7 @@ export default function Report() {
             {dirty && (
               <button
                 onClick={() => setOverrides({})}
-                className="ml-3 underline hover:text-white"
+                className="ml-3 underline hover:text-ink"
               >
                 reset
               </button>
@@ -155,17 +174,16 @@ export default function Report() {
           </p>
 
           {deliberation.verdicts.map((v) => {
-            const entry = deliberation.roster.find((r) => r.id === v.agentId);
             const w = weights[v.agentId] ?? 0;
             const isDissent = dissents.includes(v.agentId);
 
             return (
               <div
                 key={v.agentId}
-                className={`mb-3 border p-3 ${isDissent ? "border-amber-600/60 bg-amber-950/15" : "border-edge"}`}
+                className={`mb-3 p-3 ${isDissent ? "glow-accent" : "border border-edge"}`}
               >
                 <div className="flex items-baseline justify-between">
-                  <span className="font-mono text-sm">{entry?.role ?? v.agentId}</span>
+                  <span className="font-mono text-sm">{roleOf(v.agentId)}</span>
                   <span className="font-mono text-xs text-muted">
                     stance {v.stance.toFixed(2)} · conf {v.confidence.toFixed(2)} ·{" "}
                     {(normalized[v.agentId] * 100 || 0).toFixed(0)}% of the vote
@@ -184,12 +202,13 @@ export default function Report() {
                     onChange={(e) =>
                       setOverrides((o) => ({ ...o, [v.agentId]: Number(e.target.value) }))
                     }
-                    className="mt-3 w-full accent-white"
+                    aria-label={`Weight for ${roleOf(v.agentId)}`}
+                    className="mt-3 w-full accent-[var(--accent)]"
                   />
                 )}
 
                 {isDissent && (
-                  <p className="mt-2 font-mono text-[10px] uppercase tracking-widest text-amber-400">
+                  <p className="label mt-2" style={{ color: "var(--accent)" }}>
                     dissent — not averaged away
                   </p>
                 )}
@@ -203,10 +222,10 @@ export default function Report() {
           <p
             className={`font-mono text-4xl uppercase ${
               verdict.decision === "invest"
-                ? "text-emerald-400"
+                ? "text-positive"
                 : verdict.decision === "pass"
-                  ? "text-red-400"
-                  : "text-amber-400"
+                  ? "text-negative"
+                  : "text-ink"
             }`}
           >
             {verdict.decision}
@@ -217,11 +236,9 @@ export default function Report() {
           </p>
 
           {verdict.killShot && (
-            <div className="mt-4 border border-red-800/60 bg-red-950/20 p-3">
-              <p className="font-mono text-[10px] uppercase tracking-widest text-red-400">
-                The kill shot
-              </p>
-              <p className="mt-1 text-sm text-white/85">{verdict.killShot}</p>
+            <div className="mt-4 border border-negative/50 bg-negative/10 p-3">
+              <p className="label text-negative">The kill shot</p>
+              <p className="mt-1 text-sm text-ink/85">{verdict.killShot}</p>
             </div>
           )}
 
@@ -236,19 +253,14 @@ export default function Report() {
             {deliberation.verdicts
               .filter((v) => v.whatWouldChangeMyMind)
               .sort((a, b) => a.stance - b.stance)
-              .map((v) => {
-                const entry = deliberation.roster.find((r) => r.id === v.agentId);
-                return (
-                  <li key={v.agentId} className="border-l-2 border-edge-bright pl-3">
-                    <p className="font-mono text-[10px] uppercase tracking-widest text-faint">
-                      raised by {entry?.role ?? v.agentId}
-                    </p>
-                    <p className="mt-1 text-sm leading-relaxed text-white/85">
-                      {v.whatWouldChangeMyMind}
-                    </p>
-                  </li>
-                );
-              })}
+              .map((v) => (
+                <li key={v.agentId} className="border-l-2 border-edge-bright pl-3">
+                  <p className="label">raised by {roleOf(v.agentId)}</p>
+                  <p className="mt-1 text-sm leading-relaxed text-ink/85">
+                    {v.whatWouldChangeMyMind}
+                  </p>
+                </li>
+              ))}
           </ol>
         </Section>
 
@@ -264,14 +276,12 @@ export default function Report() {
             />
           </dl>
           {deliberation.metrics.mindChanges.length > 0 && (
-            <div className="mt-4 border border-emerald-900/60 bg-emerald-950/15 p-3">
-              <p className="font-mono text-[10px] uppercase tracking-widest text-emerald-500">
-                Conclusions no single agent started with
-              </p>
+            <div className="mt-4 border border-positive/40 bg-positive/5 p-3">
+              <p className="label text-positive">Conclusions no single agent started with</p>
               {deliberation.metrics.mindChanges.map((c) => (
-                <p key={c.agentId} className="mt-1 font-mono text-xs text-white/75">
-                  {c.agentId} {c.from.toFixed(2)} → {c.to.toFixed(2)}
-                  {c.conceded && <span className="ml-1 text-emerald-400">conceded</span>}
+                <p key={c.agentId} className="num mt-1 text-xs text-ink/75">
+                  {roleOf(c.agentId)} {c.from.toFixed(2)} → {c.to.toFixed(2)}
+                  {c.conceded && <span className="ml-1 text-positive">conceded</span>}
                 </p>
               ))}
             </div>
@@ -315,8 +325,8 @@ function Bar({ label, value }: { label: string; value: number }) {
         <span>{label}</span>
         <span>{value}</span>
       </div>
-      <div className="mt-1 h-1.5 bg-white/10">
-        <div className="h-full bg-white/70" style={{ width: `${value}%` }} />
+      <div className="mt-1 h-1.5 bg-edge">
+        <div className="h-full bg-muted" style={{ width: `${value}%` }} />
       </div>
     </div>
   );

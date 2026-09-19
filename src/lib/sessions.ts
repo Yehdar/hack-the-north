@@ -2,7 +2,6 @@
 
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import type { VentureFile } from "@/lib/types";
 import type { CrowdVerdict } from "@/lib/discovery/types";
 import type { CrowdSignals } from "@/lib/discovery/signals";
 
@@ -55,8 +54,10 @@ type State = {
 
   /** Starts a new saved run. `parentId` links a re-run to what it came from. */
   begin: (solution: string, parentId?: string) => string;
-  /** Merges into the active run. */
-  record: (patch: Partial<SessionSummary>) => void;
+  /** Merges into a run — the active one unless `id` names another. A stream
+   *  that outlives a navigation must write to the run it started, not to
+   *  whichever run is active by the time it finishes. */
+  record: (patch: Partial<SessionSummary>, id?: string) => void;
   remove: (id: string) => void;
   setActive: (id: string | null) => void;
   clear: () => void;
@@ -88,12 +89,12 @@ export const useSessions = create<State>()(
         return id;
       },
 
-      record: (patch) => {
-        const { activeId, sessions } = get();
-        if (!activeId) return;
+      record: (patch, id) => {
+        const target = id ?? get().activeId;
+        if (!target) return;
         set({
-          sessions: sessions.map((s) =>
-            s.id === activeId ? { ...s, ...patch, updatedAt: Date.now() } : s
+          sessions: get().sessions.map((s) =>
+            s.id === target ? { ...s, ...patch, updatedAt: Date.now() } : s
           ),
         });
       },
@@ -110,6 +111,17 @@ export const useSessions = create<State>()(
     { name: "vision.sessions" }
   )
 );
+
+/**
+ * Lands a Part 2 result on the saved run it belongs to — the active run, and
+ * only when that run is the idea actually being pitched. Otherwise a committee
+ * convened on some other idea would overwrite a run it has nothing to do with.
+ */
+export function recordVerdict(solution: string, patch: Partial<SessionSummary>) {
+  const { sessions, activeId, record } = useSessions.getState();
+  const active = sessions.find((s) => s.id === activeId);
+  if (active && active.solution === solution.trim()) record(patch, active.id);
+}
 
 /** Everything a crowd run establishes, folded into one patch. */
 export function summariseCrowd(

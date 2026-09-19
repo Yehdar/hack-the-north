@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import type { LLMProvider, LLMRequest } from "@/lib/llm";
+import { parseJSON, type LLMProvider, type LLMRequest } from "@/lib/llm";
 
 // ============================================================================
 // RECORD / REPLAY - B6, the stage insurance policy.
@@ -57,8 +57,10 @@ export class RecordingProvider implements LLMProvider {
     return raw;
   }
 
+  // parseJSON, not JSON.parse: a real model can wrap its JSON in prose or a
+  // fence, and the recording run is exactly when that first happens.
   async completeJSON<T>(req: LLMRequest): Promise<T> {
-    return JSON.parse(await this.complete(req)) as T;
+    return parseJSON<T>(await this.complete(req));
   }
 
   private flush() {
@@ -101,7 +103,7 @@ export class ReplayProvider implements LLMProvider {
   }
 
   async completeJSON<T>(req: LLMRequest): Promise<T> {
-    return JSON.parse(await this.complete(req)) as T;
+    return parseJSON<T>(await this.complete(req));
   }
 }
 

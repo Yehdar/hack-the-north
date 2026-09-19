@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { motion } from "framer-motion";
 import { Wordmark } from "@/components/Logo";
 
@@ -139,6 +140,13 @@ export function StageRail({
       </ol>
 
       <div className="rule mx-4" />
+      <Link
+        href="/dashboard"
+        className="label mx-4 mt-3 flex items-center justify-between transition hover:text-ink"
+      >
+        <span>Saved runs</span>
+        <span aria-hidden>→</span>
+      </Link>
       <p className="p-4 text-[9px] leading-relaxed text-faint">
         AI simulation. Not affiliated with or endorsed by any firm named here.
       </p>

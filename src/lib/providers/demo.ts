@@ -321,18 +321,23 @@ export class DemoProvider implements LLMProvider {
         // The chair prompt names the room, so we can tell which council this is.
         return (req.system.includes("investment committee") ? TASKS : HUB_TASKS) as T;
       case "agent_verdict":
-        return (HUB_SEATS.has(seat) ? HUB_VERDICTS[seat] : VERDICTS[seat]) as T;
+        if (!HUB_SEATS.has(seat)) return VERDICTS[seat] as T;
+        return shiftStance(HUB_VERDICTS[seat], "stance", hubLean(seat, req.user)) as T;
       case "challenges":
         return {
           challenges: HUB_SEATS.has(seat) ? (HUB_CHALLENGES[seat] ?? []) : CHALLENGES[seat],
         } as T;
       case "rebuttal":
-        return (HUB_SEATS.has(seat) ? HUB_REBUTTALS[seat] : REBUTTALS[seat]) as T;
+        if (!HUB_SEATS.has(seat)) return REBUTTALS[seat] as T;
+        return shiftStance(HUB_REBUTTALS[seat], "revisedStance", hubLean(seat, req.user)) as T;
       case "problem_split":
         return demoProblems(req.user) as T;
 
       case "crowd_reactions":
         return demoReactions(req.user) as T;
+
+      case "refined_pitch":
+        return demoRefine(req.user) as T;
 
       case "persona_reply":
         return demoPersonaReply(req.system, req.user) as T;
@@ -387,6 +392,116 @@ function delay(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
+// --- hub council, per city -------------------------------------------------
+//
+// The council's written positions are the same everywhere; what moves each
+// stance is the crowd data for the city under assessment, parsed back out of
+// the context the way a model would read it. Without this every city scores
+// identically, and anyone who clicks two cities sees through the demo at once.
+
+function hubLean(seat: Seat, user: string): number {
+  const read = (re: RegExp) => Number(user.match(re)?.[1] ?? NaN);
+  const asked = read(/\((\d+) people asked\)/);
+  const have = read(/(\d+) of them have this specific problem/);
+  const pay = read(/(\d+) of those would pay/);
+  const capital = read(/Capital density (\d+)\/100/);
+  if (!asked || Number.isNaN(have)) return 0;
+
+  const incidence = have / asked;
+  const payRate = have && !Number.isNaN(pay) ? pay / have : 0;
+  // Stable per city, so the same city always argues the same way.
+  const jitter = ((hash(user.match(/THE CITY: (.+)/)?.[1] ?? "") % 21) - 10) / 100;
+
+  switch (seat) {
+    case "market":
+      return (incidence - 0.45) * 0.9;
+    case "customer":
+      return (payRate - 0.6) * 0.8;
+    case "capital":
+      return Number.isNaN(capital) ? jitter : (capital - 70) * 0.008;
+    case "founder":
+      return jitter;
+    case "regulatory":
+      return -jitter / 2;
+    case "contrarian":
+      // Leans against wherever the evidence pushes everyone else.
+      return -(incidence - 0.45) * 0.5;
+    default:
+      return 0;
+  }
+}
+
+/** Moves one stance field, so a verdict and its rebuttal shift together and
+ *  the recorded change of mind keeps its size and direction. */
+function shiftStance(base: Record<string, unknown>, key: string, by: number) {
+  if (!by) return base;
+  const moved = Math.max(-0.95, Math.min(0.95, Number(base[key]) + by));
+  return { ...base, [key]: Math.round(moved * 100) / 100 };
+}
+
+function hash(s: string): number {
+  let h = 0;
+  for (const c of s) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  return h;
+}
+
+// --- reading problems and pitches ------------------------------------------
+
+const STOP = new Set(
+  "the and for that this with from into your their they them when which what whom have has had not but are was were will would can cannot could should does did its our out all any more most some such than then there these those very just also only over under about after before because while where here each other same how why own one ones get gets goes make makes made instead being been who".split(
+    " "
+  )
+);
+
+function stem(w: string): string {
+  if (w.length > 5 && w.endsWith("ing")) return w.slice(0, -3);
+  if (w.length > 4 && w.endsWith("ies")) return `${w.slice(0, -3)}y`;
+  if (w.length > 4 && w.endsWith("es")) return w.slice(0, -2);
+  if (w.length > 4 && w.endsWith("ed")) return w.slice(0, -2);
+  if (w.length > 3 && w.endsWith("s") && !w.endsWith("ss")) return w.slice(0, -1);
+  return w;
+}
+
+function contentWords(text: string): Set<string> {
+  const out = new Set<string>();
+  for (const w of text.toLowerCase().match(/[a-z]+/g) ?? []) {
+    if (w.length >= 4 && !STOP.has(w)) out.add(stem(w));
+  }
+  return out;
+}
+
+/**
+ * Which kind of person a problem belongs to, read from what it says rather
+ * than where it sits in the list. Position-based assignment breaks the moment
+ * a re-run reorders the problems, and the refine loop does exactly that.
+ */
+const SEGMENTS = {
+  buyer: /accountab|owns? the outcome|budget|\bleads?\b|manager|\brisk|incident|dangerous/i,
+  compliance: /audit|complian|regulat|executive|standard|director|report(?:ing)? upward/i,
+  tedium: /tedious|avoid|by hand|manual|individual contributor|\bskip/i,
+} as const;
+
+type Segment = keyof typeof SEGMENTS;
+
+type ParsedProblem = { id: string; segment: Segment | null; words: Set<string> };
+
+function parseProblems(user: string): ParsedProblem[] {
+  const full = [...user.matchAll(/^\s{2}(p\d+): "(.*)" \(felt by (.*)\)\s*$/gm)];
+  if (full.length > 0) {
+    return full.map((m) => {
+      const text = `${m[2]} ${m[3]}`;
+      const segment =
+        (Object.keys(SEGMENTS) as Segment[]).find((s) => SEGMENTS[s].test(text)) ?? null;
+      return { id: m[1], segment, words: contentWords(text) };
+    });
+  }
+  return [...user.matchAll(/^\s{2}(p\d+):/gm)].map((m) => ({
+    id: m[1],
+    segment: null,
+    words: new Set<string>(),
+  }));
+}
+
 // --- Part 1: discovery -----------------------------------------------------
 //
 // These are NOT canned. The crowd reactions are computed from each persona's
@@ -416,35 +531,66 @@ function parsePersonas(user: string): ParsedPersona[] {
   return out;
 }
 
-function parseProblemIds(user: string): string[] {
-  return [...user.matchAll(/^\s{2}(p\d+):/gm)].map((m) => m[1]);
-}
-
 function demoReactions(user: string) {
   const people = parsePersonas(user);
-  const problems = parseProblemIds(user);
+  const problems = parseProblems(user);
+  const ids = problems.map((p) => p.id);
+  const product = contentWords(
+    user.match(/PRODUCT:\n"([\s\S]*?)"\n\nCANDIDATE PROBLEMS:/)?.[1] ?? ""
+  );
+
+  const bySegment = new Map<Segment, string>();
+  for (const p of problems) {
+    if (p.segment && !bySegment.has(p.segment)) bySegment.set(p.segment, p.id);
+  }
+  // The people who use the thing have the problem it literally solves — the
+  // founder's own framing, wherever the list now puts it.
+  const literal = problems.find((p) => !p.segment)?.id ?? ids[0] ?? "p1";
+
+  // The reveal, emerging rather than scripted: people who can actually sign
+  // are answering a different question from the people who use the thing.
+  const pick = (p: ParsedPersona): string => {
+    if (ids.length > 1) {
+      if (p.budget >= 7) return bySegment.get("buyer") ?? ids[1];
+      if (p.pain <= 3) {
+        const id = bySegment.get("compliance") ?? ids[2];
+        if (id) return id;
+      }
+      if (p.tech <= 3) {
+        const id = bySegment.get("tedium") ?? ids[3];
+        if (id) return id;
+      }
+    }
+    return literal;
+  };
+
+  /** How squarely the pitch speaks to this person's problem, 0..1. A pitch
+   *  that names someone's actual pain gets a warmer hearing — which is the
+   *  whole reason rewriting around the market's problem can move the crowd. */
+  const fit = (problemId: string): number => {
+    const words = problems.find((p) => p.id === problemId)?.words;
+    if (!words) return 0;
+    let overlap = 0;
+    for (const w of words) if (product.has(w)) overlap++;
+    return Math.min(1, overlap / 5);
+  };
 
   return {
     reactions: people.map((p) => {
+      const problemId = pick(p);
+      const addressed = fit(problemId);
+
       // Enthusiasm rises with appetite for new things, falls with price
       // sensitivity and loyalty to incumbents.
       const raw =
-        (p.tech * 0.9 + p.risk * 0.7 - p.price * 0.6 - p.brand * 0.4 + 6) / 14;
+        (p.tech * 0.9 + p.risk * 0.7 - p.price * 0.6 - p.brand * 0.4 + 6) / 14 +
+        addressed * 0.18;
       const sentiment = Math.max(0.02, Math.min(0.98, raw));
 
       // Real research is mostly indifference. A crowd that is 60% enthusiastic
       // has been flattered, and it teaches a founder nothing.
       const engagement = sentiment * 0.55 + ((10 - p.pain) / 10) * 0.45;
       const attention = engagement > 0.72 ? "full" : engagement > 0.52 ? "partial" : "ignore";
-
-      // The reveal, emerging rather than scripted: people who can actually sign
-      // are answering a different question from the people who use the thing.
-      let problemId: string = problems[0] ?? "p1";
-      if (problems.length > 1) {
-        if (p.budget >= 7) problemId = problems[1];
-        else if (p.pain <= 3 && problems.length > 2) problemId = problems[2];
-        else if (p.tech <= 3 && problems.length > 3) problemId = problems[3];
-      }
 
       const hasProblem = attention !== "ignore" || p.pain <= 4;
 
@@ -455,20 +601,45 @@ function demoReactions(user: string) {
         problemId: hasProblem ? problemId : "",
         problemSeverity: hasProblem ? Math.round((10 - p.pain) * 9 + p.budget * 1.5) : 0,
         wouldPay: p.budget >= 6 && p.price <= 6 && sentiment > 0.45,
-        reason: hasProblem ? demoReason(p) : demoShrug(p),
+        reason: hasProblem ? demoReason(p, addressed) : demoShrug(p),
       };
     }),
   };
 }
 
+/**
+ * The problem as the founder frames it: the absence of their own product.
+ * That is the classic mistake, and it is exactly what the reveal exists to
+ * catch, so it is worth stating grammatically rather than as a fragment.
+ */
+function founderFraming(solution: string): string {
+  const s = solution
+    .trim()
+    .replace(/[.!\s]+$/, "")
+    .replace(/^we(?:'ve| have)? (?:built|made|are building)\s+/i, "");
+  const clipped = (t: string) => (t.length > 150 ? `${t.slice(0, 150).trimEnd()}…` : t);
+
+  const relative = s.match(/^(?:an?\s+|the\s+)?(.+?)\s+(?:that|which)\s+(.+)$/i);
+  if (relative) return clipped(`Teams have no ${lowerFirst(relative[1])} that ${relative[2]}`) + ".";
+
+  const bare = s.match(/^(?:an?|the)\s+(.+)$/i);
+  if (bare) return clipped(`There is no ${lowerFirst(bare[1])}`) + ".";
+
+  return clipped(`Nobody has this yet: ${lowerFirst(s)}`) + ".";
+}
+
+/** "Software" → "software", but "AI tool" stays "AI tool". */
+function lowerFirst(t: string): string {
+  return /^[A-Z][a-z]/.test(t) ? t.charAt(0).toLowerCase() + t.slice(1) : t;
+}
+
 function demoProblems(user: string) {
   const solution = (user.match(/"([^"]{10,400})"/)?.[1] ?? "the product").trim();
-  const short = solution.length > 90 ? solution.slice(0, 90) + "…" : solution;
 
   return {
     problems: [
       {
-        statement: `Teams do not have ${short.replace(/^(We built|An?|The)\s+/i, "")}`,
+        statement: founderFraming(solution),
         whoHasIt: "The team the founder had in mind when they started building.",
         severity: 44,
         frequency: "Continuous",
@@ -511,7 +682,16 @@ function demoProblems(user: string) {
 
 /** Varied by attribute rather than random, so the reaction list reads as many
  *  different people instead of one sentence pasted 120 times. */
-function demoReason(p: ParsedPersona): string {
+function demoReason(p: ParsedPersona, addressed: number): string {
+  // A buyer hearing their own problem named back to them sounds different
+  // from a buyer hearing a pitch aimed at somebody else.
+  const heard = [
+    "This is pitched at the problem I actually have, and I own the budget for it.",
+    "Finally framed around what I get blamed for. I would take that meeting.",
+    "If it does this for the people accountable, I can sign for a pilot.",
+  ];
+  if (p.budget >= 7 && addressed >= 0.6) return heard[(p.id * 7) % heard.length];
+
   const buyer = [
     "I own this budget, and the version of this problem I care about is the one that shows up in my incident reviews.",
     "I can sign for this, but only if it answers to my board deck rather than my engineers.",
@@ -546,6 +726,32 @@ function demoShrug(p: ParsedPersona): string {
     "I would not pay for this, and I would not champion it either.",
   ];
   return pool[(p.id * 5) % pool.length];
+}
+
+// --- the refine loop ---------------------------------------------------------
+
+/**
+ * Same product, pointed at the market's problem. The product words are kept
+ * verbatim on purpose: a rewrite that invents features is a different product,
+ * and the comparison between the two runs would stop meaning anything.
+ */
+function demoRefine(user: string) {
+  const solution =
+    user.match(/THE FOUNDER'S DESCRIPTION:\n"([\s\S]*?)"\n\nTHE PROBLEM/)?.[1]?.trim() ??
+    "Our product";
+  const statement = user.match(/ACTUALLY HAS:\n"([\s\S]*?)"\n/)?.[1]?.trim() ?? "";
+  const who = user.match(/Felt by: (.+)/)?.[1]?.trim().replace(/\.$/, "") ?? "";
+
+  const text = `${statement} ${who}`.toLowerCase();
+  const aim = /accountab|\brisk|dangerous/.test(text)
+    ? "so the leads accountable for it can see which part actually carries risk and point the effort at the dangerous areas first"
+    : /audit|standard|executive/.test(text)
+      ? "so the directors who answer for it can show an auditor or an executive that the work met the standard"
+      : /tedious|avoid|by hand/.test(text)
+        ? "so nobody has to do the tedious part by hand"
+        : `built for ${lowerFirst(who || "the people who have this problem")}, because ${lowerFirst(statement.replace(/\.$/, ""))}`;
+
+  return { solution: `${solution.replace(/[.!\s]+$/, "")}, ${aim}.` };
 }
 
 // --- talking to one person -------------------------------------------------
