@@ -154,31 +154,45 @@ export function StageRail({
   );
 }
 
-/** Derives rail state from what has actually happened, so it can never claim
- *  progress the run has not made. */
-export function deriveStages(f: {
-  hasIdea: boolean;
-  problems: number;
-  deployed: number;
-  answered: number;
-  total: number;
-  hasVerdict: boolean;
-  councilRunning: boolean;
-  councilDone: boolean;
-  hasPvs: boolean;
-  running: boolean;
-}): Record<StageId, StageState> {
-  const done = (b: boolean): StageState => (b ? "done" : "todo");
+/** Where the founder is in Part 1. Each segment plays, then waits for them. */
+export type Segment =
+  | "idle"
+  | "split"
+  | "deploy"
+  | "listen"
+  | "heard"
+  | "result"
+  | "council"
+  | "deliberated"
+  | "scored";
+
+const ORDER: Segment[] = [
+  "idle",
+  "split",
+  "deploy",
+  "listen",
+  "heard",
+  "result",
+  "council",
+  "deliberated",
+  "scored",
+];
+
+/** Derives rail state from the segment on screen, so it can never claim
+ *  progress the founder has not actually been shown. */
+export function deriveStages(segment: Segment, hasIdea: boolean): Record<StageId, StageState> {
+  const at = ORDER.indexOf(segment);
+  const stage = (active: Segment[], last: Segment): StageState =>
+    active.includes(segment) ? "active" : at > ORDER.indexOf(last) ? "done" : "todo";
 
   return {
-    intake: done(f.hasIdea),
-    split: f.running && f.problems === 0 ? "active" : done(f.problems > 0),
-    deploy: f.problems > 0 && f.deployed === 0 ? "active" : done(f.deployed > 0),
-    listen:
-      f.deployed > 0 && f.answered < f.total ? "active" : done(f.total > 0 && f.answered >= f.total),
-    reveal: f.hasVerdict ? "done" : f.answered > 0 && f.answered >= f.total ? "active" : "todo",
-    council: f.councilRunning ? "active" : done(f.councilDone),
-    score: done(f.hasPvs),
-    pitch: f.hasPvs ? "active" : "todo",
+    intake: hasIdea ? "done" : "active",
+    split: stage(["split"], "split"),
+    deploy: stage(["deploy"], "deploy"),
+    listen: stage(["listen", "heard"], "heard"),
+    reveal: stage(["result"], "result"),
+    council: stage(["council", "deliberated"], "deliberated"),
+    score: segment === "scored" ? "done" : "todo",
+    pitch: segment === "scored" ? "active" : "todo",
   };
 }
