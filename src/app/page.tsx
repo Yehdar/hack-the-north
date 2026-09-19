@@ -1,69 +1,62 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Globe, type GlobeDot } from "@/components/globe/Globe";
+import { AgentBoot } from "@/components/hud/AgentBoot";
+import { ProcessingPanel } from "@/components/hud/ProcessingPanel";
+import { AgentFeed, type FeedItem } from "@/components/hud/AgentFeed";
+import { HUB_POINTS, SEAT_POINTS } from "@/data/globePoints";
+import { AnimatePresence, motion } from "framer-motion";
 
-type RosterEntry = {
-  id: string;
-  role: string;
-  weight: number;
-  focus: string[];
-  temperature: number;
-};
 type Msg = {
   id: string;
   round: number;
   from: string;
   to: string;
-  kind: "finding" | "challenge" | "rebuttal" | "concession";
+  kind: FeedItem["kind"];
   text: string;
 };
-type Task = { id: string; question: string; assignedTo: string; why: string };
 type Verdict = { agentId: string; stance: number; confidence: number; position: string };
-type Metrics = {
-  varianceByRound: number[];
-  challenges: number;
-  rebuttals: number;
-  concessions: number;
-  mindChanges: { agentId: string; from: number; to: number; delta: number; conceded: boolean }[];
-  convergence: number;
-  durationMs: number;
+type RosterEntry = { id: string; role: string; weight: number };
+
+const ROUND_LABEL: Record<number, string> = {
+  1: "Round 1 · independent, blind",
+  2: "Round 2 · cross-examination",
+  3: "Round 3 · rebuttal",
+  4: "Round 4 · adversarial",
 };
 
-const KIND_STYLE: Record<Msg["kind"], string> = {
-  finding: "border-slate-700 bg-slate-900/60",
-  challenge: "border-amber-600/60 bg-amber-950/30",
-  rebuttal: "border-sky-600/60 bg-sky-950/30",
-  concession: "border-emerald-600/60 bg-emerald-950/30",
-};
-
-const ROUND_NAME: Record<number, string> = {
-  1: "Independent · blind",
-  2: "Cross-examination",
-  3: "Rebuttal",
-  4: "Adversarial",
-};
+// 3 findings + 3 challenges + up to 3 rebuttals + 1 adversary
+const EXPECTED_TURNS = 10;
 
 export default function Home() {
+  const [booting, setBooting] = useState(true);
   const [running, setRunning] = useState(false);
-  const [firm, setFirm] = useState<string>("");
-  const [provider, setProvider] = useState<string>("");
-  const [disclaimer, setDisclaimer] = useState<string>("");
+  const [firm, setFirm] = useState("");
+  const [provider, setProvider] = useState("");
   const [roster, setRoster] = useState<RosterEntry[]>([]);
-  const [tasks, setTasks] = useState<Task[]>([]);
   const [messages, setMessages] = useState<Msg[]>([]);
+  const [feed, setFeed] = useState<FeedItem[]>([]);
   const [stances, setStances] = useState<Record<string, Verdict>>({});
-  const [metrics, setMetrics] = useState<Metrics | null>(null);
-  const [decision, setDecision] = useState<{ decision: string; score: number; killShot?: string; dissents: string[] } | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const feedRef = useRef<HTMLDivElement>(null);
+  const [active, setActive] = useState<Set<string>>(new Set());
+  const [round, setRound] = useState(0);
+  const [step, setStep] = useState("Idle");
+  const [decision, setDecision] = useState<{ decision: string; score: number; dissents: string[] } | null>(null);
+  const [mindChanges, setMindChanges] = useState<{ agentId: string; from: number; to: number; conceded: boolean }[]>([]);
+  const sidebar = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    feedRef.current?.scrollTo({ top: feedRef.current.scrollHeight, behavior: "smooth" });
+    sidebar.current?.scrollTo({ top: sidebar.current.scrollHeight, behavior: "smooth" });
   }, [messages.length]);
+
+  const dismiss = useCallback((id: string) => {
+    setFeed((f) => f.filter((i) => i.id !== id));
+  }, []);
 
   const run = useCallback(() => {
     setRunning(true);
-    setTasks([]); setMessages([]); setStances({}); setMetrics(null); setDecision(null); setError(null);
+    setMessages([]); setFeed([]); setStances({}); setDecision(null);
+    setMindChanges([]); setRound(0); setStep("Convening");
 
     const es = new EventSource("/api/vc/deliberate");
 
@@ -71,264 +64,235 @@ export default function Home() {
       const ev = JSON.parse(e.data);
       switch (ev.type) {
         case "start":
-          setFirm(ev.firm.name); setProvider(ev.provider);
-          setDisclaimer(ev.disclaimer); setRoster(ev.roster);
+          setFirm(ev.firm.name); setProvider(ev.provider); setRoster(ev.roster);
+          setStep("Decomposing the decision");
           break;
+
         case "task":
-          setTasks((t) => [...t, ev.task]);
+          setActive((a) => new Set(a).add(ev.task.assignedTo));
           break;
-        case "message":
-          setMessages((m) => [...m, ev.message]);
+
+        case "message": {
+          const m: Msg = ev.message;
+          setMessages((prev) => [...prev, m]);
+          setRound(m.round);
+          setStep(ROUND_LABEL[m.round] ?? "Deliberating");
+          setFeed((f) => [
+            { id: m.id, agent: m.from, message: m.text, kind: m.kind },
+            ...f,
+          ].slice(0, 5));
           break;
+        }
+
         case "verdict":
           setStances((s) => ({ ...s, [ev.verdict.agentId]: ev.verdict }));
+          setActive((a) => {
+            const next = new Set(a);
+            next.delete(ev.verdict.agentId);
+            return next;
+          });
           break;
+
         case "done":
-          setMetrics(ev.result.metrics); setDecision(ev.verdict);
-          setRunning(false); es.close();
+          setDecision(ev.verdict);
+          setMindChanges(ev.result.metrics.mindChanges);
+          setStep("Committee concluded");
+          setActive(new Set());
+          setRunning(false);
+          es.close();
           break;
+
         case "error":
-          setError(ev.message); setRunning(false); es.close();
+          setStep("Failed"); setRunning(false); es.close();
           break;
       }
     };
-
     es.onerror = () => { setRunning(false); es.close(); };
   }, []);
 
+  const dots: GlobeDot[] = [
+    ...HUB_POINTS.map((h) => ({
+      id: `hub:${h.id}`,
+      lat: h.lat,
+      lon: h.lon,
+      label: h.label,
+      weight: 0.25,
+    })),
+    ...Object.values(SEAT_POINTS).map((s) => ({
+      id: s.id,
+      lat: s.lat,
+      lon: s.lon,
+      label: s.label,
+      stance: stances[s.id]?.stance,
+      weight: roster.find((r) => r.id === s.id)?.weight ?? 0.4,
+      active: active.has(s.id),
+    })),
+  ];
+
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-200 font-sans">
-      <div className="mx-auto max-w-7xl px-6 py-8">
-        <header className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-800 pb-6">
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight text-white">
-              Investment Committee
-            </h1>
-            <p className="mt-1 text-sm text-slate-400">
-              {firm || "Multi-agent deliberation"}
+    <main className="relative h-screen overflow-hidden bg-black text-white">
+      {booting && <AgentBoot onComplete={() => setBooting(false)} />}
+
+      <div className="flex h-full">
+        {/* ------------------------------- globe ------------------------------- */}
+        <div className="relative flex-1">
+          <Globe
+            dots={dots}
+            focus={running || decision ? { lat: SEAT_POINTS.gp.lat, lon: SEAT_POINTS.gp.lon } : null}
+            className="h-full w-full"
+          />
+
+          {/* header */}
+          <div className="pointer-events-none absolute left-8 top-8 z-40">
+            {!running && !decision && (
+              <div className="pointer-events-auto">
+                <h1 className="font-mono text-xl tracking-tight">Atlas</h1>
+                <p className="mt-1 max-w-xs font-mono text-xs leading-relaxed text-white/50">
+                  {firm || "An investment committee that argues with itself before it argues with you."}
+                </p>
+              </div>
+            )}
+            <AnimatePresence>
+              {running && (
+                <ProcessingPanel
+                  step={step}
+                  done={messages.length}
+                  total={EXPECTED_TURNS}
+                  round={round ? ROUND_LABEL[round] : undefined}
+                />
+              )}
+            </AnimatePresence>
+          </div>
+
+          <AgentFeed items={feed} onDismiss={dismiss} />
+
+          {/* controls */}
+          <div className="absolute bottom-8 left-1/2 z-40 -translate-x-1/2">
+            <div className="flex items-center gap-3 border border-white/30 bg-black/90 p-2 backdrop-blur-md">
+              <button
+                onClick={run}
+                disabled={running}
+                className="bg-white px-5 py-2 font-mono text-xs uppercase tracking-widest text-black transition hover:bg-white/80 disabled:bg-white/20 disabled:text-white/40"
+              >
+                {running ? "Deliberating" : decision ? "Run again" : "Convene committee"}
+              </button>
+              <a
+                href="/meeting"
+                className="px-4 py-2 font-mono text-xs uppercase tracking-widest text-white/60 transition hover:text-white"
+              >
+                Defend it →
+              </a>
               {provider && (
-                <span className="ml-2 rounded bg-slate-800 px-2 py-0.5 font-mono text-xs text-slate-300">
+                <span className="px-2 font-mono text-[10px] uppercase tracking-widest text-white/30">
                   {provider}
                 </span>
               )}
-            </p>
+            </div>
           </div>
-          <button
-            onClick={run}
-            disabled={running}
-            className="rounded-md bg-emerald-600 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400"
-          >
-            {running ? "Deliberating…" : "Convene the committee"}
-          </button>
-        </header>
+        </div>
 
-        {error && (
-          <div className="mt-6 rounded-md border border-red-800 bg-red-950/40 p-4 text-sm text-red-300">
-            {error}
-          </div>
-        )}
-
-        <div className="mt-8 grid gap-8 lg:grid-cols-[280px_1fr_300px]">
-          {/* ---------------- roster + live stance ---------------- */}
-          <section>
-            <h2 className="mb-3 text-xs font-semibold uppercase tracking-widest text-slate-500">
+        {/* ------------------------------ sidebar ------------------------------ */}
+        <aside className="flex w-96 flex-col border-l border-white/10 bg-black">
+          <div className="border-b border-white/10 p-4">
+            <h2 className="font-mono text-[10px] uppercase tracking-widest text-white/40">
               The room
             </h2>
-            <div className="space-y-3">
-              {roster.map((a) => {
-                const v = stances[a.id];
+            <div className="mt-3 space-y-2">
+              {roster.filter((r) => r.weight > 0).map((r) => {
+                const v = stances[r.id];
                 return (
-                  <div key={a.id} className="rounded-lg border border-slate-800 bg-slate-900/40 p-3">
-                    <div className="flex items-baseline justify-between">
-                      <span className="text-sm font-medium text-slate-100">{a.role}</span>
-                      <span className="font-mono text-xs text-slate-500">
-                        {(a.weight * 100).toFixed(0)}%
-                      </span>
+                  <div key={r.id} className="border border-white/15 p-2">
+                    <div className="flex items-baseline justify-between font-mono text-xs">
+                      <span className="text-white/90">{r.role}</span>
+                      <span className="text-white/40">{(r.weight * 100).toFixed(0)}%</span>
                     </div>
-                    <StanceBar stance={v?.stance} confidence={v?.confidence} />
+                    <div className="relative mt-2 h-1 bg-white/10">
+                      <div className="absolute left-1/2 top-0 h-full w-px bg-white/30" />
+                      {v && (
+                        <motion.div
+                          layout
+                          className={`absolute top-0 h-full ${v.stance >= 0 ? "bg-emerald-400" : "bg-red-400"}`}
+                          style={{
+                            width: `${Math.abs(v.stance) * 50}%`,
+                            left: v.stance >= 0 ? "50%" : `${50 - Math.abs(v.stance) * 50}%`,
+                          }}
+                        />
+                      )}
+                    </div>
                     {v && (
-                      <p className="mt-2 text-xs leading-relaxed text-slate-400">{v.position}</p>
+                      <p className="mt-1 font-mono text-[10px] text-white/40">
+                        {v.stance.toFixed(2)} · conf {v.confidence.toFixed(2)}
+                      </p>
                     )}
                   </div>
                 );
               })}
               {roster.length === 0 && (
-                <p className="text-sm text-slate-600">Press convene to begin.</p>
+                <p className="font-mono text-xs text-white/30">Not yet convened.</p>
               )}
             </div>
-          </section>
+          </div>
 
-          {/* ---------------- message feed ---------------- */}
-          <section className="min-w-0">
-            <h2 className="mb-3 text-xs font-semibold uppercase tracking-widest text-slate-500">
-              Deliberation
+          <div ref={sidebar} className="flex-1 overflow-y-auto p-4">
+            <h2 className="font-mono text-[10px] uppercase tracking-widest text-white/40">
+              Transcript
             </h2>
-            <div
-              ref={feedRef}
-              className="h-[560px] space-y-3 overflow-y-auto rounded-lg border border-slate-800 bg-slate-900/20 p-4"
-            >
-              {messages.length === 0 && !running && (
-                <p className="text-sm text-slate-600">
-                  Nothing yet. The committee decomposes the decision, forms positions blind,
-                  then challenges each other directly.
-                </p>
-              )}
-              {messages.map((m, i) => {
-                const newRound = i === 0 || messages[i - 1].round !== m.round;
-                return (
-                  <div key={m.id}>
-                    {newRound && (
-                      <div className="mb-2 mt-4 flex items-center gap-3 first:mt-0">
-                        <span className="font-mono text-[10px] uppercase tracking-widest text-slate-500">
-                          Round {m.round} · {ROUND_NAME[m.round]}
-                        </span>
-                        <span className="h-px flex-1 bg-slate-800" />
-                      </div>
-                    )}
-                    <div className={`rounded-lg border p-3 ${KIND_STYLE[m.kind]}`}>
-                      <div className="mb-1 flex items-center gap-2 font-mono text-[11px]">
-                        <span className="text-slate-300">{m.from}</span>
-                        <span className="text-slate-600">
-                          {m.to === "room" ? "→ room" : `→ ${m.to}`}
-                        </span>
-                        <span className="ml-auto uppercase tracking-wider text-slate-500">
-                          {m.kind}
-                        </span>
-                      </div>
-                      <p className="text-sm leading-relaxed text-slate-200">{m.text}</p>
-                    </div>
+            <div className="mt-3 space-y-2">
+              {messages.map((m) => (
+                <div key={m.id} className="border-l-2 border-white/20 pl-3">
+                  <div className="font-mono text-[10px] uppercase tracking-wider text-white/40">
+                    {m.from} {m.to === "room" ? "→ room" : `→ ${m.to}`} · {m.kind}
                   </div>
-                );
-              })}
-              {running && (
-                <p className="animate-pulse py-2 text-xs text-slate-500">thinking…</p>
+                  <p className="mt-1 text-xs leading-relaxed text-white/80">{m.text}</p>
+                </div>
+              ))}
+              {messages.length === 0 && (
+                <p className="font-mono text-xs text-white/30">Nothing said yet.</p>
               )}
             </div>
-          </section>
+          </div>
 
-          {/* ---------------- tasks + metrics ---------------- */}
-          <section className="space-y-6">
-            <div>
-              <h2 className="mb-3 text-xs font-semibold uppercase tracking-widest text-slate-500">
-                Assigned diligence
-              </h2>
-              <div className="space-y-2">
-                {tasks.map((t) => (
-                  <div key={t.id} className="rounded border border-slate-800 bg-slate-900/40 p-2.5">
-                    <div className="font-mono text-[10px] uppercase tracking-wider text-emerald-500">
-                      {t.assignedTo}
-                    </div>
-                    <p className="mt-1 text-xs leading-relaxed text-slate-300">{t.question}</p>
-                  </div>
-                ))}
-                {tasks.length === 0 && <p className="text-xs text-slate-600">—</p>}
-              </div>
-            </div>
-
-            {metrics && (
-              <div>
-                <h2 className="mb-3 text-xs font-semibold uppercase tracking-widest text-slate-500">
-                  Collaboration metrics
-                </h2>
-                <dl className="space-y-1.5 rounded-lg border border-slate-800 bg-slate-900/40 p-3 font-mono text-xs">
-                  <Row k="challenges" v={metrics.challenges} />
-                  <Row k="rebuttals" v={metrics.rebuttals} />
-                  <Row k="concessions" v={metrics.concessions} />
-                  <Row k="minds changed" v={metrics.mindChanges.length} />
-                  <Row
-                    k="σ by round"
-                    v={metrics.varianceByRound.map((x) => x.toFixed(2)).join(" → ")}
-                  />
-                  <Row k="convergence" v={metrics.convergence.toFixed(3)} />
-                  <Row k="duration" v={`${(metrics.durationMs / 1000).toFixed(1)}s`} />
-                </dl>
-                {metrics.mindChanges.length > 0 && (
-                  <div className="mt-3 rounded-lg border border-emerald-900/60 bg-emerald-950/20 p-3">
-                    <p className="mb-2 text-[10px] uppercase tracking-widest text-emerald-500">
-                      Minds changed by the argument
+          {(decision || mindChanges.length > 0) && (
+            <div className="border-t border-white/10 p-4">
+              {mindChanges.length > 0 && (
+                <div className="mb-3">
+                  <h2 className="font-mono text-[10px] uppercase tracking-widest text-emerald-500">
+                    Minds changed
+                  </h2>
+                  {mindChanges.map((c) => (
+                    <p key={c.agentId} className="mt-1 font-mono text-[11px] text-white/70">
+                      {c.agentId} {c.from.toFixed(2)} → {c.to.toFixed(2)}
+                      {c.conceded && <span className="ml-1 text-emerald-400">conceded</span>}
                     </p>
-                    {metrics.mindChanges.map((c) => (
-                      <p key={c.agentId} className="font-mono text-xs text-slate-300">
-                        {c.agentId} {c.from.toFixed(2)} → {c.to.toFixed(2)}
-                        {c.conceded && <span className="ml-1 text-emerald-400">conceded</span>}
-                      </p>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {decision && (
-              <div className="rounded-lg border border-slate-700 bg-slate-900/60 p-4">
-                <p className="text-[10px] uppercase tracking-widest text-slate-500">Verdict</p>
-                <p
-                  className={`mt-1 text-xl font-semibold ${
-                    decision.decision === "invest"
-                      ? "text-emerald-400"
-                      : decision.decision === "pass"
-                        ? "text-red-400"
-                        : "text-amber-400"
-                  }`}
-                >
-                  {decision.decision}
-                </p>
-                <p className="mt-1 font-mono text-xs text-slate-500">
-                  score {decision.score.toFixed(3)}
-                </p>
-                {decision.dissents.length > 0 && (
-                  <p className="mt-3 text-xs text-slate-400">
-                    Dissenting: <span className="text-amber-400">{decision.dissents.join(", ")}</span>
+                  ))}
+                </div>
+              )}
+              {decision && (
+                <>
+                  <h2 className="font-mono text-[10px] uppercase tracking-widest text-white/40">
+                    Verdict
+                  </h2>
+                  <p
+                    className={`mt-1 font-mono text-2xl uppercase ${
+                      decision.decision === "invest"
+                        ? "text-emerald-400"
+                        : decision.decision === "pass"
+                          ? "text-red-400"
+                          : "text-amber-400"
+                    }`}
+                  >
+                    {decision.decision}
                   </p>
-                )}
-              </div>
-            )}
-          </section>
-        </div>
-
-        {disclaimer && (
-          <p className="mt-10 border-t border-slate-800 pt-4 text-[11px] text-slate-600">
-            {disclaimer}
-          </p>
-        )}
+                  <p className="font-mono text-[11px] text-white/40">
+                    score {decision.score.toFixed(3)}
+                    {decision.dissents.length > 0 && ` · dissent: ${decision.dissents.join(", ")}`}
+                  </p>
+                </>
+              )}
+            </div>
+          )}
+        </aside>
       </div>
     </main>
-  );
-}
-
-function Row({ k, v }: { k: string; v: string | number }) {
-  return (
-    <div className="flex justify-between gap-3">
-      <dt className="text-slate-500">{k}</dt>
-      <dd className="text-slate-200">{v}</dd>
-    </div>
-  );
-}
-
-/** -1 .. +1 rendered from a fixed centre, so movement between rounds is visible. */
-function StanceBar({ stance, confidence }: { stance?: number; confidence?: number }) {
-  if (stance === undefined) {
-    return <div className="mt-2 h-1.5 rounded-full bg-slate-800" />;
-  }
-  const pct = Math.abs(stance) * 50;
-  const positive = stance >= 0;
-
-  return (
-    <div className="mt-2">
-      <div className="relative h-1.5 rounded-full bg-slate-800">
-        <div className="absolute left-1/2 top-0 h-full w-px bg-slate-600" />
-        <div
-          className={`absolute top-0 h-full rounded-full ${positive ? "bg-emerald-500" : "bg-red-500"}`}
-          style={{
-            width: `${pct}%`,
-            left: positive ? "50%" : `${50 - pct}%`,
-            opacity: 0.35 + (confidence ?? 0.5) * 0.65,
-          }}
-        />
-      </div>
-      <div className="mt-1 flex justify-between font-mono text-[10px] text-slate-500">
-        <span>{stance.toFixed(2)}</span>
-        <span>conf {(confidence ?? 0).toFixed(2)}</span>
-      </div>
-    </div>
   );
 }
