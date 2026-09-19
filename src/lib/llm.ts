@@ -1,0 +1,143 @@
+import OpenAI from "openai";
+
+// ============================================================================
+// LLM PROVIDER SEAM — shared, frozen after the 1.5h sync.
+//
+// SERVER ONLY. Never import this into a client component: it reads API keys.
+// All model traffic goes through API routes.
+//
+// Both tracks call this. The point of the seam is that the mock provider lets
+// either track build a full feature before a key exists, and DEMO_MODE swaps
+// the real provider out on stage without touching agent code.
+// ============================================================================
+
+export type LLMRequest = {
+  system: string;
+  user: string;
+  /** When present, the model is asked for JSON matching this schema. */
+  schema?: { name: string; schema: Record<string, unknown> };
+  temperature?: number;
+  maxTokens?: number;
+  /** "fast" for the Moderator, "deep" for seat reasoning. */
+  tier?: "fast" | "deep";
+};
+
+export interface LLMProvider {
+  readonly name: string;
+  complete(req: LLMRequest): Promise<string>;
+  completeJSON<T>(req: LLMRequest): Promise<T>;
+}
+
+const DEEP_MODEL = process.env.OPENAI_MODEL ?? "gpt-4o";
+const FAST_MODEL = process.env.OPENAI_FAST_MODEL ?? "gpt-4o-mini";
+
+class OpenAIProvider implements LLMProvider {
+  readonly name = "openai";
+  private client: OpenAI;
+
+  constructor(apiKey: string) {
+    this.client = new OpenAI({ apiKey });
+  }
+
+  async complete(req: LLMRequest): Promise<string> {
+    const res = await this.client.chat.completions.create({
+      model: req.tier === "fast" ? FAST_MODEL : DEEP_MODEL,
+      temperature: req.temperature ?? 0.7,
+      max_tokens: req.maxTokens ?? 800,
+      messages: [
+        { role: "system", content: req.system },
+        { role: "user", content: req.user },
+      ],
+      ...(req.schema
+        ? {
+            response_format: {
+              type: "json_schema" as const,
+              json_schema: {
+                name: req.schema.name,
+                schema: req.schema.schema,
+                strict: false,
+              },
+            },
+          }
+        : {}),
+    });
+    return res.choices[0]?.message?.content ?? "";
+  }
+
+  async completeJSON<T>(req: LLMRequest): Promise<T> {
+    const raw = await this.complete(req);
+    return parseJSON<T>(raw);
+  }
+}
+
+/**
+ * Deterministic stand-in. Returns structurally valid, obviously-fake output so
+ * a feature can be built and typechecked end to end with no key and no network.
+ */
+class MockProvider implements LLMProvider {
+  readonly name = "mock";
+
+  async complete(req: LLMRequest): Promise<string> {
+    await delay(200 + Math.random() * 400);
+    if (req.schema) return JSON.stringify(mockForSchema(req.schema.schema));
+    return "[mock] This is placeholder output from the mock LLM provider.";
+  }
+
+  async completeJSON<T>(req: LLMRequest): Promise<T> {
+    const raw = await this.complete(req);
+    return parseJSON<T>(raw);
+  }
+}
+
+let cached: LLMProvider | null = null;
+
+export function getLLM(): LLMProvider {
+  if (cached) return cached;
+
+  const key = process.env.OPENAI_API_KEY;
+  const forceMock = process.env.LLM_PROVIDER === "mock";
+
+  cached = !key || forceMock ? new MockProvider() : new OpenAIProvider(key);
+  return cached;
+}
+
+/** Models sometimes wrap JSON in prose or a fenced block. Recover rather than throw. */
+export function parseJSON<T>(raw: string): T {
+  const trimmed = raw.trim();
+  try {
+    return JSON.parse(trimmed) as T;
+  } catch {
+    const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/);
+    if (fenced?.[1]) return JSON.parse(fenced[1].trim()) as T;
+
+    const start = trimmed.search(/[[{]/);
+    const end = Math.max(trimmed.lastIndexOf("}"), trimmed.lastIndexOf("]"));
+    if (start !== -1 && end > start) {
+      return JSON.parse(trimmed.slice(start, end + 1)) as T;
+    }
+    throw new Error(`LLM returned unparseable JSON: ${trimmed.slice(0, 200)}`);
+  }
+}
+
+function mockForSchema(schema: Record<string, unknown>): unknown {
+  const type = schema.type as string | undefined;
+
+  if (type === "object") {
+    const props = (schema.properties ?? {}) as Record<string, Record<string, unknown>>;
+    return Object.fromEntries(
+      Object.entries(props).map(([k, v]) => [k, mockForSchema(v)])
+    );
+  }
+  if (type === "array") {
+    const items = schema.items as Record<string, unknown> | undefined;
+    return items ? [mockForSchema(items)] : [];
+  }
+  if (type === "number" || type === "integer") return 0.5;
+  if (type === "boolean") return true;
+  if (Array.isArray(schema.enum)) return schema.enum[0];
+  return "[mock]";
+}
+
+function delay(ms: number) {
+  return new Promise((r) => setTimeout(r, ms));
+}
