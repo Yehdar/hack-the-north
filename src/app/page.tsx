@@ -8,10 +8,12 @@ import { ProcessingPanel } from "@/components/hud/ProcessingPanel";
 import { AgentFeed, type FeedItem } from "@/components/hud/AgentFeed";
 import { Intake } from "@/components/Intake";
 import { SystemPanel } from "@/components/hud/SystemPanel";
+import { PersonaCall } from "@/components/PersonaCall";
 import { useVenture } from "@/lib/store";
 import { streamPost } from "@/lib/sse";
 import type { ProblemStatement } from "@/lib/types";
 import type { CrowdReaction, CrowdVerdict } from "@/lib/discovery/types";
+import type { CrowdSignals } from "@/lib/discovery/signals";
 import type { AgentVerdict, PVSBreakdown } from "@/lib/types";
 
 // ============================================================================
@@ -78,6 +80,7 @@ export default function Discover() {
   const [progress, setProgress] = useState({ done: 0, total: 0 });
   const [feed, setFeed] = useState<FeedItem[]>([]);
   const [verdict, setVerdict] = useState<CrowdVerdict | null>(null);
+  const [signals, setSignals] = useState<CrowdSignals | null>(null);
   const [showReveal, setShowReveal] = useState(false);
   const [focus, setFocus] = useState<number | null>(null);
   const [onlyEngaged, setOnlyEngaged] = useState(false);
@@ -112,7 +115,7 @@ export default function Discover() {
     setRunning(true);
     setPhase("problems");
     setProblems([]); setPersonas([]); setReactions(new Map());
-    setFeed([]); setVerdict(null); setShowReveal(false); setFocus(null);
+    setFeed([]); setVerdict(null); setSignals(null); setShowReveal(false); setFocus(null);
     setProgress({ done: 0, total: 0 });
     personasRef.current = [];
     setHubRanking([]); setCouncilHub(null); setCouncilLog([]);
@@ -173,6 +176,7 @@ export default function Discover() {
           case "verdict": {
             const v = ev.verdict as CrowdVerdict;
             setVerdict(v);
+            setSignals(ev.signals as CrowdSignals);
             setHubRanking(rankFromCrowd(v, personasRef.current));
             setPhase("done");
             setRunning(false);
@@ -390,52 +394,17 @@ export default function Discover() {
           <AgentFeed items={feed} onDismiss={dismiss} />
           <SystemPanel />
 
-          {/* ------------------------------------------------- persona card */}
+          {/* --------------------------------------------- call one person */}
           <AnimatePresence>
-            {focused && (
-              <motion.div
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 12 }}
-                className="panel panel-bright absolute bottom-28 left-1/2 z-40 w-96 -translate-x-1/2 p-4"
-              >
-                <div className="flex items-start justify-between">
-                  <div>
-                    <p className="text-sm text-ink">{focused.name}</p>
-                    <p className="label mt-0.5">
-                      {focused.title} · {focused.city}
-                    </p>
-                  </div>
-                  <button onClick={() => setFocus(null)} className="num text-xs text-faint hover:text-ink">
-                    ✕
-                  </button>
-                </div>
-
-                {(() => {
-                  const r = reactions.get(focused.id);
-                  if (!r) return <p className="mt-3 text-xs text-muted">Has not responded yet.</p>;
-                  const picked = problems.find((p) => p.id === r.problemId);
-                  return (
-                    <>
-                      <div className="mt-3 flex gap-3 num text-[10px] text-muted">
-                        <span>attention {r.attention}</span>
-                        <span>sentiment {r.sentiment.toFixed(2)}</span>
-                        <span>{r.wouldPay ? "would pay" : "would not pay"}</span>
-                      </div>
-                      {r.reason && (
-                        <p className="mt-2 text-xs leading-relaxed text-ink/85">&ldquo;{r.reason}&rdquo;</p>
-                      )}
-                      <p className="mt-3 label">Problem they actually have</p>
-                      <p className="mt-1 text-[11px] leading-relaxed text-ink/80">
-                        {picked ? picked.statement : "None of these."}
-                      </p>
-                    </>
-                  );
-                })()}
-
-                <p className="mt-3 label">Selected because</p>
-                <p className="num mt-1 text-[10px] text-muted">{focused.why.join(" · ") || "—"}</p>
-              </motion.div>
+            {focused && ventureFile && (
+              <PersonaCall
+                key={focused.id}
+                persona={focused}
+                reaction={reactions.get(focused.id)}
+                solution={ventureFile.solution}
+                problems={problems}
+                onClose={() => setFocus(null)}
+              />
             )}
           </AnimatePresence>
 
@@ -497,6 +466,58 @@ export default function Discover() {
               </p>
             )}
           </div>
+
+          {/* ---- who responded, and the one warning worth interrupting for ---- */}
+          {signals && (
+            <div className="border-b border-edge p-4">
+              <p className="label">Who responded</p>
+
+              {signals.warning && (
+                <p className="glow-accent mt-2 p-2.5 text-[11px] leading-relaxed text-ink/90">
+                  {signals.warning}
+                </p>
+              )}
+
+              <div className="mt-3 space-y-1.5">
+                {signals.signals.slice(0, 4).map((sig) => (
+                  <div key={sig.attribute}>
+                    <div className="flex justify-between num text-[10px]">
+                      <span className="text-muted">{sig.attribute}</span>
+                      <span className={sig.delta > 0 ? "text-accent" : "text-cold"}>
+                        {sig.engagedMean} vs {sig.ignoredMean}
+                      </span>
+                    </div>
+                    <p className="mt-0.5 text-[10px] leading-relaxed text-faint">{sig.reading}</p>
+                  </div>
+                ))}
+                {signals.signals.length === 0 && (
+                  <p className="text-[10px] text-faint">
+                    No attribute separates the people who engaged from the people who did not.
+                    That is itself a finding: the response is not concentrated in a segment.
+                  </p>
+                )}
+              </div>
+
+              <div className="mt-4 grid gap-3">
+                <div>
+                  <p className="label text-positive">Strongest yes</p>
+                  {signals.positives.map((q) => (
+                    <p key={q.name} className="mt-1 text-[10px] leading-relaxed text-ink/70">
+                      <span className="text-muted">{q.name}, {q.title}:</span> &ldquo;{q.quote}&rdquo;
+                    </p>
+                  ))}
+                </div>
+                <div>
+                  <p className="label text-negative">Strongest no</p>
+                  {signals.negatives.map((q) => (
+                    <p key={q.name} className="mt-1 text-[10px] leading-relaxed text-ink/70">
+                      <span className="text-muted">{q.name}, {q.title}:</span> &ldquo;{q.quote}&rdquo;
+                    </p>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* ---- beat 6: pick a city, convene the council ---- */}
           {hubRanking.length > 0 && (
@@ -661,7 +682,7 @@ export default function Discover() {
                       }}
                     >
                       <p className="label">
-                        {p?.title ?? "persona"} · {p?.city ?? ""} · {r.problemId ?? "no match"}
+                        {p?.name ?? "persona"} · {p?.title ?? ""} · {r.problemId ?? "no match"}
                       </p>
                       <p className="mt-0.5 text-[11px] leading-relaxed text-ink/75">{r.reason}</p>
                     </button>
@@ -812,5 +833,6 @@ function AttentionBar({
 }
 
 function personaName(personas: DeployedPersona[], id: number) {
-  return personas.find((p) => p.id === id)?.title ?? `persona ${id}`;
+  const p = personas.find((x) => x.id === id);
+  return p ? `${p.name} · ${p.title}` : `persona ${id}`;
 }

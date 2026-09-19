@@ -38,10 +38,11 @@ export async function speakAs(
   seatId: SeatId,
   trigger: string,
   vf: VentureFile,
-  preRead?: SeatPreRead
+  preRead?: SeatPreRead,
+  firmId?: string
 ): Promise<SeatResponse> {
   const seat = SEATS[seatId];
-  const firm = getActiveFirm();
+  const firm = getActiveFirm(firmId);
 
   const prep = preRead
     ? `\n\nBefore this meeting you wrote privately:

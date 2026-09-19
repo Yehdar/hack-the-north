@@ -18,18 +18,20 @@ export async function POST(req: Request) {
   const body = (await req.json().catch(() => null)) as {
     text?: string;
     seatId?: SeatId;
+    /** Any crowd persona can speak, not just the three committee seats. */
+    voiceId?: string;
   } | null;
 
   const text = body?.text?.trim();
-  const seat = body?.seatId ? SEATS[body.seatId] : undefined;
+  const voiceId = body?.voiceId ?? (body?.seatId ? SEATS[body.seatId]?.persona.voiceId : undefined);
 
   if (!text) return NextResponse.json({ error: "text required" }, { status: 400 });
-  if (!seat?.persona.voiceId) {
-    return NextResponse.json({ error: "unknown seat" }, { status: 400 });
+  if (!voiceId) {
+    return NextResponse.json({ error: "no voice for this speaker" }, { status: 400 });
   }
 
   try {
-    const audio = await synthesize(text, seat.persona.voiceId);
+    const audio = await synthesize(text, voiceId);
     return new Response(audio, {
       headers: { "Content-Type": "audio/mpeg", "Cache-Control": "no-store" },
     });

@@ -1,5 +1,6 @@
 import { extractProblems } from "@/lib/discovery/problems";
 import { aggregate, runCrowd } from "@/lib/discovery/crowd";
+import { analyseSignals } from "@/lib/discovery/signals";
 import { inferIndustries, selectRelevant } from "@/data/personas";
 import { getLLM } from "@/lib/llm";
 import type { ProblemStatement, VentureFile } from "@/lib/types";
@@ -95,7 +96,7 @@ export async function POST(req: Request) {
 
         // ---- ⑤ the reveal -----------------------------------------------
         const verdict = aggregate(reactions, problems);
-        send({ type: "verdict", verdict });
+        send({ type: "verdict", verdict, signals: analyseSignals(reactions) });
         send({ type: "done" });
       } catch (err) {
         console.error("[discovery] failed", err);

@@ -116,16 +116,153 @@ export const A16Z: Firm = {
   decisionStyle: "conviction",
 };
 
+
+// ---------------------------------------------------------------------------
+// The rest of the room. Every thesis below is drawn from what these firms say
+// publicly about themselves. antiPortfolio stays empty for all of them — only
+// one firm in venture actually publishes its misses, and inventing specific
+// passes for a named company would be putting false claims in its mouth.
+// With any of these selected, the Skeptic argues thesis mismatch instead.
+// ---------------------------------------------------------------------------
+
+export const SEQUOIA: Firm = {
+  id: "sequoia",
+  name: "Sequoia Capital",
+  hqHubId: "sf",
+  thesis: [
+    "We partner with founders from idea to IPO and stay for decades, not for a fund cycle.",
+    "The best companies are built by people obsessed with a problem, not with starting a company.",
+    "Enduring market leadership beats early momentum; we underwrite to what this looks like in ten years.",
+    "A small team that ships beats a large team that plans.",
+  ],
+  stages: ["seed", "series-a", "series-b", "growth"],
+  checkSize: [500_000, 100_000_000],
+  sectorAppetite: { ai: 0.9, saas: 0.8, fintech: 0.7, healthcare: 0.6, consumer: 0.6, devtools: 0.7, marketplace: 0.6, crypto: 0.2, hardware: 0.3 },
+  knownFor: ["Backing category-defining companies early", "Long-hold conviction", "Publishing market perspectives"],
+  antiPortfolio: [],
+  decisionStyle: "conviction",
+};
+
+export const YC: Firm = {
+  id: "yc",
+  name: "Y Combinator",
+  hqHubId: "sf",
+  thesis: [
+    "Make something people want. Everything else is a distraction from that.",
+    "Talk to users and write code. Nothing else counts as progress.",
+    "Launch before you are ready; the market corrects you faster than you correct yourself.",
+    "Default alive beats default fundable.",
+  ],
+  stages: ["pre-seed", "seed"],
+  checkSize: [125_000, 500_000],
+  sectorAppetite: { ai: 0.9, devtools: 0.8, saas: 0.8, fintech: 0.7, healthcare: 0.6, marketplace: 0.7, consumer: 0.6, hardware: 0.4, crypto: 0.3 },
+  knownFor: ["Batch model", "Growth-rate focus", "Relentless user-contact discipline"],
+  antiPortfolio: [],
+  decisionStyle: "metrics-first",
+};
+
+export const ACCEL: Firm = {
+  id: "accel",
+  name: "Accel",
+  hqHubId: "sf",
+  thesis: [
+    "Prepared minds: we study a category before we meet the founder working in it.",
+    "Global from the start — the next category leader is as likely to be in Bangalore or London as in California.",
+    "Efficient growth compounds; growth bought with burn does not.",
+  ],
+  stages: ["seed", "series-a", "series-b", "growth"],
+  checkSize: [1_000_000, 50_000_000],
+  sectorAppetite: { saas: 0.9, devtools: 0.8, fintech: 0.8, ai: 0.8, marketplace: 0.7, commerce: 0.6, healthcare: 0.5, consumer: 0.5, crypto: 0.1 },
+  knownFor: ["The prepared-mind approach", "Early global expansion", "Enterprise software depth"],
+  antiPortfolio: [],
+  decisionStyle: "thesis-driven",
+};
+
+export const FOUNDERS_FUND: Firm = {
+  id: "foundersfund",
+  name: "Founders Fund",
+  hqHubId: "sf",
+  thesis: [
+    "We wanted flying cars and got 140 characters. Back the ambitious version.",
+    "Competition is for losers; a real company escapes comparison entirely.",
+    "Contrarian and right is the only position that pays. Consensus is already priced in.",
+    "Hard technology with long timelines is underfunded precisely because it is hard.",
+  ],
+  stages: ["seed", "series-a", "series-b", "growth"],
+  checkSize: [1_000_000, 100_000_000],
+  sectorAppetite: { ai: 0.9, hardware: 0.8, energy: 0.7, healthcare: 0.7, fintech: 0.6, crypto: 0.7, saas: 0.4, consumer: 0.4, commerce: 0.2 },
+  knownFor: ["Contrarian mandate", "Deep tech and defence", "Concentrated positions"],
+  antiPortfolio: [],
+  decisionStyle: "conviction",
+};
+
+export const INDEX: Firm = {
+  id: "index",
+  name: "Index Ventures",
+  hqHubId: "london",
+  thesis: [
+    "Great companies come from everywhere; we have backed them from Stockholm to São Paulo.",
+    "Founder-first, and specific: we index on the person's insight into their own market.",
+    "Software eats verticals one workflow at a time. Own the workflow, not the category name.",
+  ],
+  stages: ["seed", "series-a", "series-b", "growth"],
+  checkSize: [1_000_000, 60_000_000],
+  sectorAppetite: { saas: 0.9, fintech: 0.8, ai: 0.8, devtools: 0.7, commerce: 0.7, marketplace: 0.7, healthcare: 0.5, consumer: 0.6, crypto: 0.3 },
+  knownFor: ["European and global reach", "Vertical software depth", "Founder-first posture"],
+  antiPortfolio: [],
+  decisionStyle: "consensus",
+};
+
+export const GENERAL_CATALYST: Firm = {
+  id: "generalcatalyst",
+  name: "General Catalyst",
+  hqHubId: "nyc",
+  thesis: [
+    "Responsible innovation: growth that a regulator, a patient or a customer would also call good.",
+    "We back companies that change how an entire industry operates, not features on top of one.",
+    "Health, defence and financial infrastructure are where durable value is currently mispriced.",
+  ],
+  stages: ["seed", "series-a", "series-b", "growth"],
+  checkSize: [1_000_000, 100_000_000],
+  sectorAppetite: { healthcare: 0.9, fintech: 0.8, ai: 0.8, saas: 0.7, government: 0.6, energy: 0.6, devtools: 0.5, consumer: 0.4, crypto: 0.1 },
+  knownFor: ["Health system transformation", "Long-duration capital", "Responsible innovation framing"],
+  antiPortfolio: [],
+  decisionStyle: "thesis-driven",
+};
+
 export const FIRMS: Record<string, Firm> = {
   bessemer: BESSEMER,
   a16z: A16Z,
+  sequoia: SEQUOIA,
+  yc: YC,
+  accel: ACCEL,
+  foundersfund: FOUNDERS_FUND,
+  index: INDEX,
+  generalcatalyst: GENERAL_CATALYST,
 };
 
-/** The firm the IC meeting runs against. Swap to "a16z" to change the room. */
+/**
+ * Default room. Bessemer leads because its anti-portfolio is genuinely public,
+ * which is the only thing that gives the Skeptic seat real cited history to
+ * argue from — see the accuracy note above.
+ */
 export const ACTIVE_FIRM_ID = "bessemer";
 
-export function getActiveFirm(): Firm {
-  return FIRMS[ACTIVE_FIRM_ID];
+export function getActiveFirm(firmId?: string): Firm {
+  return (firmId && FIRMS[firmId]) || FIRMS[ACTIVE_FIRM_ID];
+}
+
+/** For the firm picker. Ordered with the one that has real cited misses first. */
+export function listFirms() {
+  return Object.values(FIRMS).map((f) => ({
+    id: f.id,
+    name: f.name,
+    stages: f.stages,
+    checkSize: f.checkSize,
+    decisionStyle: f.decisionStyle,
+    thesis: f.thesis[0],
+    hasAntiPortfolio: f.antiPortfolio.length > 0,
+  }));
 }
 
 export const SIMULATION_DISCLAIMER =

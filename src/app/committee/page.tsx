@@ -8,6 +8,7 @@ import { AgentFeed, type FeedItem } from "@/components/hud/AgentFeed";
 import { HUB_POINTS, SEAT_POINTS } from "@/data/globePoints";
 import { AnimatePresence, motion } from "framer-motion";
 import { useVenture } from "@/lib/store";
+import { FirmPicker } from "@/components/FirmPicker";
 import { streamPost } from "@/lib/sse";
 import { Intake } from "@/components/Intake";
 
@@ -51,6 +52,7 @@ export default function Home() {
   const replaceVenture = useVenture((v) => v.replace);
   const resetVenture = useVenture((v) => v.reset);
   const setDeliberation = useVenture((v) => v.setDeliberation);
+  const firmId = useVenture((v) => v.firmId);
   const [showIntake, setShowIntake] = useState(false);
   const sidebar = useRef<HTMLDivElement>(null);
 
@@ -77,7 +79,7 @@ export default function Home() {
     setMessages([]); setFeed([]); setStances({}); setDecision(null);
     setMindChanges([]); setRound(0); setStep("Convening"); setSelected(null);
 
-    void streamPost("/api/vc/deliberate", { ventureFile }, (ev) => {
+    void streamPost("/api/vc/deliberate", { ventureFile, firmId }, (ev) => {
       switch (ev.type) {
         case "start": {
           const firmInfo = ev.firm as { name: string };
@@ -147,7 +149,7 @@ export default function Home() {
       setStep("Failed");
       setRunning(false);
     });
-  }, [ventureFile, replaceVenture, setDeliberation, firm, roster]);
+  }, [ventureFile, replaceVenture, setDeliberation, firm, roster, firmId]);
 
   const dots: GlobeDot[] = [
     ...HUB_POINTS.map((h) => ({
@@ -301,6 +303,7 @@ export default function Home() {
           {/* controls */}
           <div className="absolute bottom-8 left-1/2 z-40 -translate-x-1/2">
             <div className="flex items-center gap-3 border border-edge-bright bg-surface/90 p-2 backdrop-blur-md">
+              <FirmPicker disabled={running} />
               <button
                 onClick={run}
                 disabled={running}

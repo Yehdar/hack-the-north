@@ -29,11 +29,11 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   const body = await req.json().catch(() => null);
   const vf = (body?.ventureFile as VentureFile | undefined) ?? MOCK_VENTURE_FILE;
-  return stream(vf, body?.quick === true);
+  return stream(vf, body?.quick === true, body?.firmId as string | undefined);
 }
 
-function stream(vf: VentureFile, quick: boolean) {
-  const firm = getActiveFirm();
+function stream(vf: VentureFile, quick: boolean, firmId?: string) {
+  const firm = getActiveFirm(firmId);
   const encoder = new TextEncoder();
 
   const body = new ReadableStream({

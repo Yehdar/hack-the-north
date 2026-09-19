@@ -22,6 +22,7 @@ type TurnRequest = {
   segment: string;
   ventureFile?: VentureFile;
   preReads?: SeatPreRead[];
+  firmId?: string;
 };
 
 export async function POST(req: Request) {
@@ -62,7 +63,7 @@ export async function POST(req: Request) {
     }
 
     const preRead = body?.preReads?.find((p) => p.seatId === decision.seatId);
-    const response = await speakAs(decision.seatId, decision.trigger, working, preRead);
+    const response = await speakAs(decision.seatId, decision.trigger, working, preRead, body?.firmId);
 
     const seatTurn: TranscriptTurn = {
       turn: turn + 1,

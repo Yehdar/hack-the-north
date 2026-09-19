@@ -46,6 +46,9 @@ type State = {
   ventureFile: VentureFile | null;
   deliberation: DeliberationSnapshot | null;
   setDeliberation: (d: DeliberationSnapshot) => void;
+  /** Which firm's committee you are pitching to. */
+  firmId: string;
+  setFirmId: (id: string) => void;
   /** Set a brand new file from the founder's own words. */
   start: (solution: string) => void;
   /** Merge a server-returned file. Version bumps invalidate agent caches. */
@@ -59,6 +62,9 @@ export const useVenture = create<State>()(
     (set, get) => ({
       ventureFile: null,
       deliberation: null,
+      firmId: "bessemer",
+
+      setFirmId: (firmId) => set({ firmId, deliberation: null }),
 
       setDeliberation: (deliberation) => set({ deliberation }),
 

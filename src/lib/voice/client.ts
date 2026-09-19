@@ -143,17 +143,33 @@ function captureWithRecognition(): Recorder {
 
 // --------------------------------------------------------------------------- playback
 
-/** Speaks a seat's line. Falls back to browser speech if ElevenLabs is
- *  unavailable, and resolves either way so the meeting never stalls. */
-export async function speak(text: string, seatId: SeatId, tier: VoiceTier): Promise<void> {
+/**
+ * Voice character for a crowd persona, derived from psychographics rather than
+ * demographics. Inferring a voice from someone's name is unreliable and a bad
+ * idea; what actually distinguishes two people on a research call is how
+ * certain they are and how much they care.
+ */
+export type VoiceProfile = { voiceId: string; pitch: number; rate: number };
+
+/** Speaks a line. Falls back to browser speech if ElevenLabs is unavailable,
+ *  and resolves either way so nothing ever stalls waiting on audio. */
+export async function speak(
+  text: string,
+  speaker: SeatId | VoiceProfile,
+  tier: VoiceTier
+): Promise<void> {
   if (tier === "text" || !text) return;
+
+  const profile = typeof speaker === "string" ? undefined : speaker;
 
   if (tier === "elevenlabs") {
     try {
       const res = await fetch("/api/voice/tts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text, seatId }),
+        body: JSON.stringify(
+          profile ? { text, voiceId: profile.voiceId } : { text, seatId: speaker }
+        ),
       });
       if (res.ok) {
         const url = URL.createObjectURL(await res.blob());
@@ -165,7 +181,7 @@ export async function speak(text: string, seatId: SeatId, tier: VoiceTier): Prom
       // fall through to browser speech
     }
   }
-  await speakInBrowser(text, seatId);
+  await speakInBrowser(text, speaker);
 }
 
 function playUrl(url: string): Promise<void> {
@@ -185,11 +201,14 @@ const BROWSER_VOICE: Record<SeatId, { pitch: number; rate: number }> = {
   skeptic: { pitch: 0.7, rate: 0.92 },
 };
 
-function speakInBrowser(text: string, seatId: SeatId): Promise<void> {
+function speakInBrowser(text: string, speaker: SeatId | VoiceProfile): Promise<void> {
   return new Promise((resolve) => {
     if (typeof window === "undefined" || !window.speechSynthesis) return resolve();
     const u = new SpeechSynthesisUtterance(text);
-    const tuning = BROWSER_VOICE[seatId] ?? { pitch: 1, rate: 1 };
+    const tuning =
+      typeof speaker === "string"
+        ? (BROWSER_VOICE[speaker] ?? { pitch: 1, rate: 1 })
+        : { pitch: speaker.pitch, rate: speaker.rate };
     u.pitch = tuning.pitch;
     u.rate = tuning.rate;
     u.onend = () => resolve();

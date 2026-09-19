@@ -334,6 +334,9 @@ export class DemoProvider implements LLMProvider {
       case "crowd_reactions":
         return demoReactions(req.user) as T;
 
+      case "persona_reply":
+        return demoPersonaReply(req.system, req.user) as T;
+
       case "seat_pre_read":
         return {
           initialLean: ({ gp: 0.3, principal: -0.1, skeptic: -0.5 } as Record<string, number>)[seat] ?? 0,
@@ -429,8 +432,10 @@ function demoReactions(user: string) {
         (p.tech * 0.9 + p.risk * 0.7 - p.price * 0.6 - p.brand * 0.4 + 6) / 14;
       const sentiment = Math.max(0.02, Math.min(0.98, raw));
 
-      const engagement = sentiment * 0.6 + (10 - p.pain) / 10 * 0.4;
-      const attention = engagement > 0.62 ? "full" : engagement > 0.4 ? "partial" : "ignore";
+      // Real research is mostly indifference. A crowd that is 60% enthusiastic
+      // has been flattered, and it teaches a founder nothing.
+      const engagement = sentiment * 0.55 + ((10 - p.pain) / 10) * 0.45;
+      const attention = engagement > 0.72 ? "full" : engagement > 0.52 ? "partial" : "ignore";
 
       // The reveal, emerging rather than scripted: people who can actually sign
       // are answering a different question from the people who use the thing.
@@ -541,4 +546,62 @@ function demoShrug(p: ParsedPersona): string {
     "I would not pay for this, and I would not champion it either.",
   ];
   return pool[(p.id * 5) % pool.length];
+}
+
+// --- talking to one person -------------------------------------------------
+
+/**
+ * Replies driven by the persona's own attributes, parsed back out of the system
+ * prompt. A sceptic stays a sceptic, someone with no budget says so, and nobody
+ * is talked round by a single question — which is the behaviour that makes a
+ * research call worth anything.
+ */
+function demoPersonaReply(system: string, user: string) {
+  const num = (label: string) =>
+    Number(new RegExp(label + "\\s+(\\d+)").exec(system)?.[1] ?? 5);
+
+  const budget = num("budget authority");
+  const price = num("price");
+  const tech = num("new tools");
+  const pain = num("pain tolerance");
+  const brand = num("brand loyalty");
+
+  const question = (user.match(/THE FOUNDER ASKS: "([^"]*)"/)?.[1] ?? "").toLowerCase();
+  const aboutPrice = /price|cost|pay|budget|sign|buy|purchas|afford|\$/.test(question);
+  const aboutUse = /use|workflow|day|how would|integrate|today|currently|right now/.test(question);
+  const aboutRival = /competitor|alternative|instead|versus|who else|anyone else|already|rival|vs\b/.test(question);
+
+  let line: string;
+
+  if (aboutPrice) {
+    line =
+      budget >= 7
+        ? "I can sign for it. What I cannot do is justify a line item that duplicates something we already licence, so tell me what it replaces."
+        : price >= 7
+          ? "Whatever the number is, it is going to be too high for a tool I cannot prove saved us anything."
+          : "I have no budget. If you want this bought, you need my director in the room, not me.";
+  } else if (aboutRival) {
+    line =
+      brand >= 7
+        ? "Our incumbent already claims to do this. They do it badly, but nobody ever got fired for keeping them."
+        : "Honestly, the alternative is that we keep doing nothing. That is what you are actually competing with.";
+  } else if (aboutUse) {
+    line =
+      tech >= 8
+        ? "I would wire it into our pipeline the same afternoon and find out whether the output is trustworthy within a week."
+        : "It would have to show up where I already work. If it is another tab, I will open it twice and never again.";
+  } else {
+    line =
+      pain <= 3
+        ? "This is a real irritation for me, and I notice it every single week. I just have never had a way to describe it upward."
+        : "It is a mild annoyance. We have worked around it for years and nobody has ever asked me to fix it.";
+  }
+
+  return {
+    line,
+    // One good question does not change a mind, and pretending otherwise turns
+    // the call into a flattery machine.
+    shifted: false,
+    sentiment: Math.min(1, Math.max(0, (tech * 0.8 + (10 - price) * 0.6 + budget * 0.4) / 18)),
+  };
 }
