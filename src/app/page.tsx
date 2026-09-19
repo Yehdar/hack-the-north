@@ -249,6 +249,8 @@ export default function Discover() {
   /** A rewrite run already knows its problems and crowd, so it walks itself
    *  through those segments and slows down for the answers. */
   const auto = useRef(false);
+  // The same flag for render; the ref is for the pacing loop's closures.
+  const [autoRun, setAutoRun] = useState(false);
   /** Each run owns the screen; a stale stream from an earlier run is ignored. */
   const runToken = useRef(0);
   const councilToken = useRef(0);
@@ -296,6 +298,9 @@ export default function Discover() {
     if (!vf) return;
 
     speech.current?.clear();
+    // The report grades from the crowd and the committee; never let it grade
+    // this run with the last one's.
+    useVenture.setState({ crowd: null, deliberation: null });
     stalledRef.current = false;
     setStalled(false);
     runEnded.current = false;
@@ -304,6 +309,7 @@ export default function Discover() {
     sessionRef.current = sessionId;
     parentRef.current = opts.parentId ?? null;
     auto.current = Boolean(opts.parentId);
+    setAutoRun(auto.current);
     skipping.current = false;
     nextAt.current = 0;
 
@@ -582,6 +588,7 @@ export default function Discover() {
     if (!v) return;
     setVerdict(v);
     setSignals(bufSignals.current);
+    useVenture.getState().setCrowd(v, bufSignals.current);
     setHubRanking(rankFromCrowd(v, personasRef.current));
 
     const saved = useSessions.getState().sessions;
@@ -1007,7 +1014,7 @@ export default function Discover() {
     : segment === "idle"
       ? "run"
       : segment === "split"
-        ? expecting > 0 && problems.length >= expecting && !auto.current
+        ? expecting > 0 && problems.length >= expecting && !autoRun
           ? "choose"
           : "splitting"
         : segment === "deploy"

@@ -74,8 +74,8 @@ type State = {
   setDeliberation: (d: DeliberationSnapshot) => void;
   /** What the crowd concluded. The report grades the idea from these numbers,
    *  so advice can cite what was measured rather than restating the problem. */
-  crowd: { verdict: CrowdVerdict; signals: CrowdSignals } | null;
-  setCrowd: (verdict: CrowdVerdict, signals: CrowdSignals) => void;
+  crowd: { verdict: CrowdVerdict; signals: CrowdSignals | null } | null;
+  setCrowd: (verdict: CrowdVerdict, signals: CrowdSignals | null) => void;
   /** Which firm's committee you are pitching to. */
   firmId: string;
   setFirmId: (id: string) => void;

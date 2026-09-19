@@ -54,7 +54,11 @@ export default function Meeting() {
   // tested from the start, but nothing ever called it, so the partners opened
   // cold despite having supposedly read the file.
   const [preReads, setPreReads] = useState<SeatPreRead[]>([]);
-  const [preparing, setPreparing] = useState(false);
+  // Which firm + file the partners last finished preparing for. Derived rather
+  // than set at the top of the effect, so a new file reads as "preparing" at once.
+  const prepKey = vf ? `${firmId}:${vf.id}:${vf.chosenProblem?.id ?? ""}` : null;
+  const [preparedKey, setPreparedKey] = useState<string | null>(null);
+  const preparing = prepKey !== null && preparedKey !== prepKey;
 
   // What the mic is hearing, live. You review it and press send — the room
   // never hears something you did not choose to say.
@@ -74,7 +78,7 @@ export default function Meeting() {
   useEffect(() => {
     if (!vf) return;
     let cancelled = false;
-    setPreparing(true);
+    const key = prepKey;
 
     void fetch("/api/vc/preread", {
       method: "POST",
@@ -86,7 +90,7 @@ export default function Meeting() {
         if (!cancelled) setPreReads(j.preReads ?? []);
       })
       .catch(() => {})
-      .finally(() => !cancelled && setPreparing(false));
+      .finally(() => !cancelled && setPreparedKey(key));
 
     return () => {
       cancelled = true;

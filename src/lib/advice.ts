@@ -45,9 +45,11 @@ export type Assessment = {
  */
 export function assess(
   crowd: CrowdVerdict,
-  signals: CrowdSignals,
+  signals: CrowdSignals | null,
   pvs?: PVSBreakdown,
-  council: AgentVerdict[] = []
+  council: AgentVerdict[] = [],
+  /** Display name for a seat; ids like "skeptic" are not for founders. */
+  nameOf: (agentId: string) => string = (id) => id
 ): Assessment {
   const findings: Finding[] = [];
   const asked = crowd.reactions.length || 1;
@@ -92,7 +94,7 @@ export function assess(
   }
 
   // ---- serious: enthusiasts cannot buy -------------------------------------
-  if (signals.warning) {
+  if (signals?.warning) {
     findings.push({
       severity: "serious",
       headline: "Your fans are not your buyers",
@@ -129,7 +131,7 @@ export function assess(
   for (const v of hardNo.slice(0, 2)) {
     findings.push({
       severity: "worth fixing",
-      headline: `${v.agentId} is confident this fails`,
+      headline: `${nameOf(v.agentId)} is confident this fails`,
       evidence: v.position,
       action: v.whatWouldChangeMyMind
         ? `They told you what would change their mind: ${v.whatWouldChangeMyMind}`

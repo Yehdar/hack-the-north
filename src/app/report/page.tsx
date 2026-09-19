@@ -278,7 +278,7 @@ export default function Report() {
                 </p>
               );
             }
-            const a = assess(crowd.verdict, crowd.signals, vf.pvs, deliberation.verdicts);
+            const a = assess(crowd.verdict, crowd.signals, vf.pvs, deliberation.verdicts, roleOf);
 
             const TONE: Record<string, { label: string; color: string }> = {
               fail: { label: "Do not proceed", color: "var(--negative)" },
