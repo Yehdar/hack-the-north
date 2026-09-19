@@ -4,7 +4,7 @@ import type { SeatId } from "@/lib/types";
 import { castFor, pickVoice, voiceQuality, type Gender } from "@/lib/voice/browserVoices";
 
 // ============================================================================
-// CLIENT VOICE — Track B owns this file.
+// CLIENT VOICE, Track B owns this file.
 //
 // Three tiers, decided on mount rather than on failure:
 //
@@ -13,7 +13,7 @@ import { castFor, pickVoice, voiceQuality, type Gender } from "@/lib/voice/brows
 //   text        typed input -> seat -> rendered text
 //
 // The tier is chosen up front because browser speech recognition consumes the
-// live microphone, not a recorded blob — you cannot fall back to it after
+// live microphone, not a recorded blob. You cannot fall back to it after
 // recording has already happened.
 // ============================================================================
 
@@ -95,8 +95,8 @@ export async function startCapture(
   tier: VoiceTier,
   onPartial?: (text: string) => void
 ): Promise<Recorder> {
-  // Browser recognition streams words as you speak. ElevenLabs cannot — it
-  // takes a finished clip — so there we run recognition ALONGSIDE the recorder
+  // Browser recognition streams words as you speak. ElevenLabs cannot. It
+  // takes a finished clip, so there we run recognition ALONGSIDE the recorder
   // purely to drive the live caption, and still send the clip to Scribe for the
   // transcript that actually gets used.
   if (tier === "browser") return captureWithRecognition(onPartial);
@@ -209,7 +209,7 @@ let playing: { audio: HTMLAudioElement; done: () => void } | null = null;
 
 /**
  * Silence whatever is speaking now, from either tier. Cancelling browser speech
- * alone left an ElevenLabs clip playing to its end — over the next page, if the
+ * alone left an ElevenLabs clip playing to its end. Over the next page, if the
  * founder navigated away mid-sentence.
  */
 export function stopSpeaking(): void {
@@ -276,7 +276,7 @@ export async function speak(
 
 /**
  * The longest a line can reasonably take to say, at a slow 110 words a minute
- * plus a margin. Playback end events are not guaranteed — Chrome's synthesis
+ * plus a margin. Playback end events are not guaranteed, Chrome's synthesis
  * drops `onend` when no voice is loaded and cuts long utterances off silently —
  * and a screen that waits for the voice before its next line would otherwise
  * wait forever, mid-demo.

@@ -2,7 +2,7 @@ import type { DeliberationSnapshot } from "@/lib/store";
 import type { ICVerdict, Objection } from "@/lib/types";
 
 // ============================================================================
-// THE MINUTES — the Managing Partner's document.
+// THE MINUTES, the Managing Partner's document.
 //
 // A real partner meeting ends with a written record: who was in the room, what
 // each partner thought and whether they moved, where they disagreed, what was

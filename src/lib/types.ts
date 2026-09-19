@@ -1,12 +1,12 @@
 // ============================================================================
-// SHARED CONTRACT — frozen at the 1.5h sync point.
+// SHARED CONTRACT. Frozen at the 1.5h sync point.
 //
 // Track A (Discovery) writes: extractedProblems, chosenProblem, hubFindings, pvs
 // Track B (Defense)   writes: pitchTranscript, objections, verdict
 //
 // Neither track edits the other's fields or reformats this file outside a
 // sync point. When the two halves disagree at integration, THIS FILE IS THE
-// ARBITER — whoever drifted from it is the one who changes.
+// ARBITER. Whoever drifted from it is the one who changes.
 // ============================================================================
 
 export type HubId = string;
@@ -53,7 +53,7 @@ export type AgentTemplate = {
 };
 
 // ---------------------------------------------------------------------------
-// DISCOVERY — Track A writes, Track B reads only
+// DISCOVERY, Track A writes, Track B reads only
 // ---------------------------------------------------------------------------
 
 export type ProblemStatement = {
@@ -95,7 +95,7 @@ export type PVSBreakdown = {
 };
 
 // ---------------------------------------------------------------------------
-// DEFENSE — Track B writes, Track A reads only
+// DEFENSE, Track B writes, Track A reads only
 // ---------------------------------------------------------------------------
 
 export type TranscriptTurn = {

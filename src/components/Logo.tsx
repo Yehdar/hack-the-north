@@ -3,7 +3,7 @@
 // ============================================================================
 // THE MARK.
 //
-// An aperture: six blades around an open centre. It reads as a lens — the
+// An aperture: six blades around an open centre. It reads as a lens. The
 // product is about seeing what is actually there rather than what you assumed —
 // and the blades double as the agents arranged around one subject.
 //

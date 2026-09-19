@@ -52,7 +52,7 @@ describe("the refine loop", () => {
     expect(rewritten.startsWith(SOLUTION.replace(/\.$/, ""))).toBe(true);
     expect(rewritten.length).toBeGreaterThan(SOLUTION.length);
 
-    // Same people, same problems — the adopted problem now leads.
+    // Same people, same problems. The adopted problem now leads.
     const reordered = [market, ...problems.filter((p) => p.id !== market.id)];
     const sameCrowd = selectByIds(rewritten, crowd.map((p) => p.id)).map((h) => h.persona);
     expect(sameCrowd.map((p) => p.id)).toEqual(crowd.map((p) => p.id));

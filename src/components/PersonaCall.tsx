@@ -21,7 +21,7 @@ import type { ProblemStatement } from "@/lib/types";
 // CALL ONE PERSON.
 //
 // The crowd gives a founder a number. This gives them the follow-up question,
-// which is where the insight actually is — three minutes with one sceptic beats
+// which is where the insight actually is. Three minutes with one sceptic beats
 // a hundred sentiment scores.
 //
 // The person on the other end is held to what they already said in the crowd
@@ -172,7 +172,7 @@ export function PersonaCall({ persona, reaction, solution, problems, onClose, ce
       recorder.current = await startCapture(tier);
       setRecording(true);
     } catch {
-      /* mic unavailable — typing still works */
+      /* mic unavailable. Typing still works */
     }
   }, [tier, recording, ask]);
 
@@ -184,7 +184,7 @@ export function PersonaCall({ persona, reaction, solution, problems, onClose, ce
       style={{ left: centre }}
       className="panel panel-bright absolute bottom-24 z-50 flex w-[520px] max-w-[calc(100%-32px)] -translate-x-1/2 flex-col p-4"
     >
-      {/* who you are talking to — the same figure as on the globe, saying
+      {/* who you are talking to. The same figure as on the globe, saying
           hello, and wearing how they feel right now */}
       <div className="flex items-stretch gap-4">
         <div
@@ -224,7 +224,7 @@ export function PersonaCall({ persona, reaction, solution, problems, onClose, ce
           </div>
 
 
-      {/* live sentiment — moves as the conversation goes */}
+      {/* live sentiment. Moves as the conversation goes */}
       <div className="mt-3">
         <div className="flex justify-between num text-[10px] text-faint">
           <span>how they feel, live</span>
@@ -277,7 +277,7 @@ export function PersonaCall({ persona, reaction, solution, problems, onClose, ce
         )}
       </div>
 
-      {/* openers — a founder who does not know what to ask learns nothing */}
+      {/* openers. A founder who does not know what to ask learns nothing */}
       {!turns.some((t) => t.speaker === "founder") && (
         <div className="mt-3 flex flex-wrap gap-1.5">
           {[...OPENERS, persona.label ? WHO_PAYS.consumer : WHO_PAYS.business].map((q) => (

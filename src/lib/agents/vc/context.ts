@@ -29,7 +29,7 @@ export function ventureFileToContext(vf: VentureFile): string {
     const pitched = vf.extractedProblems[0];
     if (pitched && pitched.id !== p.id) {
       lines.push(
-        `\nNOTE: they arrived believing they solved "${pitched.statement}" — the research moved them. Probe whether they actually believe the new framing or are reciting it.`
+        `\nNOTE: they arrived believing they solved "${pitched.statement}". The research moved them. Probe whether they actually believe the new framing or are reciting it.`
       );
     }
   } else {
@@ -41,12 +41,12 @@ export function ventureFileToContext(vf: VentureFile): string {
   if (vf.pvs) {
     const s = vf.pvs;
     lines.push(
-      `\nPROBLEM VALIDATION SCORE: ${s.total}/100 (threshold ${s.threshold} — ${s.passed ? "cleared" : "NOT cleared"})
+      `\nPROBLEM VALIDATION SCORE: ${s.total}/100 (threshold ${s.threshold}, ${s.passed ? "cleared" : "NOT cleared"})
   Problem severity ${s.problemSeverity} · Market gap ${s.marketGap} · Hub fit ${s.hubFit} · Evidence strength ${s.evidenceStrength}`
     );
     if (!s.passed) {
       lines.push(
-        `  They chose to pitch anyway. Evidence strength of ${s.evidenceStrength} is the weakest component — treat unsupported claims as expensive.`
+        `  They chose to pitch anyway. Evidence strength of ${s.evidenceStrength} is the weakest component. Treat unsupported claims as expensive.`
       );
     }
   }
@@ -56,7 +56,7 @@ export function ventureFileToContext(vf: VentureFile): string {
     lines.push(`\nMARKET RESEARCH BY HUB:`);
     for (const h of hubs) {
       lines.push(
-        `  ${h.hubId.toUpperCase()} — fit ${h.fitScore}/100. ${h.gapSummary}
+        `  ${h.hubId.toUpperCase()}, fit ${h.fitScore}/100. ${h.gapSummary}
     Incumbents: ${h.incumbents.map((i) => `${i.company} (weak: ${i.weakness})`).join("; ") || "none identified"}
     Unserved: ${h.unserved}`
       );

@@ -7,7 +7,7 @@ import type { CrowdVerdict } from "@/lib/discovery/types";
 import type { CrowdSignals } from "@/lib/discovery/signals";
 
 /** The subset of a deployed person the globe needs to redraw them. Kept
- *  deliberately small — 120 of these are written to localStorage. */
+ *  deliberately small, 120 of these are written to localStorage. */
 export type DeployedSnapshot = {
   id: number;
   name: string;
@@ -38,7 +38,7 @@ export type DeliberationSnapshot = {
 };
 
 // ============================================================================
-// VENTURE FILE STORE — shared. Track A adds discovery fields, Track B adds
+// VENTURE FILE STORE, shared. Track A adds discovery fields, Track B adds
 // defense fields, neither clobbers the other's half.
 //
 // Persisted to localStorage so a refresh mid-demo does not lose the pitch, and
@@ -66,8 +66,8 @@ const LEGACY_KEY = "atlas.ventureFile";
  * Reads fall back to the pre-rename key, so a session started before the
  * rename is picked up rather than lost; the first write retires the old key.
  *
- * zustand's `migrate` cannot do this on its own — it only ever sees data
- * stored under the current name — which is why the rename quietly dropped
+ * zustand's `migrate` cannot do this on its own. It only ever sees data
+ * stored under the current name, which is why the rename quietly dropped
  * every earlier session while the comment below said it kept them.
  */
 export function withLegacyFallback(store: Pick<Storage, "getItem" | "setItem" | "removeItem">) {
@@ -90,7 +90,7 @@ type State = {
    *  so advice can cite what was measured rather than restating the problem. */
   crowd: { verdict: CrowdVerdict; signals: CrowdSignals | null } | null;
   /** Who was asked, so Part 1 can redraw the globe after you navigate away and
-   *  come back. The crowd verdict alone cannot — it has reactions but no
+   *  come back. The crowd verdict alone cannot. It has reactions but no
    *  coordinates, and no way to map a persona id to a city. */
   deployed: DeployedSnapshot[] | null;
   setDeployed: (people: DeployedSnapshot[]) => void;

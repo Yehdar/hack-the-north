@@ -4,8 +4,8 @@ import type { AgentTemplate } from "@/lib/types";
 import { deliberate, variance } from "./protocol";
 
 // ---------------------------------------------------------------------------
-// A scripted provider. The point is to test the PROTOCOL — routing, directed
-// messaging, belief revision, metrics — deterministically, without a model and
+// A scripted provider. The point is to test the PROTOCOL. Routing, directed
+// messaging, belief revision, metrics, deterministically, without a model and
 // without a key. Model quality is a separate question from whether the
 // machinery that carries it works.
 // ---------------------------------------------------------------------------
@@ -47,7 +47,7 @@ class ScriptedProvider implements LLMProvider {
             { question: "Is the market big enough?", assignedTo: "alpha", why: "lane" },
             { question: "Do the unit economics work?", assignedTo: "beta", why: "lane" },
             { question: "What does this rhyme with?", assignedTo: "gamma", why: "lane" },
-            // Assigned to nobody in the room — must be dropped.
+            // Assigned to nobody in the room, must be dropped.
             { question: "Irrelevant", assignedTo: "ghost", why: "invalid" },
           ],
         } as T;
@@ -68,7 +68,7 @@ class ScriptedProvider implements LLMProvider {
         const scripted: Record<string, { to: string; text: string }[]> = {
           alpha: [
             { to: "gamma", text: "You are pattern-matching against the last decade." },
-            // Self-challenge — must be dropped.
+            // Self-challenge, must be dropped.
             { to: "alpha", text: "I challenge myself." },
           ],
           gamma: [{ to: "alpha", text: "Your TAM assumes a budget that does not exist." }],
@@ -92,7 +92,7 @@ class ScriptedProvider implements LLMProvider {
         // Alpha is genuinely moved. Gamma holds its conviction under pressure.
         const conceded = who === "alpha";
         return {
-          response: conceded ? "Fair — the budget assumption is load-bearing." : "No, that analogy does not hold.",
+          response: conceded ? "Fair. The budget assumption is load-bearing." : "No, that analogy does not hold.",
           conceded,
           revisedStance: conceded ? 0.3 : -0.7,
           revisedConfidence: 0.8,
@@ -158,7 +158,7 @@ describe("deliberation protocol", () => {
     }
   });
 
-  it("records belief revision — the thing fan-out cannot do", async () => {
+  it("records belief revision. The thing fan-out cannot do", async () => {
     const r = await deliberate({ ...OPTS, llm: new ScriptedProvider() });
 
     const moved = r.metrics.mindChanges.find((m) => m.agentId === "alpha");

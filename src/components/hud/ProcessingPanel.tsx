@@ -15,7 +15,7 @@ export function ProcessingPanel({
   done: number;
   total: number;
   round?: string;
-  /** What is being counted — people answering, or agents speaking. */
+  /** What is being counted. People answering, or agents speaking. */
   unit?: string;
 }) {
   const pct = total > 0 ? (done / total) * 100 : 0;

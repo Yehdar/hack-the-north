@@ -4,7 +4,7 @@ import { stopSpeaking, type VoiceProfile } from "@/lib/voice/client";
 // VOICES FOR THE DELIBERATING AGENTS.
 //
 // A council you can only read is a transcript. A council you can hear is a
-// meeting — and the moment an agent concedes out loud, in a different voice
+// meeting. And the moment an agent concedes out loud, in a different voice
 // from the one that challenged it, the multi-agent claim stops needing to be
 // explained.
 //
@@ -51,7 +51,7 @@ export function voiceFor(agentId: string): VoiceProfile {
  *
  * Deliberation streams faster than speech, so without a queue three agents talk
  * over each other. This also means a listener can follow the argument at the
- * pace of the argument rather than the pace of the network — which is the
+ * pace of the argument rather than the pace of the network. Which is the
  * reason Phase 2 felt like it happened all at once.
  */
 export class SpeechQueue {
@@ -72,7 +72,7 @@ export class SpeechQueue {
   }
 
   /**
-   * Say this instead of anything this speaker still has queued — and, if they
+   * Say this instead of anything this speaker still has queued. And, if they
    * are mid-sentence, cut them off. For the narrator: when the screen moves
    * on, the line about the previous screen is no longer true.
    */
@@ -122,13 +122,13 @@ export class SpeechQueue {
     return this.running || this.queue.length > 0;
   }
 
-  /** Silence the room but keep listening — used when the founder skips ahead. */
+  /** Silence the room but keep listening. Used when the founder skips ahead. */
   clear() {
     this.queue = [];
     stopSpeaking();
   }
 
-  /** Drop everything still queued — used when the user leaves or restarts. */
+  /** Drop everything still queued. Used when the user leaves or restarts. */
   stop() {
     this.stopped = true;
     this.clear();

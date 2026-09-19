@@ -4,7 +4,7 @@ import { DemoProvider } from "@/lib/providers/demo";
 import { RecordingProvider, ReplayProvider } from "@/lib/providers/fixtures";
 
 // ============================================================================
-// LLM PROVIDER SEAM — shared, frozen after the 1.5h sync.
+// LLM PROVIDER SEAM. Shared, frozen after the 1.5h sync.
 //
 // SERVER ONLY. Never import this into a client component: it reads API keys.
 // All model traffic goes through API routes.
@@ -32,10 +32,10 @@ export interface LLMProvider {
 }
 
 // ---------------------------------------------------------------------------
-// MODEL SELECTION — see ARCHITECTURE.md for the full reasoning.
+// MODEL SELECTION, see ARCHITECTURE.md for the full reasoning.
 //
 // DEEP (gpt-5.6-sol): seat reasoning, cross-examination, rebuttal. This is the
-//   hardest thinking in the app — holding a persona under pressure and finding
+//   hardest thinking in the app. Holding a persona under pressure and finding
 //   the non-obvious objection. ~15 calls per deliberation at roughly 2k in /
 //   0.5k out each, so about $0.27 a run. Worth it; persona fidelity is the
 //   product.
@@ -57,7 +57,7 @@ const FAST_MODEL = process.env.OPENAI_FAST_MODEL || "gpt-5.6-luna";
 
 // ---------------------------------------------------------------------------
 // LIVE-CALL SAFETY. Neither real provider had run against its API when these
-// were written, and each of the following is a 400 on every call — which the
+// were written, and each of the following is a 400 on every call. Which the
 // callers absorb as neutral placeholders, so the failure looks like a demo that
 // runs and says nothing rather than like an error.
 // ---------------------------------------------------------------------------
@@ -135,7 +135,7 @@ const ANTHROPIC_FAST = process.env.ANTHROPIC_FAST_MODEL || "claude-haiku-4-5";
 const CLAUDE_NO_SAMPLING = /claude-(opus-5|opus-4-[78]|sonnet-5|fable|mythos)/;
 /** Takes output_config.effort. */
 const CLAUDE_EFFORT = /claude-(opus-5|opus-4-[5678]|sonnet-5|sonnet-4-6|fable|mythos)/;
-/** Thinks unless told not to — and thinking counts against max_tokens. */
+/** Thinks unless told not to. And thinking counts against max_tokens. */
 const CLAUDE_THINKS = /claude-(opus-5|sonnet-5|fable|mythos)/;
 /** Safety classifiers can decline; a server-side fallback re-runs the request
  *  on the model Anthropic recommends for that category of decline. */
@@ -147,7 +147,7 @@ const CLAUDE_FALLBACK = /claude-(opus-5|fable-5-1)/;
  * or prose around it.
  *
  * It used to prefill the assistant turn with "{" as well. Every model from the
- * 4.6 generation on — including the default, claude-opus-5 — rejects a
+ * 4.6 generation on. Including the default, claude-opus-5, rejects a
  * prefill with a 400, as it does the temperature this also used to send.
  */
 class AnthropicProvider implements LLMProvider {
@@ -236,7 +236,7 @@ export function activeModels(): { deep: string; fast: string } {
 /**
  * Explicit LLM_PROVIDER wins. Otherwise whichever key is present, OpenAI
  * first. With no key at all we fall to the demo provider, which returns
- * realistic differentiated content — so the app is runnable and demoable by
+ * realistic differentiated content. So the app is runnable and demoable by
  * anyone who clones it, with nothing configured.
  */
 function selectProvider(): LLMProvider {

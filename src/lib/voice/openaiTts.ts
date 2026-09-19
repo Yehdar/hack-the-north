@@ -1,7 +1,7 @@
 import OpenAI from "openai";
 
 // ============================================================================
-// OPENAI SPEECH — SERVER ONLY (reads the API key).
+// OPENAI SPEECH, SERVER ONLY (reads the API key).
 //
 // The voices closest to ChatGPT's own. Used for playback when OPENAI_API_KEY is
 // set and ElevenLabs is not; the same key that runs the partners' reasoning

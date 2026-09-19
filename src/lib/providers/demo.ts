@@ -2,17 +2,17 @@ import type { LLMProvider, LLMRequest } from "@/lib/llm";
 import { MARKETS, marketProblems, readPitch, type Market, type Pitch } from "@/lib/providers/pitch";
 
 // ============================================================================
-// DEMO PROVIDER — realistic, differentiated, deterministic, and free.
+// DEMO PROVIDER. Realistic, differentiated, deterministic, and free.
 //
 // The plain mock returns "[mock]" for every field, which is fine for asserting
-// shapes and useless for looking at. This one reads the founder's pitch — what
-// it is, who it is for, which market — and writes every line from that, in the
+// shapes and useless for looking at. This one reads the founder's pitch. What
+// it is, who it is for, which market, and writes every line from that, in the
 // way people actually talk in a partner meeting, so the app can be run and
 // demoed with no API key, no network, and no cost.
 //
 // It used to be one script written for one dev-tools pitch, and every idea got
 // that argument: pitch a feeder for cats and the committee debated "coverage
-// dashboards". It still cannot truly listen — only a model can — but it now
+// dashboards". It still cannot truly listen. Only a model can, but it now
 // argues about the idea on the table.
 //
 // It is also the stage insurance policy: if the venue wifi dies mid-demo,
@@ -143,7 +143,7 @@ function hash(s: string): number {
   return h;
 }
 
-/** One of a few ways to say it, fixed per idea — two pitches do not get the
+/** One of a few ways to say it, fixed per idea. Two pitches do not get the
  *  identical sentence, and one pitch always gets the same one. */
 function oneOf<T>(key: string, options: T[]): T {
   return options[hash(key) % options.length];
@@ -183,8 +183,8 @@ function clause(phrase: string): string {
 //
 // A partner meeting, not a panel of scorecards: people who have read the memo
 // saying what they think of this product, disagreeing by name, and some of
-// them moving. Stances follow the evidence — the validation score and whether
-// the research found a problem at all — so a strong file gets a warmer room.
+// them moving. Stances follow the evidence. The validation score and whether
+// the research found a problem at all, so a strong file gets a warmer room.
 
 type Deal = {
   pitch: Pitch;
@@ -238,24 +238,24 @@ function committeeVerdict(seat: Seat, d: Deal) {
         confidence: 0.6,
         position: problem
           ? oneOf(key, [
-              `Look, I like the problem — ${problem}. That's real. What I can't see yet is a company rather than a feature: what stops ${clause(d.market.incumbent)} from shipping their own ${it} the moment this works?`,
-              `I'll be the one who likes it. ${cap(problem)} — people genuinely feel that. My worry is size. Is this a big company, or a nice product that tops out at a few million?`,
+              `Look, I like the problem, ${problem}. That's real. What I can't see yet is a company rather than a feature: what stops ${clause(d.market.incumbent)} from shipping their own ${it} the moment this works?`,
+              `I'll be the one who likes it. ${cap(problem)}. People genuinely feel that. My worry is size. Is this a big company, or a nice product that tops out at a few million?`,
             ])
           : `Honestly, I came in wanting to like the ${it}, but the file never says whose problem it solves. Without that I can't tell you how big it gets.`,
-        reasoning: `${problem ? `The research moved this from "${it}" to a real problem, which is the right direction.` : "There is no validated problem in the file."} In ${d.market.category} the question is always whether the product owns a relationship — recurring revenue, retention, a reason to stay — or gets absorbed by ${d.market.incumbent}. Nothing here compounds yet.`,
+        reasoning: `${problem ? `The research moved this from "${it}" to a real problem, which is the right direction.` : "There is no validated problem in the file."} In ${d.market.category} the question is always whether the product owns a relationship. Recurring revenue, retention, a reason to stay, or gets absorbed by ${d.market.incumbent}. Nothing here compounds yet.`,
         evidence: ["vf.chosenProblem", "firm.thesis[0]"],
-        whatWouldChangeMyMind: "A reason this gets bigger every month a customer keeps it — not just a better version of something that exists.",
+        whatWouldChangeMyMind: "A reason this gets bigger every month a customer keeps it. Not just a better version of something that exists.",
       };
     case "principal":
       return {
         stance: round2(clamp(-0.15 + lean, -0.9, 0.9)),
         confidence: 0.85,
         position: d.wtp
-          ? `I did the homework on this one, and I'm not there yet. There's no price in the file and nobody's paid. The research says willingness to pay is "${d.wtp.replace(/[.]$/, "")}" — that's a feeling, not a number.`
+          ? `I did the homework on this one, and I'm not there yet. There's no price in the file and nobody's paid. The research says willingness to pay is "${d.wtp.replace(/[.]$/, "")}", that's a feeling, not a number.`
           : `I did the homework on this one, and I'm not there yet. There's no price, no paying customer, and no sense of what it costs to win one.`,
         reasoning: `${d.who ? `The people who have this problem are ${whoShort(d.who)}. ` : ""}The people who liked it in the research and the people who'd pay for it aren't obviously the same people, and that gap shows up later as an expensive sale.${d.evidence !== null ? ` Evidence strength is ${d.evidence}, and that's the part I'd want to see move.` : ""}`,
         evidence: ["vf.chosenProblem.willingnessToPay", "vf.pvs.evidenceStrength"],
-        whatWouldChangeMyMind: "Three customers who paid — and who hold the budget themselves.",
+        whatWouldChangeMyMind: "Three customers who paid. And who hold the budget themselves.",
       };
     case "skeptic":
       return {
@@ -276,10 +276,10 @@ function committeeVerdict(seat: Seat, d: Deal) {
         position:
           lean >= 0
             ? `Everyone's warming up to this, and that's exactly when I get nervous. If it's this obvious, why isn't it already being done by ${d.market.incumbent}? Somebody here should be arguing it's already too late.`
-            : `The room's heading for "nice idea, not a business". That's the comfortable call — and it's the call every room makes right before someone else funds the category leader.`,
+            : `The room's heading for "nice idea, not a business". That's the comfortable call, and it's the call every room makes right before someone else funds the category leader.`,
         reasoning: "When the room converges quickly, it has usually found the obvious answer, which everyone else has found too.",
         evidence: ["room.consensus"],
-        whatWouldChangeMyMind: "A credible argument I haven't heard yet — in either direction.",
+        whatWouldChangeMyMind: "A credible argument I haven't heard yet, in either direction.",
       };
     default:
       return { stance: 0, confidence: 0.5, position: "", reasoning: "", evidence: [], whatWouldChangeMyMind: "" };
@@ -292,12 +292,12 @@ function committeeChallenges(seat: Seat, d: Deal): { to: string; text: string }[
     case "principal":
       return [{
         to: "gp",
-        text: `You said the problem's real. Real for whom — and who pays? There's no price in this file and nobody's paid a cent. A wedge nobody's bought is still a hypothesis.`,
+        text: `You said the problem's real. Real for whom. And who pays? There's no price in this file and nobody's paid a cent. A wedge nobody's bought is still a hypothesis.`,
       }];
     case "skeptic":
       return [{
         to: "gp",
-        text: `You want the ${it} to become part of their routine. Which moment does it own — ${d.market.moment}? If you can't name it, "habit" is a wish, not a plan.`,
+        text: `You want the ${it} to become part of their routine. Which moment does it own, ${d.market.moment}? If you can't name it, "habit" is a wish, not a plan.`,
       }];
     case "gp":
       return [{
@@ -314,7 +314,7 @@ function committeeRebuttal(seat: Seat, d: Deal) {
   switch (seat) {
     case "gp":
       return {
-        response: "Fair, both of you. I was describing where it ends up, not how it gets there, and I can't name the moment it owns yet. I'm coming down — but not off it. The problem is still the most interesting thing in this file.",
+        response: "Fair, both of you. I was describing where it ends up, not how it gets there, and I can't name the moment it owns yet. I'm coming down. But not off it. The problem is still the most interesting thing in this file.",
         conceded: true,
         revisedStance: round2(clamp(0.1 + lean, -0.9, 0.9)),
         revisedConfidence: 0.65,
@@ -328,7 +328,7 @@ function committeeRebuttal(seat: Seat, d: Deal) {
       };
     case "skeptic":
       return {
-        response: `That's a fair distinction, and I'll grant it — if it genuinely takes work away, it has a better shot. But the first time it lets them down, they stop using it. Same position, a little less sure.`,
+        response: `That's a fair distinction, and I'll grant it. If it genuinely takes work away, it has a better shot. But the first time it lets them down, they stop using it. Same position, a little less sure.`,
         conceded: false,
         revisedStance: round2(clamp(-0.52 + lean * 0.6, -0.95, 0.9)),
         revisedConfidence: 0.7,
@@ -374,7 +374,7 @@ const MODERATOR_ROTATION: Seat[] = ["principal", "skeptic", "gp"];
 let turnCounter = 0;
 
 /**
- * WITHOUT A MODEL, A PARTNER CANNOT ACTUALLY LISTEN — but it can notice what
+ * WITHOUT A MODEL, A PARTNER CANNOT ACTUALLY LISTEN. But it can notice what
  * kind of thing was just said. A founder who names a customer and a number
  * should not be asked "has anyone paid?" as if they had said nothing; they
  * should be pushed one level deeper on the thing they offered. With a key set,
@@ -402,7 +402,7 @@ function seatResponse(seat: Seat, user: string) {
   const bySeat: Record<string, { line: string; objectionText: string }> = {
     principal: said.money
       ? {
-          line: `${amount ? `Okay — ${amount} is a real number, thank you.` : "Okay, that's a start."} Is it renewing, and did the person who signed it actually own the budget, or borrow it for a pilot?`,
+          line: `${amount ? `Okay, ${amount} is a real number, thank you.` : "Okay, that's a start."} Is it renewing, and did the person who signed it actually own the budget, or borrow it for a pilot?`,
           objectionText: "Revenue named, renewal and buyer unproven",
         }
       : said.traction
@@ -425,12 +425,12 @@ function seatResponse(seat: Seat, user: string) {
             objectionText: "Dodged the defensibility question",
           }
         : {
-            line: `I keep coming back to the same thing — in ${market.category}, ${market.failure}. What's your plan for day ninety?`,
+            line: `I keep coming back to the same thing, in ${market.category}, ${market.failure}. What's your plan for day ninety?`,
             objectionText: "Retention risk unaddressed",
           },
     gp: said.timing
       ? {
-          line: "Okay — that's a why-now I can work with. So if you're right, how big does this get? Walk me to a hundred million.",
+          line: "Okay, that's a why-now I can work with. So if you're right, how big does this get? Walk me to a hundred million.",
           objectionText: "Why-now plausible, scale unproven",
         }
       : vague
@@ -439,7 +439,7 @@ function seatResponse(seat: Seat, user: string) {
             objectionText: "No why-now established",
           }
         : {
-            line: `I hear you. What I still can't see is the shape of this at a hundred million in revenue — help me see it.`,
+            line: `I hear you. What I still can't see is the shape of this at a hundred million in revenue. Help me see it.`,
             objectionText: "Cannot see the path to a fund-returning outcome",
           },
   };
@@ -498,27 +498,27 @@ function councilVerdict(seat: Seat, c: Council) {
 
   const position: Record<string, string> = {
     market: c.asked
-      ? `${c.have} of the ${c.asked} people we asked in ${c.city} ${c.have === 1 ? "has" : "have"} this, and ${c.pay} would pay to fix it. ${incidence >= 0.4 ? "That's a real market" : "It's real, but it's a niche"} — mostly ${who}, not everyone.`
+      ? `${c.have} of the ${c.asked} people we asked in ${c.city} ${c.have === 1 ? "has" : "have"} this, and ${c.pay} would pay to fix it. ${incidence >= 0.4 ? "That's a real market" : "It's real, but it's a niche"}. Mostly ${who}, not everyone.`
       : `I don't have enough people from ${c.city} to size this honestly. That's a finding in itself.`,
-    founder: `You could build this in ${c.city}. The first ten customers are probably two introductions away from people already here — the question is whether that edge lasts past year one.`,
+    founder: `You could build this in ${c.city}. The first ten customers are probably two introductions away from people already here. The question is whether that edge lasts past year one.`,
     customer:
       payRate >= 0.5
-        ? `The people here who have this would actually pay — ${c.pay} of ${c.have}. That's the strongest signal we've got.`
-        : `I'd use it. I'm just not the one who'd pay — and the person who pays wasn't really asked.`,
+        ? `The people here who have this would actually pay, ${c.pay} of ${c.have}. That's the strongest signal we've got.`
+        : `I'd use it. I'm just not the one who'd pay. And the person who pays wasn't really asked.`,
     regulatory: c.consumer
       ? `Nothing here blocks it, but it needs ${c.market.regulation}. Budget for that before launch, not after.`
       : `No hard blocker in ${c.city}, but buying here is slow enough that it's part of the market, not an inconvenience.`,
-    capital: `${c.city} can fund a seed round for this${c.capital !== null ? ` — capital density is ${c.capital} out of 100` : ""}. The harder part is finding people who've built ${c.market.category} before; they're not all here.`,
+    capital: `${c.city} can fund a seed round for this${c.capital !== null ? `. Capital density is ${c.capital} out of 100` : ""}. The harder part is finding people who've built ${c.market.category} before; they're not all here.`,
     contrarian: `This council's heading for "good problem, hard sale", which is what every room concludes about everything. Nobody's asked whether ${who} would actually drop ${c.market.incumbent} for it.`,
   };
 
   const reasoning: Record<string, string> = {
-    market: `The problem — ${problem} — shows up here, but it clusters. Size the market on who has it and who'd pay, not on everyone who nodded.`,
+    market: `The problem, ${problem}. Shows up here, but it clusters. Size the market on who has it and who'd pay, not on everyone who nodded.`,
     founder: `${c.city} produces companies like this, which cuts both ways: the talent's here, and so are the competitors nobody's named yet.`,
     customer: `Enthusiasm and budget sit with different people. That gap is the whole sale.`,
     regulatory: `The friction here is ${c.consumer ? "certification and returns" : "procurement"}, and it adds months, not years.`,
     capital: `Money for the first round isn't the constraint. Experienced people are.`,
-    contrarian: `Three of us reached for the same gap independently — that's pattern-matching, not reasoning.`,
+    contrarian: `Three of us reached for the same gap independently, that's pattern-matching, not reasoning.`,
   };
 
   return {
@@ -542,7 +542,7 @@ function councilChallenges(seat: Seat, c: Council): { to: string; text: string }
     case "customer":
       return [{ to: "market", text: `You counted who has the problem. I'm telling you who'd pay is a smaller group. Your number's the optimistic one.` }];
     case "capital":
-      return [{ to: "market", text: `If it's really concentrated in ${who}, the price has to carry small numbers. Which is it — a big market or a premium one?` }];
+      return [{ to: "market", text: `If it's really concentrated in ${who}, the price has to carry small numbers. Which is it. A big market or a premium one?` }];
     default:
       return [];
   }
@@ -553,7 +553,7 @@ function councilRebuttal(seat: Seat, c: Council) {
   switch (seat) {
     case "market":
       return {
-        response: "Fair — I counted people with the problem, not people who'd pay, and those are different groups. I'm coming down a bit.",
+        response: "Fair, I counted people with the problem, not people who'd pay, and those are different groups. I'm coming down a bit.",
         conceded: true, revisedStance: round2(base - 0.3), revisedConfidence: 0.75,
       };
     case "founder":
@@ -574,7 +574,7 @@ function councilRebuttal(seat: Seat, c: Council) {
 function councilTasks(c: Council) {
   return {
     tasks: [
-      { question: `How many people in ${c.city} actually have this — is that a market?`, assignedTo: "market", why: "Sizing is the market analyst's job." },
+      { question: `How many people in ${c.city} actually have this. Is that a market?`, assignedTo: "market", why: "Sizing is the market analyst's job." },
       { question: `Could a team build this and find its first customers in ${c.city}?`, assignedTo: "founder", why: "Execution reality." },
       { question: `Would the person who pays in ${c.city} actually pay for it?`, assignedTo: "customer", why: "The buyer's view." },
       { question: "What rules or red tape apply here?", assignedTo: "regulatory", why: "Constraints." },
@@ -674,7 +674,7 @@ type Segment = keyof typeof SEGMENTS;
 type ParsedProblem = { id: string; segment: Segment | null; words: Set<string> };
 
 /** The founder's own framing is the absence of their product, whatever words
- *  it happens to contain — "There is no budgeting app" is not a buyer's problem. */
+ *  it happens to contain, "There is no budgeting app" is not a buyer's problem. */
 const FOUNDER_FRAMING = /^(?:there is no|teams have no|nobody has this yet)\b/i;
 
 function parseProblems(user: string): ParsedProblem[] {
@@ -703,7 +703,7 @@ type ParsedPersona = {
 
 function parsePersonas(user: string): ParsedPersona[] {
   const re =
-    /id (\d+) —[^\n]*?tech (\d+) risk (\d+) price (\d+) budget (\d+) pain (\d+) brand (\d+) influence (\d+)/g;
+    /id (\d+)[^\n]*?tech (\d+) risk (\d+) price (\d+) budget (\d+) pain (\d+) brand (\d+) influence (\d+)/g;
   const out: ParsedPersona[] = [];
   let m: RegExpExecArray | null;
   while ((m = re.exec(user)) !== null) {
@@ -727,7 +727,7 @@ function demoReactions(user: string) {
   for (const p of problems) {
     if (p.segment && !bySegment.has(p.segment)) bySegment.set(p.segment, p.id);
   }
-  // The people who use the thing have the problem it literally solves — the
+  // The people who use the thing have the problem it literally solves, the
   // founder's own framing, wherever the list now puts it.
   const literal = problems.find((p) => !p.segment)?.id ?? ids[0] ?? "p1";
 
@@ -749,7 +749,7 @@ function demoReactions(user: string) {
   };
 
   /** How squarely the pitch speaks to this person's problem, 0..1. A pitch
-   *  that names someone's actual pain gets a warmer hearing — which is the
+   *  that names someone's actual pain gets a warmer hearing. Which is the
    *  whole reason rewriting around the market's problem can move the crowd. */
   const fit = (problemId: string): number => {
     const words = problems.find((p) => p.id === problemId)?.words;
@@ -765,7 +765,7 @@ function demoReactions(user: string) {
       const addressed = fit(problemId);
 
       // Enthusiasm rises with appetite for new things, falls with price
-      // sensitivity and loyalty to incumbents — through a logistic, so a hub
+      // sensitivity and loyalty to incumbents. Through a logistic, so a hub
       // tilted one way still comes back as individuals rather than a block.
       const z =
         (p.tech - 5.5) * 0.34 +
@@ -840,7 +840,7 @@ function demoProblems(user: string) {
         severity: 44,
         frequency: "All the time",
         currentWorkaround: "They cope, and grumble about it.",
-        willingnessToPay: "Not much — it doesn't feel like something to buy.",
+        willingnessToPay: "Not much, it doesn't feel like something to buy.",
         confidence: 0.82,
       },
       // What the market might be feeling instead, written for this market in
@@ -856,7 +856,7 @@ function demoProblems(user: string) {
  * A reaction in three parts: what this is like for them today, what they make
  * of the product, and the condition attached.
  *
- * One-liners were the complaint, and rightly — "I'd use it tomorrow" tells a
+ * One-liners were the complaint, and rightly, "I'd use it tomorrow" tells a
  * founder nothing they can act on. Each clause is chosen by a different
  * attribute, so two people with different scores say genuinely different
  * things rather than the same sentence reworded.
@@ -864,7 +864,7 @@ function demoProblems(user: string) {
 function demoReason(p: ParsedPersona, addressed: number, pitch: Pitch): string {
   const it = pitch.short;
 
-  // 1. Where they are today — driven by how much friction they absorb.
+  // 1. Where they are today. Driven by how much friction they absorb.
   const today = pitch.consumer
     ? p.pain <= 3
       ? "This gets on my nerves most weeks and I've never found a fix I stuck with."
@@ -875,21 +875,21 @@ function demoReason(p: ParsedPersona, addressed: number, pitch: Pitch): string {
       ? "This costs my team real hours every sprint and I can name the last three times it bit us."
       : p.pain >= 8
         ? "We've worked around this for so long it's just how things are here."
-        : "It's a recurring irritation — not a fire, but it never goes away.";
+        : "It's a recurring irritation. Not a fire, but it never goes away.";
 
-  // 2. What they make of it — appetite for new things, and brand loyalty.
+  // 2. What they make of it. Appetite for new things, and brand loyalty.
   const onIt =
     addressed >= 0.6
       ? `What you're describing is aimed at the part that actually hurts, which is more than most ${it} pitches manage.`
       : p.brand >= 7
         ? `My instinct is that whoever we already pay should just do this, so a separate ${it} has to be clearly better.`
         : p.tech >= 8
-          ? `I'd try the ${it} the week it shipped — I've bodged together worse versions myself.`
+          ? `I'd try the ${it} the week it shipped, I've bodged together worse versions myself.`
           : p.risk <= 3
             ? `I've been burned by tools like this before, so I'd want to see it working somewhere else first.`
             : `The ${it} sounds plausible; I just can't tell yet whether it survives contact with how we actually work.`;
 
-  // 3. The condition — this is the part a founder can act on.
+  // 3. The condition. This is the part a founder can act on.
   const condition = pitch.consumer
     ? p.price >= 7
       ? "Price decides it for me. Anything that feels like another subscription is an immediate no."
@@ -899,7 +899,7 @@ function demoReason(p: ParsedPersona, addressed: number, pitch: Pitch): string {
     : p.budget >= 7
       ? "I can sign for this. What I can't defend is a line item that duplicates something we already licence."
       : p.budget <= 3
-        ? "I don't hold the budget, so you'd need my director in the room — I can only advocate."
+        ? "I don't hold the budget, so you'd need my director in the room, I can only advocate."
         : "I'd have to build the case internally, and that means numbers I don't have yet.";
 
   return `${today} ${onIt} ${condition}`;
@@ -908,7 +908,7 @@ function demoReason(p: ParsedPersona, addressed: number, pitch: Pitch): string {
 function demoShrug(p: ParsedPersona, pitch: Pitch): string {
   const why = pitch.consumer
     ? p.pain >= 7
-      ? "It's just not something I think about — whatever I do now is good enough."
+      ? "It's just not something I think about. Whatever I do now is good enough."
       : "I can see the idea, it's only that nothing about my week changes if it exists."
     : p.pain >= 7
       ? "We've absorbed this for years and nobody upstairs has ever asked me to fix it."
@@ -953,7 +953,7 @@ function demoRefine(user: string) {
  * Replies driven by the persona's own attributes, parsed back out of the system
  * prompt, and about the product they were actually shown. A sceptic stays a
  * sceptic, someone with no budget says so, and nobody is talked round by a
- * single question — which is what makes a research call worth anything.
+ * single question. Which is what makes a research call worth anything.
  */
 function demoPersonaReply(system: string, user: string) {
   const num = (label: string) => Number(new RegExp(label + "\\s+(\\d+)").exec(system)?.[1] ?? 5);
@@ -986,17 +986,17 @@ function demoPersonaReply(system: string, user: string) {
   let line: string;
 
   if (greeting) {
-    line = `Hi${name ? ` — ${name} here` : ""}. You wanted to talk about the ${it}? Happy to — ask me anything.`;
+    line = `Hi${name ? `, ${name} here` : ""}. You wanted to talk about the ${it}? Happy to, ask me anything.`;
   } else if (aboutPrice) {
     line =
       budget >= 7
-        ? `I could pay for it. But I'd need it to replace something I already spend money on — tell me what the ${it} replaces.`
+        ? `I could pay for it. But I'd need it to replace something I already spend money on. Tell me what the ${it} replaces.`
         : price >= 7
           ? `Whatever the price is, it's probably too high for me. I'd need to see it save me money first.`
           : `Honestly? I'm not the one who'd pay. You'd need whoever holds the budget in the room, not me.`;
   } else if (aboutWho) {
     line = budget >= 7
-      ? "That'd be me, actually. I sign for this kind of thing — which is why I'm hard to impress."
+      ? "That'd be me, actually. I sign for this kind of thing. Which is why I'm hard to impress."
       : "Not me. I'd bring it to whoever holds the budget, and they'd ask me why we need it.";
   } else if (aboutRival) {
     line =
@@ -1010,7 +1010,7 @@ function demoPersonaReply(system: string, user: string) {
   } else if (aboutToday) {
     line = today
       ? `Right now? ${cap(today.replace(/[.]+$/, ""))}. It's not great, but it's what I've got.`
-      : "Honestly, nothing — it's not something I have to deal with.";
+      : "Honestly, nothing, it's not something I have to deal with.";
   } else if (aboutUse) {
     line =
       tech >= 8
@@ -1020,7 +1020,7 @@ function demoPersonaReply(system: string, user: string) {
     line =
       pain <= 3
         ? `It genuinely gets to me. The way I'd put it: ${gist(theirProblem)}. That's the bit I'd pay to fix.`
-        : `It's a mild annoyance, if I'm honest. ${cap(gist(theirProblem))} — but I've worked around it for years.`;
+        : `It's a mild annoyance, if I'm honest. ${cap(gist(theirProblem))}, but I've worked around it for years.`;
   } else {
     line =
       pain <= 3

@@ -74,7 +74,7 @@ describe("crowd aggregation", () => {
 });
 
 describe("the crowd actually runs", () => {
-  // No key in test, so this exercises the demo provider — which computes
+  // No key in test, so this exercises the demo provider. Which computes
   // reactions from each persona's real attributes rather than returning canned
   // text. That makes these assertions meaningful rather than tautological.
   it("returns exactly one reaction per persona, batching included", async () => {

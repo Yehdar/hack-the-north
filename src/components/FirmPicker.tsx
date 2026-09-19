@@ -34,7 +34,7 @@ export function FirmPicker({ disabled }: { disabled?: boolean }) {
   }, []);
 
   // Open on the firm already chosen, and close on a click anywhere else or
-  // Escape — mid-demo nobody should have to find the toggle again.
+  // Escape. Mid-demo nobody should have to find the toggle again.
   useEffect(() => {
     if (!open) return;
     list.current

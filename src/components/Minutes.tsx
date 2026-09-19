@@ -77,7 +77,7 @@ export function Minutes({ minutes, size = "sm" }: { minutes: MinutesDoc; size?: 
       )}
 
       {/* The chair's rulings. A challenge nobody met is the most actionable
-          line in a set of minutes — it is a hole the room found and left. */}
+          line in a set of minutes. It is a hole the room found and left. */}
       {minutes.unanswered?.length > 0 && (
         <Part title="Left unanswered">
           <ul className="space-y-2">

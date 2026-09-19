@@ -5,7 +5,7 @@
 //
 // A bar tells you a quantity. A light tells you a verdict, and a verdict is
 // what a founder is actually looking for. Everyone already knows what green,
-// amber and red mean, so this needs no legend — which is the whole reason to
+// amber and red mean, so this needs no legend. Which is the whole reason to
 // use it instead of another coloured bar.
 //
 // The word sits next to the dot on purpose: colour alone fails for the ~8% of
@@ -59,7 +59,7 @@ export function Light({
 }
 
 /**
- * Three lamps in a row, the live one lit and the others dimmed — the way an
+ * Three lamps in a row, the live one lit and the others dimmed. The way an
  * actual signal head reads. Used where a single status needs to show its
  * position on a scale rather than just its value.
  */

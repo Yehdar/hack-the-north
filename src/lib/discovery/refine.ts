@@ -2,11 +2,11 @@ import { getLLM } from "@/lib/llm";
 import type { ProblemStatement } from "@/lib/types";
 
 // ============================================================================
-// THE REFINE LOOP — rewrite the pitch around the problem the market has.
+// THE REFINE LOOP. Rewrite the pitch around the problem the market has.
 //
 // The rewrite changes the framing, never the product. If it invented features
 // the second run would be testing a different product, and the comparison
-// between the two runs — the reason this loop exists — would mean nothing.
+// between the two runs. The reason this loop exists, would mean nothing.
 // ============================================================================
 
 const SCHEMA = {

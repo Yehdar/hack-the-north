@@ -2,7 +2,7 @@ import { getLLM, type LLMProvider } from "@/lib/llm";
 import type { AgentId, AgentTemplate, AgentVerdict } from "@/lib/types";
 
 // ============================================================================
-// DELIBERATION PROTOCOL — shared by both councils (VC seats and hub agents).
+// DELIBERATION PROTOCOL. Shared by both councils (VC seats and hub agents).
 //
 // The point of this file, stated plainly, is that running N agents in parallel
 // and averaging their scores is not multi-agent collaboration. It is N
@@ -24,7 +24,7 @@ import type { AgentId, AgentTemplate, AgentVerdict } from "@/lib/types";
 //                           has settled
 //
 // Everything is logged: who challenged whom, about what, and whose mind moved
-// as a result. That log is the artifact — it is what distinguishes a committee
+// as a result. That log is the artifact. It is what distinguishes a committee
 // that deliberated from a poll that was averaged.
 // ============================================================================
 
@@ -87,7 +87,7 @@ export type DeliberationResult = {
     rebuttals: number;
     concessions: number;
     /** Challenges the chair ruled were never actually answered. The number a
-     *  founder should care about most — an unanswered challenge is a hole the
+     *  founder should care about most. An unanswered challenge is a hole the
      *  room found and nobody filled. */
     unanswered: number;
     mindChanges: MindChange[];
@@ -132,7 +132,7 @@ const VERDICT_SCHEMA = {
     confidence: { type: "number", description: "0 to 1" },
     position: {
       type: "string",
-      // This is the line the room hears — it is spoken aloud and shown as the
+      // This is the line the room hears. It is spoken aloud and shown as the
       // transcript. "Headline length" produced headlines, which read as a
       // machine; this asks for a person.
       description:
@@ -311,7 +311,7 @@ export async function deliberate(
     // Until now the chair routed the work and wrote it up but never said
     // whether a challenge had actually been met. That left the most useful
     // judgement in the room unmade: a challenge nobody answered is a hole, and
-    // it should cost something. It rules on the exchanges only — it still holds
+    // it should cost something. It rules on the exchanges only. It still holds
     // no view of its own on the venture.
     if (challenges.length > 0) {
       const answeredBy = new Map<string, AgentMessage>();
@@ -403,7 +403,7 @@ async function decompose(
   llm: LLMProvider
 ): Promise<DiligenceTask[]> {
   const roster = opts.agents
-    .map((a) => `  ${a.id} — ${a.role}. Judges: ${a.focus.join(", ")}.`)
+    .map((a) => `  ${a.id}, ${a.role}. Judges: ${a.focus.join(", ")}.`)
     .join("\n");
 
   const res = await llm
@@ -505,7 +505,7 @@ ${others
   .join("\n\n")}
 
 Challenge at most two of them. Address each challenge to one agent by id, and
-make it specific to what that agent actually claimed — a challenge that would
+make it specific to what that agent actually claimed. A challenge that would
 apply to anybody is not worth the room's time. If a colleague is right and you
 have nothing substantive to press, return no challenges rather than
 manufacturing disagreement.`,
@@ -544,7 +544,7 @@ ${challenges.map((c) => `  [${c.from}] ${c.text}`).join("\n")}
 Answer. Then restate your stance and confidence.
 
 Conceding when a colleague is right is doing the job properly, not losing. But
-do not concede to social pressure — your convictions are not up for negotiation
+do not concede to social pressure. Your convictions are not up for negotiation
 just because someone pushed. Move only if the argument actually moved you, and
 set conceded accordingly.`,
     schema: { name: "rebuttal", schema: REBUTTAL_SCHEMA as unknown as Record<string, unknown> },
@@ -582,7 +582,7 @@ Your only job here is to rule on whether each challenge was actually answered.
 
 Be strict. A reply that restates the original position, changes the subject, or
 concedes the point without addressing it is NOT an answer. Conceding honestly IS
-an answer — the challenger was right and the room now knows it.`,
+an answer. The challenger was right and the room now knows it.`,
     user: `THE EXCHANGES:
 
 ${exchanges}
@@ -638,7 +638,7 @@ function diffStances(
 
 function summarize(verdicts: AgentVerdict[]): string {
   return verdicts
-    .map((v) => `  [${v.agentId}] ${v.stance.toFixed(2)} — ${v.position}`)
+    .map((v) => `  [${v.agentId}] ${v.stance.toFixed(2)}, ${v.position}`)
     .join("\n");
 }
 

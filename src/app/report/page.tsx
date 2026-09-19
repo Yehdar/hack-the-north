@@ -18,7 +18,7 @@ import {
 } from "@/lib/verdict";
 
 // ============================================================================
-// THE REPORT — B5. Track B owns this page.
+// THE REPORT, B5. Track B owns this page.
 //
 // Everything here is computed from cached agent output. Moving a weight slider
 // re-runs pure functions and never calls a model, which is the point: the
@@ -30,7 +30,7 @@ export default function Report() {
   const deliberation = useVenture((v) => v.deliberation);
   const crowd = useVenture((v) => v.crowd);
 
-  // The room's own weighting. There is no override any more — a founder
+  // The room's own weighting. There is no override any more. A founder
   // cannot tell what re-weighting a partner is supposed to mean, so the slider
   // was a control that invited a question it could not answer.
   const weights: WeightMap = useMemo(() => {
@@ -80,7 +80,7 @@ export default function Report() {
   }, [vf, deliberation]);
 
   // Saved for the dashboard. Still computed, because the dashboard compares
-  // runs and needs something comparable — it is just no longer shown to the
+  // runs and needs something comparable. It is just no longer shown to the
   // founder as a grade.
   useEffect(() => {
     if (!vf || !verdict) return;
@@ -207,7 +207,7 @@ export default function Report() {
               >
                 {/* A word, not a coordinate. "stance 0.14 · conf 0.65" is the
                     shape of the maths, and nobody reading a report needs it.
-                    The weight sliders went with it — a founder cannot tell what
+                    The weight sliders went with it. A founder cannot tell what
                     re-weighting a partner is supposed to mean. */}
                 <div className="flex items-baseline justify-between gap-3">
                   <span className="text-sm text-ink">{roleOf(v.agentId)}</span>
@@ -249,7 +249,7 @@ export default function Report() {
 
         {/* The verdict section is gone on purpose.
             A pass/fail bar turns this into a game you either win or lose, and
-            the reviewer was right that it is the wrong frame — the useful thing
+            the reviewer was right that it is the wrong frame. The useful thing
             is what to change, not a grade out of ten. What the room concluded
             still reaches the founder, but as words in "What each partner said"
             and as actions in "What to fix". */}
@@ -264,7 +264,7 @@ export default function Report() {
             if (!crowd) {
               return (
                 <p className="text-sm text-muted">
-                  Run the market first — the grade is computed from what the crowd
+                  Run the market first. The grade is computed from what the crowd
                   actually said, not from the problem statement.
                 </p>
               );

@@ -3,7 +3,7 @@
 import { useSyncExternalStore } from "react";
 
 // ============================================================================
-// THE NARRATOR — one line, top centre, saying what is happening and why.
+// THE NARRATOR. One line, top centre, saying what is happening and why.
 //
 // Anyone who walks up mid-demo should be able to read the screen without the
 // presenter. The stage rail says where you are; this says what it means. It is
@@ -14,13 +14,12 @@ const noop = () => () => {};
 
 export function Narrator({
   step,
-  total,
   title,
   line,
   voice,
 }: {
+  /** Kept only to key the entrance animation per stage. */
   step?: number;
-  total?: number;
   title: string;
   line: string;
   /** The read-aloud toggle. Omit it and no toggle is shown. */
@@ -32,8 +31,10 @@ export function Narrator({
 
   return (
     <div className="pointer-events-none mx-auto max-w-[440px] text-center" aria-live="polite">
+      {/* No "Step 3 of 8 · Deploy" any more. The numbered rail on the left
+          already says which step this is, and saying it twice on one screen
+          made the middle of the page compete with the navigation. */}
       <p key={title} className="label narrate" style={{ color: "var(--accent)" }}>
-        {step && total ? `Step ${step} of ${total} · ` : ""}
         {title}
         {voice && inBrowser && (
           <button

@@ -1,9 +1,9 @@
 // ============================================================================
-// ELEVENLABS — Track B owns this file. SERVER ONLY (reads the API key).
+// ELEVENLABS, Track B owns this file. SERVER ONLY (reads the API key).
 //
 // Turn-based by design, per the plan: the founder pushes to talk, we transcribe,
 // a seat responds, and ElevenLabs speaks it back before the founder continues.
-// No real-time barge-in — that was cut deliberately as too risky for two people.
+// No real-time barge-in. That was cut deliberately as too risky for two people.
 //
 // Everything here degrades. If the key is missing or a call fails, the caller
 // falls back to browser speech and then to text, and the meeting still runs.
@@ -11,7 +11,7 @@
 
 const BASE = "https://api.elevenlabs.io/v1";
 
-/** Low-latency model — a partner that takes three seconds to start talking
+/** Low-latency model. A partner that takes three seconds to start talking
  *  reads as broken. Override if the account has something better. */
 const TTS_MODEL = process.env.ELEVENLABS_TTS_MODEL ?? "eleven_flash_v2_5";
 const STT_MODEL = process.env.ELEVENLABS_STT_MODEL ?? "scribe_v1";
@@ -63,7 +63,7 @@ export async function synthesize(text: string, voiceId: string): Promise<ArrayBu
       text,
       model_id: TTS_MODEL,
       voice_settings: {
-        // Low stability keeps delivery varied — three partners who all sound
+        // Low stability keeps delivery varied. Three partners who all sound
         // evenly measured undercuts the point of distinct seats.
         stability: 0.4,
         similarity_boost: 0.75,

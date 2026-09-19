@@ -14,14 +14,14 @@ import { Minutes } from "@/components/Minutes";
 // SAVED RUNS.
 //
 // A founder does not run this once. They run it, learn the market has a
-// different problem, rewrite, and run it again — and the comparison between
+// different problem, rewrite, and run it again. And the comparison between
 // the two runs is worth more than either one alone. This is where that
 // comparison lives.
 // ============================================================================
 
 const subscribeNothing = () => () => {};
 
-/** False while hydrating, true after — so a returning founder never sees a
+/** False while hydrating, true after. So a returning founder never sees a
  *  flash of "no runs yet" before their saved runs load. */
 function useHydrated() {
   return useSyncExternalStore(subscribeNothing, () => true, () => false);
