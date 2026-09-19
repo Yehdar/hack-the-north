@@ -1,26 +1,94 @@
 @import "tailwindcss";
 
+/* ===========================================================================
+   ATLAS — deep navy + signal amber.
+
+   Three rules hold this together:
+     1. Sentiment runs cold-blue to amber, never red-to-green. It reads as
+        market heat rather than pass/fail, and it stays legible to the ~8% of
+        men who cannot separate red from green.
+     2. Amber is reserved. It marks the reveal and it marks dissent, nothing
+        else. An accent used everywhere is not an accent.
+     3. Mono is for data, sans is for prose. All-mono reads as a hacker
+        terminal; this is meant to read as an analyst's instrument.
+   =========================================================================== */
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --ground: #080b14;
+  --surface: #0f1524;
+  --surface-2: #151d33;
+  --border: #1e2842;
+  --border-bright: #2f3d61;
+  --text: #e8ecf5;
+  --muted: #8494b4;
+  --faint: #4f5d7d;
+
+  --accent: #ffb020;
+  --accent-dim: #8a5f14;
+
+  --cold: #3b82f6;
+  --positive: #34d399;
+  --negative: #f43f5e;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --color-ground: var(--ground);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-edge: var(--border);
+  --color-edge-bright: var(--border-bright);
+  --color-ink: var(--text);
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+  --color-accent: var(--accent);
+  --color-accent-dim: var(--accent-dim);
+  --color-cold: var(--cold);
+  --color-positive: var(--positive);
+  --color-negative: var(--negative);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+body {
+  background: var(--ground);
+  color: var(--text);
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* Panels: 2px radius. Enough to stop it reading as a terminal, not enough to
+   read as a consumer app. */
+.panel {
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  backdrop-filter: blur(8px);
 }
+
+.panel-bright {
+  border-color: var(--border-bright);
+}
+
+/* The reveal and dissent only. */
+.glow-accent {
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+  box-shadow: 0 0 24px -8px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+.label {
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+.num {
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--border-bright); }

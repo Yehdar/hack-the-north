@@ -1,438 +1,539 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import { Globe, type GlobeDot } from "@/components/globe/Globe";
 import { AgentBoot } from "@/components/hud/AgentBoot";
 import { ProcessingPanel } from "@/components/hud/ProcessingPanel";
 import { AgentFeed, type FeedItem } from "@/components/hud/AgentFeed";
-import { HUB_POINTS, SEAT_POINTS } from "@/data/globePoints";
-import { AnimatePresence, motion } from "framer-motion";
+import { Intake } from "@/components/Intake";
 import { useVenture } from "@/lib/store";
 import { streamPost } from "@/lib/sse";
-import { Intake } from "@/components/Intake";
+import type { ProblemStatement } from "@/lib/types";
+import type { CrowdReaction, CrowdVerdict } from "@/lib/discovery/types";
 
-type Msg = {
-  id: string;
-  round: number;
-  from: string;
-  to: string;
-  kind: FeedItem["kind"];
-  text: string;
+// ============================================================================
+// PART 1 — DISCOVERY.
+//
+// Seven beats, each with something moving:
+//   intake -> split -> deploy -> react -> REVEAL -> council -> hand to Part 2
+//
+// The reveal is the one that matters. Every other beat exists to earn it.
+// ============================================================================
+
+type DeployedPersona = {
+  id: number;
+  name: string;
+  title: string;
+  hubId: string;
+  lat: number;
+  lon: number;
+  city: string;
+  why: string[];
 };
-type Verdict = { agentId: string; stance: number; confidence: number; position: string };
-type RosterEntry = { id: string; role: string; weight: number };
 
-const ROUND_LABEL: Record<number, string> = {
-  1: "Round 1 · independent, blind",
-  2: "Round 2 · cross-examination",
-  3: "Round 3 · rebuttal",
-  4: "Round 4 · adversarial",
+type Phase = "idle" | "problems" | "deploy" | "react" | "done";
+
+const PHASE_LABEL: Record<Phase, string> = {
+  idle: "Idle",
+  problems: "Splitting the solution",
+  deploy: "Deploying the crowd",
+  react: "Listening",
+  done: "The market has spoken",
 };
 
-// 3 findings + 3 challenges + up to 3 rebuttals + 1 adversary
-const EXPECTED_TURNS = 10;
-
-export default function Home() {
+export default function Discover() {
   const [booting, setBooting] = useState(true);
-  const [running, setRunning] = useState(false);
-  const [firm, setFirm] = useState("");
-  const [provider, setProvider] = useState("");
-  const [roster, setRoster] = useState<RosterEntry[]>([]);
-  const [messages, setMessages] = useState<Msg[]>([]);
-  const [feed, setFeed] = useState<FeedItem[]>([]);
-  const [stances, setStances] = useState<Record<string, Verdict>>({});
-  const [active, setActive] = useState<Set<string>>(new Set());
-  const [round, setRound] = useState(0);
-  const [step, setStep] = useState("Idle");
-  const [decision, setDecision] = useState<{ decision: string; score: number; dissents: string[] } | null>(null);
-  const [mindChanges, setMindChanges] = useState<{ agentId: string; from: number; to: number; conceded: boolean }[]>([]);
-  const [selected, setSelected] = useState<string | null>(null);
+  const [showIntake, setShowIntake] = useState(false);
+
   const ventureFile = useVenture((v) => v.ventureFile);
   const replaceVenture = useVenture((v) => v.replace);
   const resetVenture = useVenture((v) => v.reset);
-  const setDeliberation = useVenture((v) => v.setDeliberation);
-  const [showIntake, setShowIntake] = useState(false);
-  const sidebar = useRef<HTMLDivElement>(null);
 
-  // Intake opens once booting finishes and there is no file yet.
+  const [phase, setPhase] = useState<Phase>("idle");
+  const [running, setRunning] = useState(false);
+  const [provider, setProvider] = useState("");
+  const [problems, setProblems] = useState<ProblemStatement[]>([]);
+  const [personas, setPersonas] = useState<DeployedPersona[]>([]);
+  const [reactions, setReactions] = useState<Map<number, CrowdReaction>>(new Map());
+  const [progress, setProgress] = useState({ done: 0, total: 0 });
+  const [feed, setFeed] = useState<FeedItem[]>([]);
+  const [verdict, setVerdict] = useState<CrowdVerdict | null>(null);
+  const [showReveal, setShowReveal] = useState(false);
+  const [focus, setFocus] = useState<number | null>(null);
+  const [onlyEngaged, setOnlyEngaged] = useState(false);
+  const listRef = useRef<HTMLDivElement>(null);
+
+  // The stream callback closes over state at the moment run() was created, so
+  // reading `personas` inside it yields the empty array it was born with.
+  // Deployment and reactions arrive in the same stream, so the ref is the only
+  // way the feed can name who is speaking.
+  const personasRef = useRef<DeployedPersona[]>([]);
+
   useEffect(() => {
     if (!booting && !ventureFile) setShowIntake(true);
   }, [booting, ventureFile]);
-
-  useEffect(() => {
-    sidebar.current?.scrollTo({ top: sidebar.current.scrollHeight, behavior: "smooth" });
-  }, [messages.length]);
 
   const dismiss = useCallback((id: string) => {
     setFeed((f) => f.filter((i) => i.id !== id));
   }, []);
 
   const run = useCallback(() => {
-    if (!ventureFile) {
-      setShowIntake(true);
-      return;
-    }
+    if (!ventureFile) return setShowIntake(true);
 
     setRunning(true);
-    setMessages([]); setFeed([]); setStances({}); setDecision(null);
-    setMindChanges([]); setRound(0); setStep("Convening"); setSelected(null);
+    setPhase("problems");
+    setProblems([]); setPersonas([]); setReactions(new Map());
+    setFeed([]); setVerdict(null); setShowReveal(false); setFocus(null);
+    setProgress({ done: 0, total: 0 });
+    personasRef.current = [];
 
-    void streamPost("/api/vc/deliberate", { ventureFile }, (ev) => {
-      switch (ev.type) {
-        case "start": {
-          const firmInfo = ev.firm as { name: string };
-          setFirm(firmInfo.name);
-          setProvider(ev.provider as string);
-          setRoster(ev.roster as RosterEntry[]);
-          setStep("Decomposing the decision");
-          break;
+    void streamPost(
+      "/api/discovery/run",
+      { solution: ventureFile.solution, crowdSize: 120 },
+      (ev) => {
+        switch (ev.type) {
+          case "start":
+            setProvider(ev.provider as string);
+            break;
+
+          case "phase":
+            setPhase(ev.phase as Phase);
+            break;
+
+          case "problems":
+            setProblems(ev.problems as ProblemStatement[]);
+            break;
+
+          case "deploy": {
+            const deployed = ev.personas as DeployedPersona[];
+            personasRef.current = deployed;
+            setPersonas(deployed);
+            setProgress({ done: 0, total: deployed.length });
+            break;
+          }
+
+          case "reactions": {
+            const batch = ev.batch as CrowdReaction[];
+            setProgress({ done: ev.done as number, total: ev.total as number });
+            setReactions((prev) => {
+              const next = new Map(prev);
+              for (const r of batch) next.set(r.personaId, r);
+              return next;
+            });
+            // Only the ones with something to say reach the feed. A feed of
+            // shrugs is noise.
+            const worth = batch.filter((r) => r.reason && r.attention !== "ignore");
+            if (worth.length > 0) {
+              setFeed((f) =>
+                [
+                  ...worth.slice(0, 2).map((r) => ({
+                    id: `r${r.personaId}`,
+                    agent: personaName(personasRef.current, r.personaId),
+                    message: r.reason,
+                    kind: (r.sentiment > 0.6 ? "concession" : "challenge") as FeedItem["kind"],
+                  })),
+                  ...f,
+                ].slice(0, 5)
+              );
+            }
+            break;
+          }
+
+          case "verdict": {
+            const v = ev.verdict as CrowdVerdict;
+            setVerdict(v);
+            setPhase("done");
+            setRunning(false);
+            if (v.mismatch) setTimeout(() => setShowReveal(true), 600);
+            break;
+          }
+
+          case "error":
+            setRunning(false);
+            setPhase("idle");
+            break;
         }
-
-        case "task":
-          setActive((a) => new Set(a).add((ev.task as { assignedTo: string }).assignedTo));
-          break;
-
-        case "message": {
-          const m = ev.message as Msg;
-          setMessages((prev) => [...prev, m]);
-          setRound(m.round);
-          setStep(ROUND_LABEL[m.round] ?? "Deliberating");
-          setFeed((f) =>
-            [{ id: m.id, agent: m.from, message: m.text, kind: m.kind }, ...f].slice(0, 5)
-          );
-          break;
-        }
-
-        case "verdict": {
-          const v = ev.verdict as Verdict;
-          setStances((s) => ({ ...s, [v.agentId]: v }));
-          setActive((a) => {
-            const next = new Set(a);
-            next.delete(v.agentId);
-            return next;
-          });
-          break;
-        }
-
-        case "done": {
-          const result = ev.result as {
-            metrics: { mindChanges: typeof mindChanges } & Record<string, never>;
-            finalVerdicts: never[];
-            messages: never[];
-          };
-          setDeliberation({
-            firm,
-            verdicts: result.finalVerdicts,
-            messages: result.messages,
-            roster,
-            metrics: result.metrics as never,
-          });
-          setDecision(ev.verdict as typeof decision);
-          setMindChanges(result.metrics.mindChanges);
-          setStep("Committee concluded");
-          setActive(new Set());
-          setRunning(false);
-          // Persist the verdict onto the venture file so the report and the
-          // meeting both see it.
-          replaceVenture({ ...ventureFile, verdict: ev.verdict as never });
-          break;
-        }
-
-        case "error":
-          setStep("Failed");
-          setRunning(false);
-          break;
       }
-    }).catch(() => {
-      setStep("Failed");
+    ).catch(() => {
       setRunning(false);
+      setPhase("idle");
     });
-  }, [ventureFile, replaceVenture, setDeliberation, firm, roster]);
+  }, [ventureFile]);
 
-  const dots: GlobeDot[] = [
-    ...HUB_POINTS.map((h) => ({
-      id: `hub:${h.id}`,
-      lat: h.lat,
-      lon: h.lon,
-      label: h.label,
-      weight: 0.25,
-    })),
-    ...Object.values(SEAT_POINTS).map((s) => ({
-      id: s.id,
-      lat: s.lat,
-      lon: s.lon,
-      label: s.label,
-      stance: stances[s.id]?.stance,
-      weight: roster.find((r) => r.id === s.id)?.weight ?? 0.4,
-      active: active.has(s.id),
-    })),
-  ];
+  /** Accept the market's problem and carry it into Part 2. */
+  const acceptMarketProblem = useCallback(() => {
+    if (!ventureFile || !verdict?.marketProblemId) return;
+    const chosen = problems.find((p) => p.id === verdict.marketProblemId);
+    if (!chosen) return;
+
+    replaceVenture({
+      ...ventureFile,
+      version: ventureFile.version + 1,
+      extractedProblems: problems,
+      chosenProblem: chosen,
+    });
+    setShowReveal(false);
+  }, [ventureFile, verdict, problems, replaceVenture]);
+
+  const visible = onlyEngaged
+    ? personas.filter((p) => reactions.get(p.id)?.attention === "full")
+    : personas;
+
+  // One label per city, not one per person. 120 dots each carrying their city
+  // name renders "SAN FRANCISCO" sixty times on top of itself.
+  const labelled = new Set<string>();
+
+  const dots: GlobeDot[] = visible.map((p) => {
+    const r = reactions.get(p.id);
+    const firstOfCity = !labelled.has(p.city);
+    if (firstOfCity) labelled.add(p.city);
+
+    return {
+      id: `p${p.id}`,
+      lat: p.lat,
+      lon: p.lon,
+      label: firstOfCity ? p.city : "",
+      stance: r ? r.sentiment * 2 - 1 : undefined,
+      weight: r?.attention === "full" ? 0.8 : r?.attention === "partial" ? 0.45 : 0.2,
+      active: running && !r,
+    };
+  });
+
+  const marketProblem = problems.find((p) => p.id === verdict?.marketProblemId);
+  const pitchedProblem = problems.find((p) => p.id === verdict?.pitchedProblemId);
+  const focused = focus ? personas.find((p) => p.id === focus) : null;
 
   return (
-    <main className="relative h-screen overflow-hidden bg-black text-white">
+    <main className="relative h-screen overflow-hidden bg-ground text-ink">
       {booting && <AgentBoot onComplete={() => setBooting(false)} />}
       <AnimatePresence>
         {showIntake && !booting && <Intake onDone={() => setShowIntake(false)} />}
       </AnimatePresence>
 
       <div className="flex h-full">
-        {/* ------------------------------- globe ------------------------------- */}
         <div className="relative flex-1">
-          <Globe
-            dots={dots}
-            onDotClick={(id) => setSelected(id.startsWith("hub:") ? null : id)}
-            focus={running || decision ? { lat: SEAT_POINTS.gp.lat, lon: SEAT_POINTS.gp.lon } : null}
-            className="h-full w-full"
-          />
+          <Globe dots={dots} onDotClick={(id) => setFocus(Number(id.slice(1)))} className="h-full w-full" />
 
-          {/* header */}
-          <div className="pointer-events-none absolute left-8 top-8 z-40">
-            {!running && !decision && (
-              <div className="pointer-events-auto">
-                <h1 className="font-mono text-xl tracking-tight">Atlas</h1>
-                {ventureFile ? (
-                  <>
-                    <p className="mt-2 max-w-xs font-mono text-xs leading-relaxed text-white/70">
-                      &ldquo;{ventureFile.solution}&rdquo;
-                    </p>
-                    <button
-                      onClick={() => {
-                        resetVenture();
-                        setShowIntake(true);
-                      }}
-                      className="mt-2 font-mono text-[10px] uppercase tracking-widest text-white/35 underline-offset-4 hover:text-white/70 hover:underline"
-                    >
-                      Different idea
-                    </button>
-                  </>
-                ) : (
-                  <p className="mt-1 max-w-xs font-mono text-xs leading-relaxed text-white/50">
-                    {firm || "An investment committee that argues with itself before it argues with you."}
-                  </p>
-                )}
-              </div>
-            )}
-            <AnimatePresence>
-              {running && (
+          {/* ---------------------------------------------------- top left */}
+          <div className="absolute left-6 top-6 z-40 w-[300px]">
+            <AnimatePresence mode="wait">
+              {running ? (
                 <ProcessingPanel
-                  step={step}
-                  done={messages.length}
-                  total={EXPECTED_TURNS}
-                  round={round ? ROUND_LABEL[round] : undefined}
+                  key="proc"
+                  step={PHASE_LABEL[phase]}
+                  done={progress.done}
+                  total={progress.total || 120}
+                  round={provider ? `provider ${provider}` : undefined}
                 />
+              ) : (
+                <motion.div key="idle" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+                  <h1 className="font-mono text-lg tracking-tight">Atlas</h1>
+                  {ventureFile ? (
+                    <>
+                      <p className="mt-2 text-xs leading-relaxed text-muted">
+                        &ldquo;{ventureFile.solution}&rdquo;
+                      </p>
+                      <button
+                        onClick={() => { resetVenture(); setShowIntake(true); }}
+                        className="label mt-2 underline-offset-4 hover:text-ink hover:underline"
+                      >
+                        Different idea
+                      </button>
+                    </>
+                  ) : (
+                    <p className="mt-2 text-xs leading-relaxed text-muted">
+                      Submit a product. The market tells you which problem it actually solves.
+                    </p>
+                  )}
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* candidate problems */}
+            <AnimatePresence>
+              {problems.length > 0 && (
+                <motion.div
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="mt-4 space-y-1.5"
+                >
+                  <p className="label">Candidate problems</p>
+                  {problems.map((p, i) => {
+                    const vote = verdict?.problemVotes.find((v) => v.problemId === p.id);
+                    const isMarket = verdict?.marketProblemId === p.id;
+                    return (
+                      <div
+                        key={p.id}
+                        className={`panel p-2.5 ${isMarket ? "glow-accent" : ""}`}
+                      >
+                        <div className="flex items-baseline justify-between gap-2">
+                          <span className="num text-[10px] text-faint">
+                            {p.id}
+                            {i === 0 && " · pitched"}
+                            {isMarket && <span className="text-accent"> · the market&apos;s</span>}
+                          </span>
+                          {vote && (
+                            <span className="num text-[10px] text-muted">
+                              {vote.votes} · {(vote.payRate * 100).toFixed(0)}% pay
+                            </span>
+                          )}
+                        </div>
+                        <p className="mt-1 text-[11px] leading-relaxed text-ink/85">
+                          {p.statement}
+                        </p>
+                      </div>
+                    );
+                  })}
+                </motion.div>
               )}
             </AnimatePresence>
           </div>
 
           <AgentFeed items={feed} onDismiss={dismiss} />
 
+          {/* ------------------------------------------------- persona card */}
           <AnimatePresence>
-            {selected && (
+            {focused && (
               <motion.div
                 initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: 12 }}
-                className="absolute bottom-28 left-8 z-40 w-96 border border-white/30 bg-black/95 p-4 backdrop-blur-md"
+                className="panel panel-bright absolute bottom-28 left-1/2 z-40 w-96 -translate-x-1/2 p-4"
               >
-                {(() => {
-                  const entry = roster.find((r) => r.id === selected);
-                  const v = stances[selected];
-                  const said = messages.filter((m) => m.from === selected);
-                  const against = messages.filter((m) => m.to === selected);
-                  const moved = mindChanges.find((c) => c.agentId === selected);
+                <div className="flex items-start justify-between">
+                  <div>
+                    <p className="text-sm text-ink">{focused.name}</p>
+                    <p className="label mt-0.5">
+                      {focused.title} · {focused.city}
+                    </p>
+                  </div>
+                  <button onClick={() => setFocus(null)} className="num text-xs text-faint hover:text-ink">
+                    ✕
+                  </button>
+                </div>
 
+                {(() => {
+                  const r = reactions.get(focused.id);
+                  if (!r) return <p className="mt-3 text-xs text-muted">Has not responded yet.</p>;
+                  const picked = problems.find((p) => p.id === r.problemId);
                   return (
                     <>
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <p className="font-mono text-sm text-white">
-                            {entry?.role ?? selected}
-                          </p>
-                          <p className="font-mono text-[10px] uppercase tracking-widest text-white/40">
-                            weight {((entry?.weight ?? 0) * 100).toFixed(0)}% ·{" "}
-                            {v ? `stance ${v.stance.toFixed(2)} · conf ${v.confidence.toFixed(2)}` : "no position yet"}
-                          </p>
-                        </div>
-                        <button
-                          onClick={() => setSelected(null)}
-                          className="px-2 font-mono text-xs text-white/40 hover:text-white"
-                        >
-                          ✕
-                        </button>
+                      <div className="mt-3 flex gap-3 num text-[10px] text-muted">
+                        <span>attention {r.attention}</span>
+                        <span>sentiment {r.sentiment.toFixed(2)}</span>
+                        <span>{r.wouldPay ? "would pay" : "would not pay"}</span>
                       </div>
-
-                      {v && (
-                        <p className="mt-3 text-xs leading-relaxed text-white/80">{v.position}</p>
+                      {r.reason && (
+                        <p className="mt-2 text-xs leading-relaxed text-ink/85">&ldquo;{r.reason}&rdquo;</p>
                       )}
-
-                      {moved && (
-                        <p className="mt-3 border border-emerald-900/60 bg-emerald-950/20 p-2 font-mono text-[11px] text-emerald-300">
-                          moved {moved.from.toFixed(2)} → {moved.to.toFixed(2)}
-                          {moved.conceded && " after conceding"}
-                        </p>
-                      )}
-
-                      {against.length > 0 && (
-                        <div className="mt-3">
-                          <p className="font-mono text-[10px] uppercase tracking-widest text-amber-500">
-                            Challenged by
-                          </p>
-                          {against.map((m) => (
-                            <p key={m.id} className="mt-1 text-[11px] leading-relaxed text-white/60">
-                              <span className="font-mono text-white/40">{m.from}: </span>
-                              {m.text}
-                            </p>
-                          ))}
-                        </div>
-                      )}
-
-                      {said.length > 0 && (
-                        <p className="mt-3 font-mono text-[10px] text-white/30">
-                          {said.length} contribution{said.length === 1 ? "" : "s"} this session
-                        </p>
-                      )}
+                      <p className="mt-3 label">Problem they actually have</p>
+                      <p className="mt-1 text-[11px] leading-relaxed text-ink/80">
+                        {picked ? picked.statement : "None of these."}
+                      </p>
                     </>
                   );
                 })()}
+
+                <p className="mt-3 label">Selected because</p>
+                <p className="num mt-1 text-[10px] text-muted">{focused.why.join(" · ") || "—"}</p>
               </motion.div>
             )}
           </AnimatePresence>
 
-          {/* controls */}
-          <div className="absolute bottom-8 left-1/2 z-40 -translate-x-1/2">
-            <div className="flex items-center gap-3 border border-white/30 bg-black/90 p-2 backdrop-blur-md">
+          {/* ---------------------------------------------------- controls */}
+          <div className="absolute bottom-6 left-1/2 z-40 -translate-x-1/2">
+            <div className="panel flex items-center gap-2 p-1.5">
               <button
                 onClick={run}
                 disabled={running}
-                className="bg-white px-5 py-2 font-mono text-xs uppercase tracking-widest text-black transition hover:bg-white/80 disabled:bg-white/20 disabled:text-white/40"
+                className="bg-accent px-5 py-2 font-mono text-[11px] uppercase tracking-[0.14em] text-ground transition hover:brightness-110 disabled:bg-edge disabled:text-faint"
               >
-                {running ? "Deliberating" : decision ? "Run again" : "Convene committee"}
+                {running ? PHASE_LABEL[phase] : verdict ? "Run again" : "Ask the market"}
               </button>
-              <a
-                href="/meeting"
-                className="px-4 py-2 font-mono text-xs uppercase tracking-widest text-white/60 transition hover:text-white"
-              >
-                Defend it →
-              </a>
-              {decision && (
-                <a
-                  href="/report"
-                  className="px-4 py-2 font-mono text-xs uppercase tracking-widest text-white/60 transition hover:text-white"
+
+              {personas.length > 0 && (
+                <button
+                  onClick={() => setOnlyEngaged((v) => !v)}
+                  className={`px-3 py-2 font-mono text-[11px] uppercase tracking-[0.14em] transition ${
+                    onlyEngaged ? "text-accent" : "text-muted hover:text-ink"
+                  }`}
                 >
-                  Report →
-                </a>
+                  {onlyEngaged ? "Engaged only" : "All"}
+                </button>
               )}
-              {provider && (
-                <span className="px-2 font-mono text-[10px] uppercase tracking-widest text-white/30">
-                  {provider}
-                </span>
+
+              {ventureFile?.chosenProblem && (
+                <a
+                  href="/committee"
+                  className="px-3 py-2 font-mono text-[11px] uppercase tracking-[0.14em] text-muted transition hover:text-ink"
+                >
+                  Committee →
+                </a>
               )}
             </div>
           </div>
         </div>
 
-        {/* ------------------------------ sidebar ------------------------------ */}
-        <aside className="flex w-96 flex-col border-l border-white/10 bg-black">
-          <div className="border-b border-white/10 p-4">
-            <h2 className="font-mono text-[10px] uppercase tracking-widest text-white/40">
-              The room
-            </h2>
+        {/* ------------------------------------------------------- sidebar */}
+        <aside className="flex w-80 flex-col border-l border-edge bg-surface/40">
+          <div className="border-b border-edge p-4">
+            <p className="label">The crowd</p>
+            {verdict ? (
+              <>
+                <div className="mt-3 space-y-1.5">
+                  <AttentionBar label="Full attention" n={verdict.attention.full} total={personas.length} tone="accent" />
+                  <AttentionBar label="Partial" n={verdict.attention.partial} total={personas.length} tone="muted" />
+                  <AttentionBar label="Ignored it" n={verdict.attention.ignore} total={personas.length} tone="cold" />
+                </div>
+                <div className="mt-3 flex justify-between num text-[10px] text-muted">
+                  <span>mean sentiment {verdict.meanSentiment.toFixed(2)}</span>
+                  <span>spread {verdict.sentimentSpread.toFixed(2)}</span>
+                </div>
+              </>
+            ) : (
+              <p className="mt-2 text-xs text-faint">
+                {personas.length > 0
+                  ? `${personas.length} people selected, ${progress.done} have answered.`
+                  : "Nobody asked yet."}
+              </p>
+            )}
+          </div>
+
+          <div ref={listRef} className="flex-1 overflow-y-auto p-4">
+            <p className="label">What they said</p>
             <div className="mt-3 space-y-2">
-              {roster.filter((r) => r.weight > 0).map((r) => {
-                const v = stances[r.id];
-                return (
-                  <div key={r.id} className="border border-white/15 p-2">
-                    <div className="flex items-baseline justify-between font-mono text-xs">
-                      <span className="text-white/90">{r.role}</span>
-                      <span className="text-white/40">{(r.weight * 100).toFixed(0)}%</span>
-                    </div>
-                    <div className="relative mt-2 h-1 bg-white/10">
-                      <div className="absolute left-1/2 top-0 h-full w-px bg-white/30" />
-                      {v && (
-                        <motion.div
-                          layout
-                          className={`absolute top-0 h-full ${v.stance >= 0 ? "bg-emerald-400" : "bg-red-400"}`}
-                          style={{
-                            width: `${Math.abs(v.stance) * 50}%`,
-                            left: v.stance >= 0 ? "50%" : `${50 - Math.abs(v.stance) * 50}%`,
-                          }}
-                        />
-                      )}
-                    </div>
-                    {v && (
-                      <p className="mt-1 font-mono text-[10px] text-white/40">
-                        {v.stance.toFixed(2)} · conf {v.confidence.toFixed(2)}
+              {[...reactions.values()]
+                .filter((r) => r.reason)
+                .slice(-40)
+                .reverse()
+                .map((r) => {
+                  const p = personas.find((x) => x.id === r.personaId);
+                  return (
+                    <button
+                      key={r.personaId}
+                      onClick={() => setFocus(r.personaId)}
+                      className="block w-full border-l-2 pl-3 text-left transition hover:border-accent"
+                      style={{
+                        borderColor:
+                          r.attention === "full"
+                            ? "var(--accent)"
+                            : r.attention === "partial"
+                              ? "var(--border-bright)"
+                              : "var(--border)",
+                      }}
+                    >
+                      <p className="label">
+                        {p?.title ?? "persona"} · {p?.city ?? ""} · {r.problemId ?? "no match"}
                       </p>
-                    )}
-                  </div>
-                );
-              })}
-              {roster.length === 0 && (
-                <p className="font-mono text-xs text-white/30">Not yet convened.</p>
+                      <p className="mt-0.5 text-[11px] leading-relaxed text-ink/75">{r.reason}</p>
+                    </button>
+                  );
+                })}
+              {reactions.size === 0 && (
+                <p className="text-xs text-faint">
+                  Reactions appear here as the crowd responds.
+                </p>
               )}
             </div>
           </div>
-
-          <div ref={sidebar} className="flex-1 overflow-y-auto p-4">
-            <h2 className="font-mono text-[10px] uppercase tracking-widest text-white/40">
-              Transcript
-            </h2>
-            <div className="mt-3 space-y-2">
-              {messages.map((m) => (
-                <div key={m.id} className="border-l-2 border-white/20 pl-3">
-                  <div className="font-mono text-[10px] uppercase tracking-wider text-white/40">
-                    {m.from} {m.to === "room" ? "→ room" : `→ ${m.to}`} · {m.kind}
-                  </div>
-                  <p className="mt-1 text-xs leading-relaxed text-white/80">{m.text}</p>
-                </div>
-              ))}
-              {messages.length === 0 && (
-                <p className="font-mono text-xs text-white/30">Nothing said yet.</p>
-              )}
-            </div>
-          </div>
-
-          {(decision || mindChanges.length > 0) && (
-            <div className="border-t border-white/10 p-4">
-              {mindChanges.length > 0 && (
-                <div className="mb-3">
-                  <h2 className="font-mono text-[10px] uppercase tracking-widest text-emerald-500">
-                    Minds changed
-                  </h2>
-                  {mindChanges.map((c) => (
-                    <p key={c.agentId} className="mt-1 font-mono text-[11px] text-white/70">
-                      {c.agentId} {c.from.toFixed(2)} → {c.to.toFixed(2)}
-                      {c.conceded && <span className="ml-1 text-emerald-400">conceded</span>}
-                    </p>
-                  ))}
-                </div>
-              )}
-              {decision && (
-                <>
-                  <h2 className="font-mono text-[10px] uppercase tracking-widest text-white/40">
-                    Verdict
-                  </h2>
-                  <p
-                    className={`mt-1 font-mono text-2xl uppercase ${
-                      decision.decision === "invest"
-                        ? "text-emerald-400"
-                        : decision.decision === "pass"
-                          ? "text-red-400"
-                          : "text-amber-400"
-                    }`}
-                  >
-                    {decision.decision}
-                  </p>
-                  <p className="font-mono text-[11px] text-white/40">
-                    score {decision.score.toFixed(3)}
-                    {decision.dissents.length > 0 && ` · dissent: ${decision.dissents.join(", ")}`}
-                  </p>
-                </>
-              )}
-            </div>
-          )}
         </aside>
       </div>
+
+      {/* ------------------------------------------------------- THE REVEAL */}
+      <AnimatePresence>
+        {showReveal && marketProblem && pitchedProblem && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="absolute inset-0 z-50 flex items-center justify-center bg-ground/85 backdrop-blur-sm"
+          >
+            <motion.div
+              initial={{ y: 24, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ delay: 0.15 }}
+              className="panel glow-accent mx-6 max-w-2xl p-8"
+            >
+              <p className="label text-accent">The market disagrees with you</p>
+
+              <div className="mt-5">
+                <p className="label">You pitched</p>
+                <p className="mt-1 text-sm leading-relaxed text-muted line-through decoration-negative/60">
+                  {pitchedProblem.statement}
+                </p>
+              </div>
+
+              <div className="mt-5">
+                <p className="label text-accent">The problem they actually have</p>
+                <p className="mt-1 text-xl leading-snug text-ink">{marketProblem.statement}</p>
+                <p className="mt-2 text-xs text-muted">
+                  Felt by {marketProblem.whoHasIt}
+                </p>
+              </div>
+
+              <div className="mt-6 grid grid-cols-3 gap-4 border-t border-edge pt-4">
+                {verdict?.problemVotes.slice(0, 3).map((v) => (
+                  <div key={v.problemId}>
+                    <p className="label">{v.problemId}</p>
+                    <p className="num mt-0.5 text-lg text-ink">{v.votes}</p>
+                    <p className="num text-[10px] text-muted">
+                      sev {v.meanSeverity.toFixed(0)} · {(v.payRate * 100).toFixed(0)}% pay
+                    </p>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-7 flex gap-3">
+                <button
+                  onClick={acceptMarketProblem}
+                  className="bg-accent px-5 py-2.5 font-mono text-[11px] uppercase tracking-[0.14em] text-ground transition hover:brightness-110"
+                >
+                  Take this to the committee
+                </button>
+                <button
+                  onClick={() => setShowReveal(false)}
+                  className="px-4 py-2.5 font-mono text-[11px] uppercase tracking-[0.14em] text-muted transition hover:text-ink"
+                >
+                  Keep my framing
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </main>
   );
+}
+
+function AttentionBar({
+  label,
+  n,
+  total,
+  tone,
+}: {
+  label: string;
+  n: number;
+  total: number;
+  tone: "accent" | "muted" | "cold";
+}) {
+  const pct = total ? (n / total) * 100 : 0;
+  const color =
+    tone === "accent" ? "var(--accent)" : tone === "cold" ? "var(--cold)" : "var(--muted)";
+
+  return (
+    <div>
+      <div className="flex justify-between num text-[10px] text-muted">
+        <span>{label}</span>
+        <span>{n}</span>
+      </div>
+      <div className="mt-1 h-1.5 bg-edge">
+        <div className="h-full transition-all duration-500" style={{ width: `${pct}%`, background: color }} />
+      </div>
+    </div>
+  );
+}
+
+function personaName(personas: DeployedPersona[], id: number) {
+  return personas.find((p) => p.id === id)?.title ?? `persona ${id}`;
 }

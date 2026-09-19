@@ -192,6 +192,12 @@ export class DemoProvider implements LLMProvider {
         return { challenges: CHALLENGES[seat] } as T;
       case "rebuttal":
         return REBUTTALS[seat] as T;
+      case "problem_split":
+        return demoProblems(req.user) as T;
+
+      case "crowd_reactions":
+        return demoReactions(req.user) as T;
+
       case "seat_pre_read":
         return {
           initialLean: { gp: 0.3, principal: -0.1, skeptic: -0.5, devil: 0, chair: 0 }[seat],
@@ -240,4 +246,163 @@ export class DemoProvider implements LLMProvider {
 
 function delay(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
+}
+
+// --- Part 1: discovery -----------------------------------------------------
+//
+// These are NOT canned. The crowd reactions are computed from each persona's
+// actual attributes, parsed out of the prompt, so the demo shows the real
+// mechanism: price-sensitive people with no budget ignore things, low
+// pain-tolerance people feel the problem, and the buyers land on a different
+// problem from the users. That mismatch is the reveal, and it emerges here the
+// same way it would from a model.
+
+type ParsedPersona = {
+  id: number;
+  tech: number; risk: number; price: number;
+  budget: number; pain: number; brand: number; influence: number;
+};
+
+function parsePersonas(user: string): ParsedPersona[] {
+  const re =
+    /id (\d+) —[^\n]*?tech (\d+) risk (\d+) price (\d+) budget (\d+) pain (\d+) brand (\d+) influence (\d+)/g;
+  const out: ParsedPersona[] = [];
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(user)) !== null) {
+    out.push({
+      id: +m[1], tech: +m[2], risk: +m[3], price: +m[4],
+      budget: +m[5], pain: +m[6], brand: +m[7], influence: +m[8],
+    });
+  }
+  return out;
+}
+
+function parseProblemIds(user: string): string[] {
+  return [...user.matchAll(/^\s{2}(p\d+):/gm)].map((m) => m[1]);
+}
+
+function demoReactions(user: string) {
+  const people = parsePersonas(user);
+  const problems = parseProblemIds(user);
+
+  return {
+    reactions: people.map((p) => {
+      // Enthusiasm rises with appetite for new things, falls with price
+      // sensitivity and loyalty to incumbents.
+      const raw =
+        (p.tech * 0.9 + p.risk * 0.7 - p.price * 0.6 - p.brand * 0.4 + 6) / 14;
+      const sentiment = Math.max(0.02, Math.min(0.98, raw));
+
+      const engagement = sentiment * 0.6 + (10 - p.pain) / 10 * 0.4;
+      const attention = engagement > 0.62 ? "full" : engagement > 0.4 ? "partial" : "ignore";
+
+      // The reveal, emerging rather than scripted: people who can actually sign
+      // are answering a different question from the people who use the thing.
+      let problemId: string = problems[0] ?? "p1";
+      if (problems.length > 1) {
+        if (p.budget >= 7) problemId = problems[1];
+        else if (p.pain <= 3 && problems.length > 2) problemId = problems[2];
+        else if (p.tech <= 3 && problems.length > 3) problemId = problems[3];
+      }
+
+      const hasProblem = attention !== "ignore" || p.pain <= 4;
+
+      return {
+        personaId: p.id,
+        attention,
+        sentiment: Number(sentiment.toFixed(2)),
+        problemId: hasProblem ? problemId : "",
+        problemSeverity: hasProblem ? Math.round((10 - p.pain) * 9 + p.budget * 1.5) : 0,
+        wouldPay: p.budget >= 6 && p.price <= 6 && sentiment > 0.45,
+        reason: hasProblem ? demoReason(p) : demoShrug(p),
+      };
+    }),
+  };
+}
+
+function demoProblems(user: string) {
+  const solution = (user.match(/"([^"]{10,400})"/)?.[1] ?? "the product").trim();
+  const short = solution.length > 90 ? solution.slice(0, 90) + "…" : solution;
+
+  return {
+    problems: [
+      {
+        statement: `Teams do not have ${short.replace(/^(We built|An?|The)\s+/i, "")}`,
+        whoHasIt: "The team the founder had in mind when they started building.",
+        severity: 44,
+        frequency: "Continuous",
+        currentWorkaround: "They do it by hand and complain about it.",
+        willingnessToPay: "Low — treated as hygiene rather than a budget line.",
+        confidence: 0.82,
+      },
+      {
+        statement:
+          "The people accountable when this goes wrong cannot tell which part of it actually carries risk, so effort goes to the easy areas instead of the dangerous ones.",
+        whoHasIt: "Leads and managers who own the outcome but not the day-to-day work.",
+        severity: 81,
+        frequency: "Every planning cycle, acutely after every incident",
+        currentWorkaround: "Tribal knowledge and a post-mortem action item that expires.",
+        willingnessToPay: "High — charged to a budget that gets defended.",
+        confidence: 0.74,
+      },
+      {
+        statement:
+          "Nobody can show an auditor or an executive that the work was done to a standard, so it gets re-litigated every quarter.",
+        whoHasIt: "Directors reporting upward in regulated or enterprise settings.",
+        severity: 66,
+        frequency: "Quarterly",
+        currentWorkaround: "A spreadsheet rebuilt from scratch each time.",
+        willingnessToPay: "Medium — compliance budget, slow procurement.",
+        confidence: 0.61,
+      },
+      {
+        statement: "The task is tedious and people avoid doing it at all.",
+        whoHasIt: "Individual contributors.",
+        severity: 35,
+        frequency: "Daily",
+        currentWorkaround: "They skip it.",
+        willingnessToPay: "Near zero at the individual level.",
+        confidence: 0.88,
+      },
+    ],
+  };
+}
+
+/** Varied by attribute rather than random, so the reaction list reads as many
+ *  different people instead of one sentence pasted 120 times. */
+function demoReason(p: ParsedPersona): string {
+  const buyer = [
+    "I own this budget, and the version of this problem I care about is the one that shows up in my incident reviews.",
+    "I can sign for this, but only if it answers to my board deck rather than my engineers.",
+    "The spend is defensible for me. What is not defensible is another dashboard nobody opens.",
+  ];
+  const advocate = [
+    "I feel this weekly, but I would have to convince someone else to pay for it.",
+    "This is my problem, and I have zero authority to fix it with money.",
+    "I would use this tomorrow. Procurement would take until spring.",
+  ];
+  const skeptic = [
+    "We tried something adjacent two years ago and it became shelfware.",
+    "The pain is real but I do not believe a tool fixes it. It is a process problem.",
+    "Show me it works on a codebase the size of ours before I care.",
+  ];
+  const eager = [
+    "This is the first thing I have seen that targets the part that actually breaks.",
+    "I have been building a worse version of this internally for months.",
+    "If the ranking is trustworthy, this changes how we plan the quarter.",
+  ];
+
+  const pool =
+    p.budget >= 7 ? buyer : p.brand >= 7 || p.risk <= 3 ? skeptic : p.tech >= 8 ? eager : advocate;
+  return pool[(p.id * 7) % pool.length];
+}
+
+function demoShrug(p: ParsedPersona): string {
+  const pool = [
+    "Not something I think about. We have lived with it fine.",
+    "Reads like a solution looking for a problem, from where I sit.",
+    "My team has bigger fires than this one.",
+    "I would not pay for this, and I would not champion it either.",
+  ];
+  return pool[(p.id * 5) % pool.length];
 }

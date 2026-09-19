@@ -59,11 +59,30 @@ function shortestTurn(from: number, to: number): number {
   return d;
 }
 
+/**
+ * Sentiment as temperature: cold blue through to signal amber.
+ *
+ * Deliberately not red-to-green. Red/green reads as pass/fail, which is the
+ * wrong frame for "how much heat is in this market", and it is the one ramp
+ * that disappears for red-green colourblind viewers.
+ */
 function stanceColor(stance?: number): string {
-  if (stance === undefined) return "#64748b";
-  if (stance > 0.25) return "#34d399";
-  if (stance < -0.25) return "#f87171";
-  return "#fbbf24";
+  if (stance === undefined) return "#2f3d61";
+
+  const t = Math.max(0, Math.min(1, (stance + 1) / 2));
+  const cold = [0x3b, 0x82, 0xf6];
+  const mid = [0x84, 0x94, 0xb4];
+  const hot = [0xff, 0xb0, 0x20];
+
+  const [from, to, local] =
+    t < 0.5 ? [cold, mid, t * 2] : [mid, hot, (t - 0.5) * 2];
+
+  const channel = (i: number) =>
+    Math.round(from[i] + (to[i] - from[i]) * local)
+      .toString(16)
+      .padStart(2, "0");
+
+  return `#${channel(0)}${channel(1)}${channel(2)}`;
 }
 
 export function Globe({ dots, onDotClick, focus, className }: Props) {
@@ -107,14 +126,14 @@ export function Globe({ dots, onDotClick, focus, className }: Props) {
     group.add(
       new THREE.Mesh(
         new THREE.SphereGeometry(RADIUS * 0.985, 48, 48),
-        new THREE.MeshBasicMaterial({ color: 0x0a0f1a, transparent: true, opacity: 0.92 })
+        new THREE.MeshBasicMaterial({ color: 0x0b1120, transparent: true, opacity: 0.94 })
       )
     );
     group.add(
       new THREE.Mesh(
         new THREE.SphereGeometry(RADIUS, 32, 32),
         new THREE.MeshBasicMaterial({
-          color: 0x1e293b,
+          color: 0x1e2842,
           wireframe: true,
           transparent: true,
           opacity: 0.12,
@@ -165,9 +184,9 @@ export function Globe({ dots, onDotClick, focus, className }: Props) {
           new THREE.LineSegments(
             geometry,
             new THREE.LineBasicMaterial({
-              color: 0x334155,
+              color: 0x2f3d61,
               transparent: true,
-              opacity: 0.55,
+              opacity: 0.6,
             })
           )
         );
@@ -303,7 +322,7 @@ export function Globe({ dots, onDotClick, focus, className }: Props) {
 
         const label = document.createElement("div");
         label.className =
-          "absolute left-0 top-0 whitespace-nowrap font-mono text-[10px] tracking-wider text-white/70 transition-opacity duration-200 pointer-events-none";
+          "absolute left-0 top-0 whitespace-nowrap font-mono text-[9px] tracking-[0.14em] text-muted/80 transition-opacity duration-200 pointer-events-none";
         layer.appendChild(label);
         labels.current.set(d.id, label);
       } else {
