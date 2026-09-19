@@ -78,7 +78,9 @@ type Props = {
   className?: string;
 };
 
-const ACCENT = new THREE.Color("#ff5a3c");
+// Matches --accent in globals.css. Kept in sync by hand because a WebGL
+// uniform cannot read a CSS custom property.
+const ACCENT = new THREE.Color("#5aa9e6");
 const LAND_DOT = new THREE.Color("#5b5366");
 const ARC_GROW_MS = 1100;
 const ARC_FADE_MS = 500;
@@ -224,7 +226,7 @@ export function Globe({ dots, places, onDotClick, focus, arcs, beacon, className
     const atmosphere = new THREE.Mesh(
       new THREE.SphereGeometry(RADIUS * 1.14, 64, 64),
       new THREE.ShaderMaterial({
-        uniforms: { glow: { value: ACCENT.clone().lerp(new THREE.Color("#ffd9c9"), 0.2) } },
+        uniforms: { glow: { value: ACCENT.clone().lerp(new THREE.Color("#cfe6f7"), 0.2) } },
         vertexShader: viewNormal,
         fragmentShader: `
           uniform vec3 glow;
@@ -680,7 +682,7 @@ export function Globe({ dots, places, onDotClick, focus, arcs, beacon, className
 
       const head = new THREE.Mesh(
         new THREE.SphereGeometry(0.018, 10, 10),
-        new THREE.MeshBasicMaterial({ color: 0xffe2d8 })
+        new THREE.MeshBasicMaterial({ color: 0xdceefb })
       );
       head.visible = false;
 

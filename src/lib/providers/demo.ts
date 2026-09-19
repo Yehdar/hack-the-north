@@ -648,44 +648,50 @@ function lowerFirst(t: string): string {
 function demoProblems(user: string) {
   const solution = (user.match(/"([^"]{10,400})"/)?.[1] ?? "the product").trim();
 
+  // Written the way the person with the problem would say it out loud.
+  // The old copy — "the people accountable cannot tell which part of it
+  // actually carries risk, so effort goes to the easy areas instead of the
+  // dangerous ones" — is a consultant's sentence. Nobody talks like that, and
+  // a founder skims past it without picturing anyone.
   return {
     problems: [
       {
         statement: founderFraming(solution),
-        whoHasIt: "The team the founder had in mind when they started building.",
+        whoHasIt: "The people you pictured when you started building.",
         severity: 44,
-        frequency: "Continuous",
-        currentWorkaround: "They do it by hand and complain about it.",
-        willingnessToPay: "Low — treated as hygiene rather than a budget line.",
+        frequency: "All the time",
+        currentWorkaround: "They do it by hand and grumble about it.",
+        willingnessToPay: "Not much — it feels like housekeeping, not a purchase.",
         confidence: 0.82,
       },
       {
         statement:
-          "The people accountable when this goes wrong cannot tell which part of it actually carries risk, so effort goes to the easy areas instead of the dangerous ones.",
-        whoHasIt: "Leads and managers who own the outcome but not the day-to-day work.",
+          "When something breaks, nobody can say which part was the risky one — so the team keeps tidying the safe corners and the dangerous bits stay untouched.",
+        whoHasIt: "Team leads who get the blame but do not do the work themselves.",
         severity: 81,
-        frequency: "Every planning cycle, acutely after every incident",
-        currentWorkaround: "Tribal knowledge and a post-mortem action item that expires.",
-        willingnessToPay: "High — charged to a budget that gets defended.",
+        frequency: "Every planning meeting, and badly after anything goes wrong",
+        currentWorkaround:
+          "One person happens to know, and a to-do from the last post-mortem that quietly expired.",
+        willingnessToPay: "Yes — this comes out of a budget they will fight for.",
         confidence: 0.74,
       },
       {
         statement:
-          "Nobody can show an auditor or an executive that the work was done to a standard, so it gets re-litigated every quarter.",
-        whoHasIt: "Directors reporting upward in regulated or enterprise settings.",
+          "They cannot prove to their boss or an auditor that the work was done properly, so they end up arguing about it again every few months.",
+        whoHasIt: "Directors who have to report upwards, especially anywhere regulated.",
         severity: 66,
-        frequency: "Quarterly",
-        currentWorkaround: "A spreadsheet rebuilt from scratch each time.",
-        willingnessToPay: "Medium — compliance budget, slow procurement.",
+        frequency: "Every quarter",
+        currentWorkaround: "A spreadsheet somebody rebuilds from scratch each time.",
+        willingnessToPay: "Probably — compliance money exists, but buying takes months.",
         confidence: 0.61,
       },
       {
-        statement: "The task is tedious and people avoid doing it at all.",
-        whoHasIt: "Individual contributors.",
+        statement: "It is boring, so people quietly skip it.",
+        whoHasIt: "The people actually doing the work.",
         severity: 35,
         frequency: "Daily",
-        currentWorkaround: "They skip it.",
-        willingnessToPay: "Near zero at the individual level.",
+        currentWorkaround: "They do not do it.",
+        willingnessToPay: "No — nobody pays out of their own pocket to be less bored.",
         confidence: 0.88,
       },
     ],

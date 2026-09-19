@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 /* ===========================================================================
-   ATLAS — warm ink, bone inserts, electric coral.
+   VISION — blue slate, bone inserts, approval lights.
 
    What makes this not look like every other dark AI dashboard is the warm/cool
    split: the shell is a warm near-black (violet-leaning, never navy), and the
@@ -12,36 +12,47 @@
    Rules:
      1. Sentiment runs slate -> coral. Not red-to-green: it reads as heat in a
         market rather than pass/fail, and it survives colourblindness.
-     2. Coral is reserved. The reveal, dissent, and the current stage. Nothing
-        else. An accent used everywhere is not an accent.
-     3. Negative is NOT the coral. If the "look here" colour and the "this is
-        bad" colour are the same, neither one means anything.
+     2. The accent is blue, and the approval lights are red/amber/green. They
+        can never be confused with each other, which is why a reader needs no
+        legend to know what a green dot means.
+     3. Red is reserved for "this is bad" and never used as decoration. A shell
+        painted red reads as an alarm and stops meaning anything.
      4. Mono for data, sans for prose.
    =========================================================================== */
 
 :root {
-  --ground: #0c0b0f;
-  --surface: #16141b;
-  --surface-2: #1f1c27;
-  --border: #2a2630;
-  --border-bright: #3d3748;
+  /* Deep blue-slate, not black. Reads considered rather than alarmed — an
+     instrument you sit down with, not a warning panel. */
+  --ground: #0f1520;
+  --surface: #182131;
+  --surface-2: #212c40;
+  --border: #2a3547;
+  --border-bright: #3d4c68;
 
-  /* The printed layer. */
-  --insert: #f2efe8;
-  --insert-2: #e6e1d6;
-  --insert-ink: #17151c;
-  --insert-muted: #6c6559;
+  /* The printed layer: findings on warm paper inside a calm dark shell. */
+  --insert: #f4f1ea;
+  --insert-2: #e4dfd3;
+  --insert-ink: #16181d;
+  --insert-muted: #5f6672;
 
-  --text: #edeae4;
-  --muted: #9a9490;
-  --faint: #625c68;
+  --text: #eaeef6;
+  --muted: #94a1b8;
+  --faint: #5b6880;
 
-  --accent: #ff5a3c;
-  --accent-dim: #8a2f1e;
+  /* Brand blue. Deliberately NOT red, amber or green, so it can never be
+     confused with the approval lights below. */
+  --accent: #5aa9e6;
+  --accent-dim: #2b5f8a;
 
-  --cold: #6b7280;
-  --positive: #4ade80;
-  --negative: #e5484d;
+  /* Approval lights. Everyone already knows what these mean, which is the
+     entire point — no legend required. */
+  --go: #3fb950;
+  --caution: #d9a441;
+  --stop: #e5534b;
+
+  --cold: #6b7a94;
+  --positive: #3fb950;
+  --negative: #e5534b;
 }
 
 @theme inline {
@@ -60,6 +71,9 @@
   --color-accent: var(--accent);
   --color-accent-dim: var(--accent-dim);
   --color-cold: var(--cold);
+  --color-go: var(--go);
+  --color-caution: var(--caution);
+  --color-stop: var(--stop);
   --color-positive: var(--positive);
   --color-negative: var(--negative);
   --font-sans: var(--font-geist-sans);

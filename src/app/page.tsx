@@ -17,6 +17,7 @@ import { ProcessingPanel } from "@/components/hud/ProcessingPanel";
 import { AgentFeed, type FeedItem } from "@/components/hud/AgentFeed";
 import { Intake } from "@/components/Intake";
 import { SystemPanel } from "@/components/hud/SystemPanel";
+import { Light, LightRow } from "@/components/Light";
 import { PersonaCall } from "@/components/PersonaCall";
 import { StageRail, deriveStages, type Segment } from "@/components/StageRail";
 import { Reveal } from "@/components/Reveal";
@@ -1044,23 +1045,61 @@ export default function Discover() {
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.35 }}
-                        className={`panel p-2.5 ${isMarket ? "glow-accent" : ""}`}
+                        className={`panel p-3 ${isMarket ? "glow-accent" : ""}`}
                       >
-                        <div className="flex items-baseline justify-between gap-2">
-                          <span className="num text-[10px] text-faint">
-                            {p.id}
-                            {i === 0 && " · pitched"}
-                            {isMarket && <span className="text-accent"> · the market&apos;s</span>}
+                        {/* A light, a plain label and a headcount. "p2 · 57 ·
+                            86% pay" is a database row; this is a sentence. */}
+                        <div className="flex items-start justify-between gap-2">
+                          <span className="text-[11px] font-medium text-ink">
+                            {isMarket
+                              ? "What they actually struggle with"
+                              : i === 0
+                                ? "What you said you solve"
+                                : "Another possibility"}
                           </span>
                           {vote && (
-                            <span className="num text-[10px] text-muted">
-                              {vote.votes} · {(vote.payRate * 100).toFixed(0)}% pay
-                            </span>
+                            <Light
+                              signal={
+                                vote.votes === 0
+                                  ? "off"
+                                  : vote.payRate >= 0.55
+                                    ? "go"
+                                    : vote.payRate >= 0.3
+                                      ? "caution"
+                                      : "stop"
+                              }
+                              label=""
+                              size={9}
+                            />
                           )}
                         </div>
-                        <p className="mt-1 text-[11px] leading-relaxed text-ink/85">
+
+                        <p className="mt-1.5 text-[12px] leading-relaxed text-ink/90">
                           {p.statement}
                         </p>
+
+                        {vote && (
+                          <p className="mt-2 border-t border-edge pt-1.5 text-[10px] leading-relaxed text-muted">
+                            <span className="text-ink">{vote.votes} people</span> have this
+                            {vote.votes > 0 && (
+                              <>
+                                {" · "}
+                                <span
+                                  style={{
+                                    color:
+                                      vote.payRate >= 0.55
+                                        ? "var(--go)"
+                                        : vote.payRate >= 0.3
+                                          ? "var(--caution)"
+                                          : "var(--stop)",
+                                  }}
+                                >
+                                  {(vote.payRate * 100).toFixed(0)}% would pay
+                                </span>
+                              </>
+                            )}
+                          </p>
+                        )}
                       </motion.div>
                     );
                   })}
@@ -1273,24 +1312,41 @@ export default function Discover() {
                 consensus.
               </Hint>
             </p>
-            {verdict ? (
+            {verdict || reactions.size > 0 ? (
               <>
-                <div className="mt-3 space-y-1.5">
-                  <AttentionBar label="Full attention" n={verdict.attention.full} total={personas.length} tone="accent" />
-                  <AttentionBar label="Partial" n={verdict.attention.partial} total={personas.length} tone="muted" />
-                  <AttentionBar label="Ignored it" n={verdict.attention.ignore} total={personas.length} tone="cold" />
+                {/* Lights, not bars. A bar says how many; a light says whether
+                    that is good news, which is the thing being asked. */}
+                <div className="mt-2 divide-y divide-edge">
+                  <LightRow
+                    signal="go"
+                    title="Really wanted it"
+                    count={verdict ? verdict.attention.full : live.full}
+                    total={personas.length}
+                    note="Stopped what they were doing to look"
+                  />
+                  <LightRow
+                    signal="caution"
+                    title="Mildly interested"
+                    count={verdict ? verdict.attention.partial : live.partial}
+                    total={personas.length}
+                    note="Could take it or leave it"
+                  />
+                  <LightRow
+                    signal="stop"
+                    title="Walked past it"
+                    count={verdict ? verdict.attention.ignore : live.ignore}
+                    total={personas.length}
+                    note="Not a problem they think about"
+                  />
                 </div>
-                <div className="mt-3 flex justify-between num text-[10px] text-muted">
-                  <span>mean sentiment {verdict.meanSentiment.toFixed(2)}</span>
-                  <span>spread {verdict.sentimentSpread.toFixed(2)}</span>
-                </div>
+                {verdict && (
+                  <p className="mt-3 border-t border-edge pt-2 text-[10px] leading-relaxed text-muted">
+                    {verdict.sentimentSpread < 0.12
+                      ? "They all felt much the same way, which usually means the crowd was too alike."
+                      : "Opinions were genuinely split, which is what a real market looks like."}
+                  </p>
+                )}
               </>
-            ) : reactions.size > 0 ? (
-              <div className="mt-3 space-y-1.5">
-                <AttentionBar label="Full attention" n={live.full} total={personas.length} tone="accent" />
-                <AttentionBar label="Partial" n={live.partial} total={personas.length} tone="muted" />
-                <AttentionBar label="Ignored it" n={live.ignore} total={personas.length} tone="cold" />
-              </div>
             ) : (
               <p className="mt-2 text-xs text-faint">
                 {personas.length > 0
@@ -1399,20 +1455,47 @@ export default function Discover() {
                       <button
                         key={r.personaId}
                         onClick={() => setFocus(r.personaId)}
-                        className="block w-full border-l-2 pl-3 text-left transition hover:border-accent"
-                        style={{
-                          borderColor:
-                            r.attention === "full"
-                              ? "var(--accent)"
-                              : r.attention === "partial"
-                                ? "var(--border-bright)"
-                                : "var(--border)",
-                        }}
+                        className="block w-full rounded-[3px] px-2 py-1.5 text-left transition hover:bg-surface-2"
                       >
-                        <p className="label">
-                          {p?.name ?? "persona"} · {p?.title ?? ""} · {r.problemId ?? "no match"}
+                        {/* A light, then a name in sentence case. The old row
+                            was three all-caps fragments and a schema code —
+                            legible only if you already knew the schema. */}
+                        <div className="flex items-center gap-2">
+                          <span
+                            className="inline-block h-2 w-2 shrink-0 rounded-full"
+                            style={{
+                              background:
+                                r.attention === "full"
+                                  ? "var(--go)"
+                                  : r.attention === "partial"
+                                    ? "var(--caution)"
+                                    : "var(--stop)",
+                              boxShadow: `0 0 7px -1px ${
+                                r.attention === "full"
+                                  ? "var(--go)"
+                                  : r.attention === "partial"
+                                    ? "var(--caution)"
+                                    : "var(--stop)"
+                              }`,
+                            }}
+                          />
+                          <span className="truncate text-[11px] text-ink">
+                            {p?.name ?? "Someone"}
+                          </span>
+                          <span className="truncate text-[10px] text-muted">
+                            {p?.title ?? ""}
+                          </span>
+                        </div>
+                        <p className="mt-1 pl-4 text-[11px] leading-relaxed text-ink/80">
+                          &ldquo;{r.reason}&rdquo;
                         </p>
-                        <p className="mt-0.5 text-[11px] leading-relaxed text-ink/75">{r.reason}</p>
+                        <p className="mt-0.5 pl-4 text-[10px] text-faint">
+                          {r.problemId
+                            ? r.wouldPay
+                              ? "Has this problem · would pay"
+                              : "Has this problem · would not pay"
+                            : "None of these are their problem"}
+                        </p>
                       </button>
                     );
                   })
