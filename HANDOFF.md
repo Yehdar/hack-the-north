@@ -1,9 +1,16 @@
 # Handoff
 
-For whoever picks this up next. Read this first, then `TUTORIAL.md` for what
-each screen means, `ARCHITECTURE.md` for the agent protocol, and `DEMO.md` for
-the stage script. Written 2026-09-19 (Hack the North), at commit `63c0b8c` on
-branch `shafia`.
+For whoever picks this up next — person or AI. Read this first, then
+`TUTORIAL.md` for what each screen means, `ARCHITECTURE.md` for the agent
+protocol, and `DEMO.md` for the stage script. Written 2026-09-19 (Hack the
+North) on branch `shafia`; the code is at commit `63c0b8c`, and this file was
+last updated after `74140b5`.
+
+**If you are an AI picking this up on another laptop:** the code is complete
+and committed, but the product owner (Shafia) asked for a list of features in
+the last working session that are **not built yet**. They are in "Open
+requests" below, with where each one lives and what was already decided. Start
+there, after the two-minute key ask in step 1.
 
 ---
 
@@ -36,6 +43,9 @@ check, and a pitch provider"):
 
 **Do these next, in this order:**
 
+0. **Work through "Open requests" below** — those are what Shafia is waiting
+   on, and none of them needs a key. Ask for the keys (steps 1–2) at the same
+   time, because a real model is what finally makes the content make sense.
 1. **Get an LLM key into `.env.local`** (`OPENAI_API_KEY` or
    `ANTHROPIC_API_KEY`), restart `npm run dev`, open
    `http://localhost:3000/api/system/check`. Both tiers must show ✓. This is
@@ -56,6 +66,143 @@ check, and a pitch provider"):
 5. **Talk to Yehdar before merging** (see "Needs a human decision").
 6. Only if there is time: bugs #9 and #10 in the table below, then the missing
    tests.
+
+---
+
+## Open requests — asked for, not built yet
+
+Shafia's last messages, in her priority order as far as it can be read. Each
+line under a request is what is already known; nothing here has been started
+unless it says so. Build each one, then **run the app and check it in a
+browser** (see "How the UI was tested") — she asked for that explicitly.
+
+1. **Answers that make sense for the idea pitched.** *Mostly done — verify.*
+   She pitched "a self feeding machine for cats" and got the dev-tools problem
+   ("nobody can say which part was the risky one") and a dev-tools committee.
+   Cause: without a key, `demo.ts` was one script for one pitch. Commit
+   `63c0b8c` added `src/lib/providers/pitch.ts` (reads what it is, who it is
+   for, and which of 12 markets) and rewrote `demo.ts` so problems, crowd
+   quotes, hub council, committee, person calls and meeting replies are built
+   from the pitch, in conversational language. **Not yet checked in a browser**
+   with a non-software pitch: run the whole flow with the cat feeder and a
+   couple of others (a budgeting app, a tutoring app) and read every line. The
+   real fix is still an API key.
+
+2. **Make the council the main thing, with more context.** On Part 1 the right
+   panel (`<aside>` in `src/app/page.tsx`, currently `w-80`) should be much
+   bigger and the globe smaller; during the hub council the argument should
+   become the main view, showing what each agent was asked (the chair's round-0
+   tasks), who is talking to whom, the current exchange in large text, and
+   challenge → answer threads. The committee page already does the
+   widen-and-step-back trick when convened (`convened`, `distance` on `<Globe>`,
+   `DeliberationGraph` sizes itself to its width) — reuse it.
+
+3. **The person on the call card should feel like a real call.** Make the
+   figure in the card much bigger (`FigureAvatar` at `size={44}` in
+   `src/components/PersonaCall.tsx`), animate it while they talk (it only has a
+   glow for `speaking` today), and have them **greet you when the call
+   connects**. Half done: `demoPersonaReply` in `demo.ts` already answers a
+   greeting (a prompt containing "The call just connected", or a question
+   starting hi/hello). Still needed: a greeting mode in `askPersona`
+   (`src/lib/discovery/personaChat.ts`) and `PersonaCall` sending it on open
+   and speaking the reply.
+
+4. **Speak the narrator line out loud.** The line at the bottom that says what
+   is happening next (the `<Narrator>` on Part 1 and on `/committee`, e.g.
+   "Bessemer Venture Partners's partners have read your file. Convene them…")
+   should be read aloud, so it feels like a real app you pitch a fund through.
+   She wrote "can we not output it as audio" — read as *"can't we"*, i.e. she
+   wants it spoken; confirm if unsure. Needs a mute toggle, must start only
+   after a user gesture (autoplay policy), and must share **one** queue with
+   the "hear them" council audio so voices never overlap — `SpeechQueue` in
+   `src/lib/voice/agentVoices.ts`, with the narrator as its own agent id.
+
+5. **Voices that sound like ChatGPT's, not robotic.** The browser tier speaks
+   with the default `speechSynthesis` voice. Cheapest win: pick the best voice
+   the browser has (names containing "Natural", "Premium", "Enhanced", "Google
+   US English", "Samantha", "Ava") in `speakInBrowser`
+   (`src/lib/voice/client.ts`), matched to each figure's girl/boy. ElevenLabs
+   (tier already built) needs `ELEVENLABS_API_KEY`. Closest to ChatGPT: add
+   OpenAI TTS (e.g. `gpt-4o-mini-tts`, voices such as `coral`, `sage`,
+   `alloy`) to `/api/voice/tts` when `OPENAI_API_KEY` is set.
+
+6. **The committee should feel like a VC partner meeting, with minutes.**
+   Partners discussing the product and their opinions of it, and **a summary
+   that is logged**: after the deliberation (and after the pitch), meeting
+   minutes — who was there, each partner's view and whether it moved, the
+   disagreements, the decision, conditions, next steps. Show them on
+   `/committee` and `/report`, and save them with the run in
+   `src/lib/sessions.ts` so `/dashboard` lists them. The Managing Partner
+   (the chair) "keeps the minutes", so it is their document.
+
+7. **Harsher validation score.** It lands on about 57–60 every time.
+   `src/lib/pvs.ts` (must stay pure and synchronous). In demo runs evidence
+   strength comes out near 95 because every canned verdict cites a field — that
+   inflates the total. Ideas: cap or discount evidence, penalise a
+   pitched-vs-market mismatch and low willingness to pay, weight severity ×
+   pay harder. Update `pvs` tests and the "Below the bar" copy to match.
+
+8. **Is the committee realistic?** *Answered in code, not yet in words.* She
+   asked whether the roles and their number match a real VC fund. Seats were
+   renamed in `63c0b8c` (`src/lib/agents/vc/seats.ts`): **Lead Partner** (the
+   partner who brought the deal, 50%), **Principal** (did the diligence, 30%),
+   **Skeptical Partner** (was "Anti-Portfolio Skeptic", 20%), **Devil's
+   Advocate** (10%), **Managing Partner (chair)** (runs it, keeps the minutes,
+   no vote here). Tell her plainly how it compares: real investment committees
+   are 3–6 partners who all vote; the deal lead presents a memo; principals
+   usually prepare but do not formally vote; the managing partner chairs *and*
+   votes; and the founder pitches to the partnership and then leaves before
+   the discussion and vote. The app's order (partners read the memo and argue →
+   you pitch → verdict) is a stylised version of that.
+
+9. **Nothing should sound robotic.** *Partly done.* Demo lines were rewritten
+   conversationally, and real models are now told to talk like people
+   (`position` in `protocol.ts`'s verdict schema, and a rule in both system
+   prompts). Still worth a pass: narrator lines and UI copy that read like a
+   report.
+
+---
+
+## How Shafia works
+
+- Short, fast messages; she wants things done, then **run and checked in the
+  real app** — "run the software and test it and make sure it works like it is
+  supposed to".
+- She cares that it feels like the real thing: talking to real people, a real
+  VC partner meeting, spoken narration, natural voices, plain language.
+- Commit and push only when she asks; she does ask ("push it to the branch").
+
+---
+
+## How the UI was tested
+
+Every UI change last session was driven in a real browser and checked from
+screenshots and measurements. The scripts lived in a scratch folder that is
+gone, so here is the recipe:
+
+- Keep `npm run dev` running on port 3000.
+- In a scratch folder (not the project), `npm i playwright-core` and launch the
+  installed Chrome: `chromium.launch({ executablePath: "/Applications/Google
+  Chrome.app/Contents/MacOS/Google Chrome", headless: true })`. **Do not** pass
+  `--use-angle=swiftshader`: software GL runs the globe at ~2.5 fps and
+  animations never settle; the default Metal path gives 60 fps.
+- Seed state before loading a page:
+  `localStorage.setItem("vision.session", JSON.stringify({ state: { ventureFile, firmId }, version: 1 }))`.
+  Wait for the boot overlay ("Waking the room", "Committee ready", …) to go.
+- The globe is assertable: `window.__globeFigures()` returns every figure on
+  screen with its box in canvas pixels. Assert no two boxes (with `shown > 0.6`)
+  intersect, and no visible city label (the divs inside the globe's
+  `pointer-events-none absolute inset-0 overflow-hidden` overlay with
+  `style.opacity === "1"`) covers a figure.
+- Stub speech with `addInitScript`: replace `window.speechSynthesis` with an
+  object whose `speak(u)` calls `u.onend()` after a second.
+- Simulate a stuck model: `page.route("**/api/discovery/run", …)`, fetch the
+  real response, keep only the first few SSE events, fulfil with those.
+- The whole flow, by button name: "Ask the market" → "Next: choose who to ask
+  →" → "Next: ask them →" → "Show me what they said →" → "Use their problem,
+  and study it in …" → "See the validation score →" → "Take it to the committee
+  →" → "Enter the committee →" → "Convene the committee" → "Now defend it →" →
+  type into "type, or hold the floor and talk" → "Send" → `/report`.
 
 ---
 
@@ -176,7 +323,8 @@ src/lib/types.ts             THE CONTRACT. VentureFile is the spine.
 src/lib/agents/protocol.ts   5-round deliberation engine, GENERIC over roster.
                              Both councils run through it. Most important file.
 src/lib/agents/hub/roster.ts    5 hub agents + Contrarian
-src/lib/agents/vc/seats.ts      3 VC seats + Devil's Advocate + Chair
+src/lib/agents/vc/seats.ts      Lead Partner, Principal, Skeptical Partner,
+                                Devil's Advocate, Managing Partner (chair)
 src/lib/agents/vc/moderator.ts  decides whether/who interrupts
 src/lib/agents/vc/speak.ts      composes what a seat says
 src/lib/agents/vc/preread.ts    seats prepare before you speak
@@ -331,9 +479,12 @@ the figure layout (no overlaps, picking, the wave).
   reactions arrive in the same stream.
 - **Browsers refuse audio not started by a gesture, silently.** `unlockAudio()`
   runs inside the push-to-talk click. Test in a **fresh browser profile**.
-- **`Line2` needs `material.resolution`.** A zero resolution divides by zero and
-  every arc renders as a straight ray off the screen. It is now set at mount,
-  per-arc at creation, and every frame.
+- **Arcs that look like straight rays are a camera problem, not a
+  `Line2` bug.** Seen from directly above the launch city, every great circle
+  through it projects as a straight line. That is why the deploy view looks at
+  Waterloo from due south (`src/app/page.tsx`, the `focus` on `<Globe>`) and the
+  arc lift is capped (`arcPoints` in `geo.ts`). `material.resolution` is also
+  set every frame; it was never the cause.
 - **Hub list lives in exactly one file.** `src/data/hubs.json`. Adding a hub
   means re-running `npm run personas` and committing the regenerated library.
 - **Restart the dev server after editing `.env.local`.** Keys are read at
