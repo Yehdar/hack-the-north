@@ -1,6 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
+import { Progress } from "@/components/Progress";
 
 // Top-left. What is happening right now, and how far through it is.
 
@@ -19,7 +20,6 @@ export function ProcessingPanel({
   unit?: string;
 }) {
   const pct = total > 0 ? (done / total) * 100 : 0;
-  const BARS = 25;
 
   return (
     <motion.div
@@ -52,21 +52,11 @@ export function ProcessingPanel({
           </span>
         </div>
 
-        <div className="flex gap-0.5">
-          {Array.from({ length: BARS }, (_, i) => (
-            <div
-              key={i}
-              className={`h-2 w-1 transition-all duration-500 ${
-                i < Math.floor((pct / 100) * BARS) ? "bg-ink" : "bg-edge"
-              }`}
-            />
-          ))}
-        </div>
-
-        <div className="num flex justify-between text-xs text-faint">
-          <span>{Math.round(pct)}%</span>
-          <span>{Math.max(0, total - done)} remaining</span>
-        </div>
+        <Progress
+          pct={pct}
+          live={done < total}
+          right={done < total ? `${Math.max(0, total - done)} to go` : "done"}
+        />
       </div>
     </motion.div>
   );

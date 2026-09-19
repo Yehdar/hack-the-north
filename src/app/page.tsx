@@ -17,6 +17,7 @@ import { AgentFeed, type FeedItem } from "@/components/hud/AgentFeed";
 import { Intake } from "@/components/Intake";
 import { SystemPanel } from "@/components/hud/SystemPanel";
 import { Light, LightRow } from "@/components/Light";
+import { Meter } from "@/components/Progress";
 import { PersonaCall } from "@/components/PersonaCall";
 import { StageRail, deriveStages, type Segment } from "@/components/StageRail";
 import { Reveal } from "@/components/Reveal";
@@ -1635,21 +1636,13 @@ export default function Discover() {
                       councilHub === h.hubId ? "glow-accent" : "panel hover:panel-bright"
                     }`}
                   >
-                    <div className="flex items-baseline justify-between">
-                      <span className="text-[11px] uppercase tracking-wider text-ink/90">
-                        {hubName(h.hubId)}
-                      </span>
-                      <span className="num text-[10px] text-muted">{h.fitScore}</span>
-                    </div>
-                    <div className="mt-1 h-1 bg-edge">
-                      <div
-                        className="h-full transition-all duration-500"
-                        style={{
-                          width: `${h.fitScore}%`,
-                          background: councilHub === h.hubId ? "var(--accent)" : "var(--border-bright)",
-                        }}
-                      />
-                    </div>
+                    <Meter
+                      label={hubName(h.hubId)}
+                      value={h.fitScore}
+                      color={
+                        councilHub === h.hubId ? "var(--accent)" : "var(--border-bright)"
+                      }
+                    />
                     {/* Spelled out. "2/4 have it · 1 would pay" reads as a
                         score line rather than a sentence about people. */}
                     <p className="mt-1 text-[9px] leading-relaxed text-faint">
@@ -1985,19 +1978,12 @@ function AttentionBar({
   total: number;
   tone: "accent" | "muted" | "cold";
 }) {
-  const pct = total ? (n / total) * 100 : 0;
   const color =
     tone === "accent" ? "var(--accent)" : tone === "cold" ? "var(--cold)" : "var(--muted)";
 
   return (
     <div>
-      <div className="flex justify-between num text-[10px] text-muted">
-        <span>{label}</span>
-        <span>{n}</span>
-      </div>
-      <div className="mt-1 h-1.5 bg-edge">
-        <div className="h-full transition-all duration-500" style={{ width: `${pct}%`, background: color }} />
-      </div>
+      <Meter label={label} value={n} max={total} color={color} />
     </div>
   );
 }

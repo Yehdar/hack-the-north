@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
+import { Progress } from "@/components/Progress";
 import {
   detectTier,
   speak,
@@ -226,20 +227,15 @@ export function PersonaCall({ persona, reaction, solution, problems, onClose, ce
 
       {/* live sentiment. Moves as the conversation goes */}
       <div className="mt-3">
-        <div className="flex justify-between num text-[10px] text-faint">
-          <span>how they feel, live</span>
-          <span>{sentiment.toFixed(2)}</span>
-        </div>
-        <div className="mt-1 h-1 bg-edge">
-          <motion.div
-            layout
-            className="h-full"
-            style={{
-              width: `${sentiment * 100}%`,
-              background: `color-mix(in srgb, var(--accent) ${sentiment * 100}%, var(--cold))`,
-            }}
-          />
-        </div>
+        {/* Live, so the head keeps breathing while the call is going. */}
+        <Progress
+          pct={sentiment * 100}
+          live
+          size="sm"
+          color={`color-mix(in srgb, var(--accent) ${Math.round(sentiment * 100)}%, var(--cold))`}
+          left="how they feel, live"
+          right={sentiment.toFixed(2)}
+        />
         {shifted && (
           <p className="mt-1 text-[10px] text-accent">You changed their mind.</p>
         )}

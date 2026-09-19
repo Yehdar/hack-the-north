@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useVenture } from "@/lib/store";
 import { recordVerdict } from "@/lib/sessions";
 import { assess } from "@/lib/advice";
+import { Meter } from "@/components/Progress";
 import { pvsReason } from "@/lib/pvs";
 import { writeMinutes } from "@/lib/minutes";
 import { Minutes } from "@/components/Minutes";
@@ -375,14 +376,6 @@ function Fact({ k, v }: { k: string; v: string }) {
 
 function Bar({ label, value }: { label: string; value: number }) {
   return (
-    <div>
-      <div className="flex justify-between font-mono text-[11px] text-muted">
-        <span>{label}</span>
-        <span>{value}</span>
-      </div>
-      <div className="mt-1 h-1.5 bg-edge">
-        <div className="h-full bg-muted" style={{ width: `${value}%` }} />
-      </div>
-    </div>
+    <Meter label={label} value={value} />
   );
 }
