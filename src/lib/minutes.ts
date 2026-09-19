@@ -1,0 +1,161 @@
+import type { DeliberationSnapshot } from "@/lib/store";
+import type { ICVerdict, Objection } from "@/lib/types";
+
+// ============================================================================
+// THE MINUTES — the Managing Partner's document.
+//
+// A real partner meeting ends with a written record: who was in the room, what
+// each partner thought and whether they moved, where they disagreed, what was
+// decided and on what conditions, and what happens next. A founder who only
+// sees a score has to reconstruct all of that from a transcript.
+//
+// Pure: written from what the committee already said and decided, so it costs
+// no model call, reads the same with or without a key, and can be rewritten
+// after the pitch without re-running the room.
+// ============================================================================
+
+export type Lean = "for" | "against" | "undecided";
+
+export type Minutes = {
+  firm: string;
+  takenAt: number;
+  keptBy: string;
+  /** The problem the room was asked to back. */
+  problem?: string;
+  present: { role: string; note: string }[];
+  views: { role: string; lean: Lean; view: string; moved?: string }[];
+  disagreements: string[];
+  decision: { decision: ICVerdict["decision"]; score: number; line: string };
+  conditions: string[];
+  nextSteps: string[];
+  /** Filled in once the founder has pitched. */
+  pitch?: { turns: number; answered: number; open: string[] };
+};
+
+type Msg = DeliberationSnapshot["messages"][number] & { inReplyTo?: string };
+
+const CHAIR = "Managing Partner (chair)";
+
+export function leanOf(stance: number): Lean {
+  return stance > 0.2 ? "for" : stance < -0.2 ? "against" : "undecided";
+}
+
+const LEAN_WORDS: Record<Lean, string> = {
+  for: "leaning yes",
+  against: "leaning no",
+  undecided: "undecided",
+};
+
+const DECISION_LINE: Record<ICVerdict["decision"], string> = {
+  invest: "The committee backs it.",
+  conditional: "The committee would back it, on conditions.",
+  pass: "The committee passes, for now.",
+};
+
+/** "I did the homework on this one, and I'm not there yet. There's…" → its
+ *  first sentence, which is the view; the rest is the argument for it. */
+function firstSentence(text: string): string {
+  const s = text.trim().match(/^[\s\S]*?[.!?](?=\s|$)/)?.[0] ?? text.trim();
+  return s.length > 220 ? `${s.slice(0, 217).trimEnd()}…` : s;
+}
+
+export function writeMinutes(input: {
+  firm: string;
+  snapshot: DeliberationSnapshot;
+  verdict: ICVerdict;
+  problem?: string;
+  objections?: Objection[];
+  pitchTurns?: number;
+  now?: number;
+}): Minutes {
+  const { snapshot, verdict } = input;
+  const roleOf = (id: string) => snapshot.roster.find((r) => r.id === id)?.role ?? id;
+
+  const seated = snapshot.roster.map((r) => ({
+    role: r.role,
+    note: /chair/i.test(r.role)
+      ? "chairs, keeps these minutes, does not vote"
+      : r.weight > 0
+        ? `votes · ${Math.round(r.weight * 100)}% of the vote`
+        : "argues, does not vote",
+  }));
+  // The chair is in the room even when it is not on the roster the room votes with.
+  const present = seated.some((p) => /chair/i.test(p.role))
+    ? seated
+    : [...seated, { role: CHAIR, note: "chairs, keeps these minutes, does not vote" }];
+
+  const moves = new Map(snapshot.metrics.mindChanges.map((m) => [m.agentId, m]));
+  const views = snapshot.verdicts.map((v) => {
+    const m = moves.get(v.agentId);
+    const from = m ? leanOf(m.from) : undefined;
+    const to = leanOf(v.stance);
+    return {
+      role: roleOf(v.agentId),
+      lean: to,
+      view: firstSentence(v.position || v.reasoning),
+      moved: m
+        ? from !== to
+          ? `Moved from ${LEAN_WORDS[from!]} to ${LEAN_WORDS[to]}${m.conceded ? ", and conceded the point" : ""}.`
+          : m.conceded
+            ? `Conceded a point, still ${LEAN_WORDS[to]}.`
+            : `Softened, still ${LEAN_WORDS[to]}.`
+        : undefined,
+    };
+  });
+
+  // A challenge the other partner answered by holding their ground is where
+  // the room actually disagreed. One they conceded is settled.
+  const messages = snapshot.messages as Msg[];
+  const disagreements: string[] = [];
+  for (const c of messages.filter((m) => m.kind === "challenge" && m.to !== "room")) {
+    const reply =
+      messages.find((m) => m.inReplyTo === c.id) ??
+      messages.find((m) => m.from === c.to && m.to === c.from && m.round > c.round);
+    if (reply?.kind === "concession") continue;
+    disagreements.push(
+      `${roleOf(c.from)} challenged ${roleOf(c.to)}: "${firstSentence(c.text)}"${
+        reply ? ` ${roleOf(c.to)} held their position.` : " It was never answered."
+      }`
+    );
+  }
+  for (const id of verdict.dissents) {
+    disagreements.push(`${roleOf(id)} dissented from where the room landed, and the dissent stands.`);
+  }
+
+  const open = (input.objections ?? []).filter((o) => o.status !== "answered");
+  const answered = (input.objections ?? []).length - open.length;
+  const pitched = (input.pitchTurns ?? 0) > 0;
+
+  const nextSteps = [
+    ...(pitched
+      ? open.map((o) => `Come back with an answer to: ${o.text.replace(/[.]+$/, "")}.`)
+      : ["Pitch the partners in person. Every question left open counts against you at the vote."]),
+    verdict.comeBackWhen ? `Come back when ${lowerFirst(verdict.comeBackWhen.replace(/[.]+$/, ""))}.` : "",
+  ].filter(Boolean);
+
+  return {
+    firm: input.firm,
+    takenAt: input.now ?? Date.now(),
+    keptBy: CHAIR,
+    problem: input.problem,
+    present,
+    views,
+    disagreements: disagreements.slice(0, 6),
+    decision: {
+      decision: verdict.decision,
+      score: verdict.score,
+      line: verdict.killShot
+        ? `${DECISION_LINE[verdict.decision]} What sank it: ${verdict.killShot.replace(/[.]+$/, "")}.`
+        : DECISION_LINE[verdict.decision],
+    },
+    conditions: verdict.conditions,
+    nextSteps,
+    pitch: pitched
+      ? { turns: input.pitchTurns ?? 0, answered, open: open.map((o) => o.text) }
+      : undefined,
+  };
+}
+
+function lowerFirst(t: string): string {
+  return /^[A-Z][a-z]/.test(t) ? t.charAt(0).toLowerCase() + t.slice(1) : t;
+}

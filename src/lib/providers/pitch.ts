@@ -105,14 +105,22 @@ export function readPitch(raw: string): Pitch {
   const thing = head.split(/\s+/).slice(0, 7).join(" ").toLowerCase() || "this";
   const short = thing.split(/\s+for\s+/)[0].split(/\s+/).slice(0, 4).join(" ");
 
-  const scores = DOMAIN_ORDER.map((d) => [d, (solution.match(new RegExp(DOMAIN_WORDS[d], "gi")) ?? []).length] as const);
+  // Who it is for: "for cats" → cat owners, "for student housing" → students.
+  const forWhom = solution.match(/\bfor\s+([a-z][a-z\s-]{1,40}?)(?=\s+(?:that|which|who|so|because|and|with|to|in|on|at|by)\b|[.,!?;]|$)/i)?.[1];
+
+  // What the thing is and who it is for outweigh what it happens to mention: a
+  // fridge for corner shops that "keeps milk and medicine cold" is a shop
+  // product, not a health one.
+  const count = (text: string | undefined, d: Exclude<Domain, "general">) =>
+    text ? (text.match(new RegExp(DOMAIN_WORDS[d], "gi")) ?? []).length : 0;
+  const scores = DOMAIN_ORDER.map(
+    (d) => [d, count(solution, d) + 2 * count(thing, d) + 3 * count(forWhom, d)] as const
+  );
   const best = scores.reduce((a, b) => (b[1] > a[1] ? b : a), ["general", 0] as readonly [Domain, number]);
   const domain: Domain = best[1] > 0 ? best[0] : "general";
 
-  // Who it is for: "for cats" → cat owners, "for student housing" → students.
   let audience = DEFAULT_AUDIENCE[domain];
   let animal: string | undefined;
-  const forWhom = solution.match(/\bfor\s+([a-z][a-z\s-]{1,40}?)(?=\s+(?:that|which|who|so|because|and|with|to|in|on|at|by)\b|[.,!?;]|$)/i)?.[1];
   const inText = (forWhom ?? solution).toLowerCase();
   const animalWord = Object.keys(ANIMALS).find((a) => new RegExp(`\\b${a}\\b`).test(inText));
   if (domain === "pets" && animalWord) {

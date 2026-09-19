@@ -1,14 +1,17 @@
 import { NextResponse } from "next/server";
 import { synthesize } from "@/lib/voice/elevenlabs";
+import { isOpenAITtsConfigured, synthesizeOpenAI } from "@/lib/voice/openaiTts";
 import { SEATS } from "@/lib/agents/vc/seats";
 import type { SeatId } from "@/lib/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-/** Seat line in, mp3 out. 503 tells the client to use browser speech instead. */
+/** Seat line in, mp3 out. ElevenLabs if configured, else OpenAI's voices if
+ *  there is an OpenAI key. 503 tells the client to use browser speech instead. */
 export async function POST(req: Request) {
-  if (!process.env.ELEVENLABS_API_KEY) {
+  const service = process.env.ELEVENLABS_API_KEY ? "elevenlabs" : isOpenAITtsConfigured() ? "openai" : null;
+  if (!service) {
     return NextResponse.json(
       { error: "voice-not-configured", fallback: "browser" },
       { status: 503 }
@@ -31,7 +34,7 @@ export async function POST(req: Request) {
   }
 
   try {
-    const audio = await synthesize(text, voiceId);
+    const audio = service === "elevenlabs" ? await synthesize(text, voiceId) : await synthesizeOpenAI(text, voiceId);
     return new Response(audio, {
       headers: { "Content-Type": "audio/mpeg", "Cache-Control": "no-store" },
     });

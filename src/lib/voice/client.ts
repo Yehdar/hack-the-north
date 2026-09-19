@@ -1,6 +1,7 @@
 "use client";
 
 import type { SeatId } from "@/lib/types";
+import { castFor, pickVoice, voiceQuality, type Gender } from "@/lib/voice/browserVoices";
 
 // ============================================================================
 // CLIENT VOICE — Track B owns this file.
@@ -192,7 +193,14 @@ function captureWithRecognition(onPartial?: (t: string) => void): Recorder {
  * idea; what actually distinguishes two people on a research call is how
  * certain they are and how much they care.
  */
-export type VoiceProfile = { voiceId: string; pitch: number; rate: number };
+export type VoiceProfile = {
+  voiceId: string;
+  pitch: number;
+  rate: number;
+  /** Which browser voice to use when no service speaks for us. Defaults to
+   *  the gender the library voice was chosen for. */
+  browser?: { gender: Gender; slot: number };
+};
 
 /** Bumped by stopSpeaking(). A line whose synthesis was still in flight when
  *  it changed is dropped instead of starting to play after the stop. */
@@ -213,8 +221,24 @@ export function stopSpeaking(): void {
   if (typeof window !== "undefined") window.speechSynthesis?.cancel();
 }
 
-/** Speaks a line. Falls back to browser speech if ElevenLabs is unavailable,
- *  and resolves either way so nothing ever stalls waiting on audio. */
+/**
+ * Which service can speak for us on the server, if any: ElevenLabs, or OpenAI's
+ * voices when there is an OpenAI key but no ElevenLabs one. Asked once.
+ */
+let serverVoice: Promise<"elevenlabs" | "openai" | null> | null = null;
+function serverTts(): Promise<"elevenlabs" | "openai" | null> {
+  serverVoice ??= fetch("/api/voice/status")
+    .then((r) => r.json())
+    .then((j: { tts?: "elevenlabs" | "openai" | null; tier?: string }) =>
+      j.tts ?? (j.tier === "elevenlabs" ? "elevenlabs" : null)
+    )
+    .catch(() => null);
+  return serverVoice;
+}
+
+/** Speaks a line. Uses ElevenLabs or OpenAI voices when the server has a key,
+ *  falls back to the best browser voice otherwise, and resolves either way so
+ *  nothing ever stalls waiting on audio. */
 export async function speak(
   text: string,
   speaker: SeatId | VoiceProfile,
@@ -225,7 +249,7 @@ export async function speak(
   const profile = typeof speaker === "string" ? undefined : speaker;
   const mine = epoch;
 
-  if (tier === "elevenlabs") {
+  if (tier === "elevenlabs" || (await serverTts()) !== null) {
     try {
       const res = await fetch("/api/voice/tts", {
         method: "POST",
@@ -281,24 +305,54 @@ function playUrl(url: string, limitMs: number): Promise<void> {
   });
 }
 
-/** Distinct pitch and rate per seat, so the three partners are at least
- *  distinguishable without ElevenLabs. Crude, but better than one voice. */
-const BROWSER_VOICE: Record<SeatId, { pitch: number; rate: number }> = {
-  gp: { pitch: 0.85, rate: 0.98 },
-  principal: { pitch: 1.15, rate: 1.08 },
-  skeptic: { pitch: 0.7, rate: 0.92 },
+/** Distinct voice, pitch and rate per seat, matched to how each partner is
+ *  drawn: the Principal is a woman, the Lead and Skeptical Partners men. */
+const BROWSER_VOICE: Record<SeatId, { pitch: number; rate: number; gender: Gender; slot: number }> = {
+  gp: { pitch: 0.85, rate: 0.98, gender: "male", slot: 0 },
+  principal: { pitch: 1.15, rate: 1.08, gender: "female", slot: 0 },
+  skeptic: { pitch: 0.7, rate: 0.92, gender: "male", slot: 1 },
 };
 
-function speakInBrowser(text: string, speaker: SeatId | VoiceProfile): Promise<void> {
+/** The browser's voice list arrives late on first load; wait briefly for it. */
+function browserVoices(): Promise<SpeechSynthesisVoice[]> {
+  const synth = window.speechSynthesis;
+  const now = synth.getVoices();
+  if (now.length > 0) return Promise.resolve(now);
   return new Promise((resolve) => {
-    if (typeof window === "undefined" || !window.speechSynthesis) return resolve();
+    const done = () => {
+      synth.removeEventListener("voiceschanged", done);
+      resolve(synth.getVoices());
+    };
+    synth.addEventListener("voiceschanged", done);
+    setTimeout(done, 1200);
+  });
+}
+
+async function speakInBrowser(text: string, speaker: SeatId | VoiceProfile): Promise<void> {
+  if (typeof window === "undefined" || !window.speechSynthesis) return;
+  const mine = epoch;
+  const seat = typeof speaker === "string" ? (BROWSER_VOICE[speaker] ?? undefined) : undefined;
+  const cast =
+    seat ??
+    (typeof speaker === "string" ? castFor(undefined) : (speaker.browser ?? castFor(speaker.voiceId)));
+  const voice = pickVoice(await browserVoices(), cast.gender, cast.slot);
+  if (mine !== epoch) return;
+
+  return new Promise((resolve) => {
     const u = new SpeechSynthesisUtterance(text);
     const tuning =
       typeof speaker === "string"
-        ? (BROWSER_VOICE[speaker] ?? { pitch: 1, rate: 1 })
+        ? (seat ?? { pitch: 1, rate: 1 })
         : { pitch: speaker.pitch, rate: speaker.rate };
-    u.pitch = tuning.pitch;
-    u.rate = tuning.rate;
+    // A natural voice already sounds like a person; bending its pitch the way
+    // the default voice needed is what makes it sound synthetic again.
+    const natural = voice ? voiceQuality(voice) >= 35 : false;
+    if (voice) {
+      u.voice = voice;
+      u.lang = voice.lang;
+    }
+    u.pitch = natural ? 1 + (tuning.pitch - 1) * 0.35 : tuning.pitch;
+    u.rate = natural ? 1 + (tuning.rate - 1) * 0.5 : tuning.rate;
     const watchdog = setTimeout(() => {
       window.speechSynthesis.cancel();
       resolve();

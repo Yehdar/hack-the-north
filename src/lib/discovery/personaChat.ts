@@ -17,6 +17,10 @@ import type { ProblemStatement } from "@/lib/types";
 
 export type PersonaTurn = { speaker: "founder" | "persona"; text: string };
 
+/** Sent in place of a question when the call first connects: they pick up and
+ *  say hello, the way anyone answers a call they agreed to take. */
+export const CALL_CONNECTED = "(The call just connected.)";
+
 export type PersonaReply = {
   line: string;
   /** Did the founder actually move them? Recorded, not assumed. */
@@ -69,7 +73,9 @@ export async function askPersona(
   solution: string,
   problems: ProblemStatement[],
   history: PersonaTurn[],
-  question: string
+  question: string,
+  /** Something they would buy for themselves or their household. */
+  consumer = false
 ): Promise<PersonaReply> {
   const g = persona.psychographics;
   const theirProblem = problems.find((p) => p.id === reaction?.problemId);
@@ -84,12 +90,16 @@ How you are wired, scored 1-10. Honour these; they are not decoration:
   pain tolerance   ${g.painTolerance}${g.painTolerance >= 8 ? " — you absorb friction and rarely complain" : g.painTolerance <= 3 ? " — you feel every paper cut" : ""}
   brand loyalty    ${g.brandLoyalty}${g.brandLoyalty >= 7 ? " — you trust incumbents" : ""}
 
-A founder is asking you about their product. You are on a call with them.
+A founder is asking you about their product. You are on a call with them.${
+  consumer
+    ? "\nIt is something people buy for themselves or their household, so answer as a private person — your job is who you are, not why you would buy it."
+    : ""
+}
 
 ${
   reaction
     ? `You have already seen this product and your reaction was: ${reaction.attention} attention, sentiment ${reaction.sentiment.toFixed(2)}, ${reaction.wouldPay ? "you would pay" : "you would NOT pay"}. You said: "${reaction.reason}"
-${theirProblem ? `The problem you actually have is: "${theirProblem.statement}"` : "None of their candidate problems is your problem."}
+${theirProblem ? `The problem you actually have is: "${theirProblem.statement}"\nWhat you do about it today: "${theirProblem.currentWorkaround}"` : "None of their candidate problems is your problem."}
 
 That is your established position. Hold it. You may be persuaded by a genuinely good argument, but not by enthusiasm, and not by being asked nicely.`
     : "You have not seen this product before."
@@ -108,9 +118,14 @@ Rules:
           .join("\n")}`
       : "";
 
+  const greeting = question === CALL_CONNECTED;
   const raw = await getLLM().completeJSON<Partial<PersonaReply>>({
     system,
-    user: `THE PRODUCT: "${solution}"${transcript}
+    user: greeting
+      ? `THE PRODUCT: "${solution}"
+
+The call just connected. Pick up the way you would answer a call you agreed to take: say hello and your name, in one or two short natural sentences, in character. Don't give your opinion of the product yet — they haven't asked anything.`
+      : `THE PRODUCT: "${solution}"${transcript}
 
 THE FOUNDER ASKS: "${question}"
 

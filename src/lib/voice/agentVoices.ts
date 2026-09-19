@@ -36,6 +36,10 @@ const BY_AGENT: Record<string, VoiceProfile> = {
   skeptic: { voiceId: VOICE_POOL.gravelly, pitch: 0.82, rate: 0.92 },
   "devils-advocate": { voiceId: VOICE_POOL.warm, pitch: 1.05, rate: 1.05 },
   chair: { voiceId: VOICE_POOL.measured, pitch: 1.0, rate: 1.0 },
+
+  // The narrator: the app itself, telling you what is happening. A voice of
+  // its own in the browser, so it is never mistaken for someone in the room.
+  narrator: { voiceId: VOICE_POOL.warm, pitch: 1.0, rate: 1.03, browser: { gender: "female", slot: 2 } },
 };
 
 export function voiceFor(agentId: string): VoiceProfile {
@@ -54,6 +58,7 @@ export class SpeechQueue {
   private queue: { id: string; agentId: string; text: string }[] = [];
   private running = false;
   private stopped = false;
+  private current: string | null = null;
 
   constructor(
     private speak: (text: string, voice: VoiceProfile) => Promise<void>,
@@ -66,18 +71,38 @@ export class SpeechQueue {
     void this.drain();
   }
 
+  /**
+   * Say this instead of anything this speaker still has queued — and, if they
+   * are mid-sentence, cut them off. For the narrator: when the screen moves
+   * on, the line about the previous screen is no longer true.
+   */
+  replace(id: string, agentId: string, text: string) {
+    if (this.stopped || !text.trim()) return;
+    this.queue = this.queue.filter((q) => q.agentId !== agentId);
+    if (this.current === agentId) stopSpeaking();
+    this.push(id, agentId, text);
+  }
+
+  /** Drop what one speaker still has queued, leaving everyone else's lines. */
+  drop(agentId: string) {
+    this.queue = this.queue.filter((q) => q.agentId !== agentId);
+    if (this.current === agentId) stopSpeaking();
+  }
+
   private async drain() {
     if (this.running) return;
     this.running = true;
 
     while (this.queue.length > 0 && !this.stopped) {
       const next = this.queue.shift()!;
+      this.current = next.agentId;
       this.onSpeaking?.(next.agentId, next.id);
       try {
         await this.speak(next.text, voiceFor(next.agentId));
       } catch {
         // A voice failing must not stall the rest of the room.
       }
+      this.current = null;
       // A breath between speakers. Without it the room sounds like one person
       // reading a list.
       if (!this.stopped) await new Promise((r) => setTimeout(r, 260));

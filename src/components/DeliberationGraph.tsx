@@ -93,6 +93,17 @@ export function DeliberationGraph({
     })
   );
 
+  // Labels above a face need room above the drawing: the lead partner sits at
+  // the top with the biggest face, and its name and stance were drawn off the
+  // edge. Grow the canvas upwards by whatever the highest label needs.
+  const pad = Math.max(
+    0,
+    ...voting.map((s) => {
+      const p = pos.get(s.id)!;
+      return p.y < cy - 1 ? radius(s) + 22 - p.y : 0;
+    })
+  );
+
   const directed = messages.filter((m) => m.to !== "room" && pos.has(m.from) && pos.has(m.to));
   const latest =
     voiced === undefined
@@ -109,7 +120,7 @@ export function DeliberationGraph({
   return (
     <div ref={box}>
       <svg
-        viewBox={`0 0 ${W} ${H}`}
+        viewBox={`0 ${-pad} ${W} ${H + pad}`}
         className="w-full"
         role="img"
         aria-label="Who challenged whom in this deliberation"

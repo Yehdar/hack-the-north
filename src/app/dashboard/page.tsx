@@ -8,6 +8,7 @@ import { SessionDiff } from "@/components/SessionDiff";
 import { diffSessions, useSessions, type SessionSummary } from "@/lib/sessions";
 import { useVenture } from "@/lib/store";
 import { hubById } from "@/data/globePoints";
+import { Minutes } from "@/components/Minutes";
 
 // ============================================================================
 // SAVED RUNS.
@@ -238,6 +239,18 @@ function RunCard({
             <p className="mt-3 border-l-2 border-negative/60 pl-2 text-[11px] leading-relaxed text-ink/75">
               {run.killShot}
             </p>
+          )}
+
+          {/* The chair's record of the meeting, kept with the run it decided. */}
+          {run.minutes && (
+            <details className="mt-3 border-t border-edge pt-3">
+              <summary className="label cursor-pointer select-none hover:text-ink">
+                Minutes of the meeting{run.minutes.pitch ? " · after the pitch" : ""}
+              </summary>
+              <div className="mt-3">
+                <Minutes minutes={run.minutes} />
+              </div>
+            </details>
           )}
 
           {parent && (

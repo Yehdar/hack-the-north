@@ -90,6 +90,8 @@ export type PVSBreakdown = {
   /** Soft gate. Below this the founder is warned but may still pitch. */
   threshold: number;
   passed: boolean;
+  /** Points taken off the weighted total, and why, in plain words. */
+  penalties?: { reason: string; points: number }[];
 };
 
 // ---------------------------------------------------------------------------

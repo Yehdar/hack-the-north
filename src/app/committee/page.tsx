@@ -20,9 +20,12 @@ import { FIRMS } from "@/data/firms";
 import { useVenture, type DeliberationSnapshot } from "@/lib/store";
 import { SpeechQueue } from "@/lib/voice/agentVoices";
 import { detectTier, speak, unlockAudio, type VoiceTier } from "@/lib/voice/client";
+import { mayStartSpeaking, narrationKey, useNarratorVoice } from "@/lib/voice/narrator";
 import { recordVerdict } from "@/lib/sessions";
 import { streamPost } from "@/lib/sse";
 import type { ICVerdict } from "@/lib/types";
+import { writeMinutes, type Minutes as MinutesDoc } from "@/lib/minutes";
+import { Minutes } from "@/components/Minutes";
 
 // ============================================================================
 // PART 2 — THE ROOM.
@@ -43,10 +46,10 @@ type Verdict = { agentId: string; stance: number; confidence: number; position: 
 type RosterEntry = { id: string; role: string; weight: number };
 
 const ROUND_LABEL: Record<number, string> = {
-  1: "Round 1 · independent, blind",
-  2: "Round 2 · cross-examination",
-  3: "Round 3 · rebuttal",
-  4: "Round 4 · adversarial",
+  1: "Round 1 · each on their own",
+  2: "Round 2 · questioning each other",
+  3: "Round 3 · answering",
+  4: "Round 4 · the Devil's Advocate",
 };
 
 // 3 findings + 3 challenges + up to 3 rebuttals + 1 adversary
@@ -58,11 +61,11 @@ const STALL_MS = 30_000;
 
 // What each round is for, in a sentence — the protocol explained while it runs.
 const ROUND_MEANING: Record<number, string> = {
-  0: "The chair splits the decision into questions and gives each to the one partner whose lane owns it.",
-  1: "Each partner answers only their own questions, blind — nobody can anchor on anybody.",
-  2: "Now they read each other, and challenge specific claims by name.",
-  3: "Challenged partners answer, and may change their minds. Every change is recorded.",
-  4: "The Devil's Advocate attacks wherever the room settled.",
+  0: "The managing partner breaks the decision into questions and hands each one to the partner whose job it is.",
+  1: "Each partner answers their own questions first, without hearing the others, so nobody just agrees with the loudest voice.",
+  2: "Now they've heard each other, and they push back on specific claims, by name.",
+  3: "The partners who were challenged answer — and some change their minds. Every change is written down.",
+  4: "The Devil's Advocate argues against wherever the room has landed.",
 };
 
 export default function Committee() {
@@ -88,6 +91,10 @@ export default function Committee() {
   // Hearing the room argue is what makes the multi-agent claim land without
   // being explained. Off by default: audio that starts on its own is hostile.
   const [audio, setAudio] = useState(false);
+  const audioRef = useRef(false);
+  const narratorOn = useNarratorVoice((s) => s.on);
+  const toggleNarrator = useNarratorVoice((s) => s.toggle);
+  const narrated = useRef("");
   const [tier, setTier] = useState<VoiceTier | null>(null);
   const [nowSpeaking, setNowSpeaking] = useState<string | null>(null);
   const [voicedId, setVoicedId] = useState<string | null>(null);
@@ -98,6 +105,7 @@ export default function Committee() {
   const lastEventAt = useRef(0);
   const [stalled, setStalled] = useState(false);
   const [mindChanges, setMindChanges] = useState<DeliberationSnapshot["metrics"]["mindChanges"]>([]);
+  const [minutes, setMinutes] = useState<MinutesDoc | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   const ventureFile = useVenture((v) => v.ventureFile);
   const replaceVenture = useVenture((v) => v.replace);
@@ -142,6 +150,12 @@ export default function Committee() {
     sidebar.current?.scrollTo({ top: sidebar.current.scrollHeight, behavior: "smooth" });
   }, [messages.length]);
 
+  // When the room decides, the minutes are the thing to read — above the
+  // transcript they summarise.
+  useEffect(() => {
+    if (minutes) sidebar.current?.scrollTo({ top: 0, behavior: "smooth" });
+  }, [minutes]);
+
   const dismiss = useCallback((id: string) => {
     setFeed((f) => f.filter((i) => i.id !== id));
   }, []);
@@ -153,12 +167,19 @@ export default function Committee() {
         // recognition still have — the "text" tier is about the microphone.
         (text, voice) => speak(text, voice, tier === "elevenlabs" ? "elevenlabs" : "browser"),
         (agentId, id) => {
-          setNowSpeaking(agentId);
-          setVoicedId(id);
+          // The narrator is not in the room; only partners show as speaking.
+          setNowSpeaking(agentId === "narrator" ? null : agentId);
+          setVoicedId(agentId === "narrator" ? null : id);
         }
       ),
     [tier]
   );
+
+  /** One queue for the partners and the narrator, so they never overlap. */
+  const ensureQueue = useCallback(() => {
+    queue.current ??= newQueue();
+    return queue.current;
+  }, [newQueue]);
 
   const run = useCallback(() => {
     const vf = useVenture.getState().ventureFile;
@@ -173,11 +194,11 @@ export default function Committee() {
     let finished = false;
 
     setRunning(true);
-    setMessages([]); setFeed([]); setStances({}); setDecision(null);
+    setMessages([]); setFeed([]); setStances({}); setDecision(null); setMinutes(null);
 
-    queue.current?.stop();
-    queue.current = audio ? newQueue() : null;
-    setMindChanges([]); setRound(0); setStep("Convening"); setSelected(null);
+    queue.current?.clear();
+    if (audio) ensureQueue();
+    setMindChanges([]); setRound(0); setStep("Taking their seats"); setSelected(null);
 
     // What the start event establishes is needed again at the end of the same
     // stream. State would still hold the previous run's values by then, so it
@@ -197,7 +218,7 @@ export default function Committee() {
           seated = ev.roster as RosterEntry[];
           setProvider(ev.provider as string);
           setRoster(seated);
-          setStep("Decomposing the decision");
+          setStep("The chair hands out questions");
           break;
         }
 
@@ -211,11 +232,19 @@ export default function Committee() {
           setRound(m.round);
           setStep(ROUND_LABEL[m.round] ?? "Deliberating");
           setFeed((f) =>
-            [{ id: m.id, agent: m.from, message: m.text, kind: m.kind }, ...f].slice(0, 5)
+            [
+              {
+                id: m.id,
+                agent: seated.find((r) => r.id === m.from)?.role ?? m.from,
+                message: m.text,
+                kind: m.kind,
+              },
+              ...f,
+            ].slice(0, 4)
           );
           // Queued, not spoken immediately — deliberation streams faster than
           // speech, so without a queue three partners talk over each other.
-          queue.current?.push(m.id, m.from, m.text);
+          if (audioRef.current) queue.current?.push(m.id, m.from, m.text);
           break;
         }
 
@@ -238,16 +267,25 @@ export default function Committee() {
           };
           const verdict = ev.verdict as ICVerdict;
 
-          setDeliberation({
+          const snapshot: DeliberationSnapshot = {
             firm: firmName,
             verdicts: result.finalVerdicts,
             messages: result.messages,
             roster: seated,
             metrics: result.metrics,
-          });
+          };
+          setDeliberation(snapshot);
           setDecision(verdict);
+          // The chair writes up the meeting the moment it ends.
+          const written = writeMinutes({
+            firm: firmName,
+            snapshot,
+            verdict,
+            problem: vf.chosenProblem?.statement,
+          });
+          setMinutes(written);
           setMindChanges(result.metrics.mindChanges);
-          setStep("Committee concluded");
+          setStep("The committee has decided");
           setActive(new Set());
           setRunning(false);
           // Persist the verdict onto the venture file so the report and the
@@ -259,6 +297,7 @@ export default function Committee() {
             decision: verdict.decision,
             score: verdict.score,
             killShot: verdict.killShot,
+            minutes: written,
           });
           break;
         }
@@ -279,7 +318,7 @@ export default function Committee() {
         setStep("Failed");
         setRunning(false);
       });
-  }, [replaceVenture, setDeliberation, firmId, audio, newQueue]);
+  }, [replaceVenture, setDeliberation, firmId, audio, ensureQueue]);
 
   const seatDots = Object.values(seats);
   const dots: GlobeDot[] = [
@@ -319,6 +358,7 @@ export default function Committee() {
   const pvs = ventureFile?.pvs;
   const researchedIn = ventureFile ? Object.values(ventureFile.hubFindings)[0] : undefined;
   const conceded = new Set(messages.filter((m) => m.kind === "concession").map((m) => m.from));
+  const roleName = (id: string) => roster.find((r) => r.id === id)?.role ?? id;
 
   const narration = decision
     ? {
@@ -338,6 +378,22 @@ export default function Committee() {
           title: "The room",
           line: `${firm.name}'s partners have read your file. Convene them — they argue with each other before you say a word.`,
         };
+
+
+  // The narrator, out loud: each new line once, through the partners' queue.
+  useEffect(() => {
+    if (!narratorOn) {
+      queue.current?.drop("narrator");
+      narrated.current = "";
+      return;
+    }
+    if (booting || !ventureFile) return;
+    const key = narrationKey(narration.title, narration.line);
+    if (key === narrated.current) return;
+    narrated.current = key;
+    if (!mayStartSpeaking()) return;
+    ensureQueue().replace(`narr:${key}`, "narrator", narration.line);
+  }, [narratorOn, booting, ventureFile, narration.title, narration.line, ensureQueue]);
 
   return (
     <main className="relative h-screen overflow-hidden bg-ground text-ink">
@@ -367,7 +423,17 @@ export default function Committee() {
           </div>
           {ventureFile && (
             <div className="absolute bottom-[76px] left-1/2 z-30 w-[520px] max-w-[calc(100%-48px)] -translate-x-1/2">
-              <Narrator title={narration.title} line={narration.line} />
+              <Narrator
+                title={narration.title}
+                line={narration.line}
+                voice={{
+                  on: narratorOn,
+                  onToggle: () => {
+                    unlockAudio();
+                    toggleNarrator();
+                  },
+                }}
+              />
             </div>
           )}
 
@@ -564,14 +630,14 @@ export default function Committee() {
                 onClick={() => {
                   unlockAudio();
                   if (audio) {
-                    queue.current?.stop();
-                    queue.current = null;
+                    queue.current?.clear();
                     setNowSpeaking(null);
                     setVoicedId(null);
-                  } else if (running) {
+                  } else {
                     // Turned on mid-meeting: speak from the next line on.
-                    queue.current = newQueue();
+                    ensureQueue();
                   }
+                  audioRef.current = !audio;
                   setAudio(!audio);
                 }}
                 title={
@@ -627,7 +693,9 @@ export default function Committee() {
                     voiced={audio ? voicedId : undefined}
                   />
                 </div>
-                <div className="mt-3 space-y-1 border-t border-edge pt-3">
+                {/* Live stances while they argue; afterwards the minutes say
+                    where each partner stood, in words, so this would repeat. */}
+                <div className={`mt-3 space-y-1 border-t border-edge pt-3 ${minutes ? "hidden" : ""}`}>
                   {roster.filter((r) => r.weight > 0).map((r) => {
                     const v = stances[r.id];
                     return (
@@ -658,6 +726,11 @@ export default function Committee() {
           </div>
 
           <div ref={sidebar} className="flex-1 overflow-y-auto p-4">
+            {minutes && (
+              <div className="mb-6 border border-edge bg-surface/60 p-3">
+                <Minutes minutes={minutes} />
+              </div>
+            )}
             <p className="label">Transcript</p>
             <div className="mt-3 space-y-2">
               {messages.map((m) => (
@@ -674,7 +747,7 @@ export default function Committee() {
                   }}
                 >
                   <p className="label">
-                    {m.from} {m.to === "room" ? "→ room" : `→ ${m.to}`} · {m.kind}
+                    {roleName(m.from)} {m.to === "room" ? "→ the room" : `→ ${roleName(m.to)}`} · {m.kind}
                   </p>
                   <p className="mt-1 text-xs leading-relaxed text-ink/85">{m.text}</p>
                 </div>
@@ -687,12 +760,13 @@ export default function Committee() {
 
           {(decision || mindChanges.length > 0) && (
             <div className="border-t border-edge p-4">
-              {mindChanges.length > 0 && (
+              {/* Once the minutes exist they carry who moved, in words. */}
+              {mindChanges.length > 0 && !minutes && (
                 <div className="mb-3">
                   <p className="label text-positive">Minds changed</p>
                   {mindChanges.map((c) => (
                     <p key={c.agentId} className="num mt-1 text-[11px] text-muted">
-                      {c.agentId} {c.from.toFixed(2)} → {c.to.toFixed(2)}
+                      {roleName(c.agentId)} {c.from.toFixed(2)} → {c.to.toFixed(2)}
                       {c.conceded && <span className="ml-1 text-positive">conceded</span>}
                     </p>
                   ))}

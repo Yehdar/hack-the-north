@@ -5,6 +5,9 @@ import Link from "next/link";
 import { useVenture } from "@/lib/store";
 import { recordVerdict } from "@/lib/sessions";
 import { assess, explainVerdict } from "@/lib/advice";
+import { pvsReason } from "@/lib/pvs";
+import { writeMinutes } from "@/lib/minutes";
+import { Minutes } from "@/components/Minutes";
 import { PartTwoNav } from "@/components/PartTwoNav";
 import { Wordmark } from "@/components/Logo";
 import { hubById } from "@/data/globePoints";
@@ -53,6 +56,31 @@ export default function Report() {
 
   const dirty = Object.keys(overrides).length > 0;
 
+  // The chair's minutes, rewritten now the founder has pitched: what was
+  // answered, what is still open, and what that means for next steps. Always
+  // from the room's own weighting, never a what-if from the sliders.
+  const minutes = useMemo(() => {
+    if (!vf || !deliberation) return null;
+    const own = buildVerdict(
+      deliberation.verdicts,
+      Object.fromEntries(deliberation.roster.filter((r) => r.weight > 0).map((r) => [r.id, r.weight])),
+      vf.objections,
+      deliberation.verdicts
+        .filter((v) => v.stance < 0.2 && v.whatWouldChangeMyMind)
+        .map((v) => v.whatWouldChangeMyMind),
+      "You have paying design partners where the budget holder signed."
+    );
+    return writeMinutes({
+      firm: deliberation.firm || "The committee",
+      snapshot: deliberation,
+      verdict: own,
+      problem: vf.chosenProblem?.statement,
+      objections: vf.objections,
+      pitchTurns: vf.pitchTranscript.filter((t) => t.speaker === "founder").length,
+      now: vf.pitchTranscript[vf.pitchTranscript.length - 1]?.at,
+    });
+  }, [vf, deliberation]);
+
   // The run's saved verdict is the room's own weighting after the meeting —
   // never a what-if from the sliders.
   useEffect(() => {
@@ -61,8 +89,9 @@ export default function Report() {
       decision: verdict.decision,
       score: verdict.score,
       killShot: verdict.killShot,
+      ...(minutes ? { minutes } : {}),
     });
-  }, [vf, verdict, dirty]);
+  }, [vf, verdict, dirty, minutes]);
 
   if (!vf || !deliberation || !verdict) {
     return (
@@ -106,7 +135,7 @@ export default function Report() {
               </p>
               <dl className="mt-4 grid grid-cols-2 gap-3 font-mono text-xs text-muted">
                 <Fact k="Who has it" v={vf.chosenProblem.whoHasIt} />
-                <Fact k="Severity" v={`${vf.chosenProblem.severity}/100`} />
+                <Fact k="Severity, as described" v={`${vf.chosenProblem.severity}/100`} />
                 <Fact k="Workaround today" v={vf.chosenProblem.currentWorkaround} />
                 <Fact k="Willingness to pay" v={vf.chosenProblem.willingnessToPay} />
               </dl>
@@ -133,8 +162,12 @@ export default function Report() {
                 threshold {vf.pvs.threshold} · {vf.pvs.passed ? "cleared" : "not cleared"}
               </span>
             </div>
+            <p className="mt-2 text-sm text-muted">
+              {vf.pvs.passed ? "Its weak spot: " : "Mostly because "}
+              {pvsReason(vf.pvs)}.
+            </p>
             <div className="mt-4 space-y-2">
-              <Bar label="Problem severity" value={vf.pvs.problemSeverity} />
+              <Bar label="Severity, weighted by who'd pay" value={vf.pvs.problemSeverity} />
               <Bar label="Market gap" value={vf.pvs.marketGap} />
               <Bar label="Hub fit" value={vf.pvs.hubFit} />
               <Bar label="Evidence strength" value={vf.pvs.evidenceStrength} />
@@ -364,6 +397,12 @@ export default function Report() {
             </div>
           )}
         </Section>
+
+        {minutes && (
+          <Section n="08" title="Minutes of the meeting">
+            <Minutes minutes={minutes} size="md" />
+          </Section>
+        )}
 
         <p className="mt-12 border-t border-edge pt-4 font-mono text-[10px] text-faint">
           AI simulation. Not affiliated with, endorsed by, or representing this firm.

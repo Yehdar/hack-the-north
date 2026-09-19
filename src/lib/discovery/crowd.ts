@@ -85,7 +85,9 @@ export async function runCrowd(
   solution: string,
   problems: ProblemStatement[],
   personas: Persona[],
-  onBatch?: (p: CrowdProgress) => void
+  onBatch?: (p: CrowdProgress) => void,
+  /** Bought by people for themselves: answer as a private person. */
+  consumer = false
 ): Promise<CrowdReaction[]> {
   const batches: Persona[][] = [];
   for (let i = 0; i < personas.length; i += BATCH_SIZE) {
@@ -104,7 +106,7 @@ export async function runCrowd(
       if (index >= batches.length) return;
 
       const batch = batches[index];
-      const reactions = await reactBatch(solution, problems, batch).catch(() =>
+      const reactions = await reactBatch(solution, problems, batch, consumer).catch(() =>
         batch.map(neutral)
       );
 
@@ -121,7 +123,8 @@ export async function runCrowd(
 async function reactBatch(
   solution: string,
   problems: ProblemStatement[],
-  batch: Persona[]
+  batch: Persona[],
+  consumer: boolean
 ): Promise<CrowdReaction[]> {
   const problemList = problems
     .map((p) => `  ${p.id}: "${p.statement}" (felt by ${p.whoHasIt})`)
@@ -144,7 +147,11 @@ ${problemList}
 
 PEOPLE:
 ${people}
-
+${
+  consumer
+    ? "\nThis is bought by people for themselves or their household. Answer as each person in their private life: their job is who they are, not why they would buy it.\n"
+    : ""
+}
 Return one reaction per person, using their id.`,
     schema: { name: "crowd_reactions", schema: SCHEMA as unknown as Record<string, unknown> },
     temperature: 0.9,

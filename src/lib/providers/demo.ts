@@ -131,13 +131,23 @@ function gist(statement: string): string {
   return /^[A-Z][a-z]/.test(first) ? first.charAt(0).toLowerCase() + first.slice(1) : first;
 }
 
-/** "Working cat owners who already hold the budget for…" → "working cat owners". */
+/** "Working cat owners who already hold the budget for…" → "working cat owners".
+ *  A bare "people" says nothing, so then the whole description is kept. */
 function whoShort(who: string): string {
-  return who
-    .replace(/[.]+$/, "")
-    .split(/\s+(?:who|that|which|and the|,)\s+/i)[0]
+  const full = who.replace(/[.]+$/, "").trim();
+  const short = full
+    .split(/\s+(?:who|that|which|and the)\s+|\s+you pictured\b|,\s*/i)[0]
     .replace(/^the\s+/i, "")
+    .trim()
     .toLowerCase();
+  if (/^(?:people|everyone|anyone|users|customers)$/.test(short)) return lowerFirst(full);
+  return short;
+}
+
+/** "the banks' own apps, which are already on everyone's phone" needs its
+ *  clause closed before the sentence carries on after it. */
+function clause(phrase: string): string {
+  return /,\s*(?:which|who)\b/.test(phrase) ? `${phrase},` : phrase;
 }
 
 // =============================================================================
@@ -200,7 +210,7 @@ function committeeVerdict(seat: Seat, d: Deal) {
         confidence: 0.6,
         position: problem
           ? oneOf(key, [
-              `Look, I like the problem — ${problem}. That's real. What I can't see yet is a company rather than a feature: what stops ${d.market.incumbent} from shipping their own ${it} the moment this works?`,
+              `Look, I like the problem — ${problem}. That's real. What I can't see yet is a company rather than a feature: what stops ${clause(d.market.incumbent)} from shipping their own ${it} the moment this works?`,
               `I'll be the one who likes it. ${cap(problem)} — people genuinely feel that. My worry is size. Is this a big company, or a nice product that tops out at a few million?`,
             ])
           : `Honestly, I came in wanting to like the ${it}, but the file never says whose problem it solves. Without that I can't tell you how big it gets.`,
@@ -237,7 +247,7 @@ function committeeVerdict(seat: Seat, d: Deal) {
         confidence: 0.55,
         position:
           lean >= 0
-            ? `Everyone's warming up to this, and that's exactly when I get nervous. If it's this obvious, why hasn't ${d.market.incumbent} already done it? Somebody here should be arguing it's already too late.`
+            ? `Everyone's warming up to this, and that's exactly when I get nervous. If it's this obvious, why isn't it already being done by ${d.market.incumbent}? Somebody here should be arguing it's already too late.`
             : `The room's heading for "nice idea, not a business". That's the comfortable call — and it's the call every room makes right before someone else funds the category leader.`,
         reasoning: "When the room converges quickly, it has usually found the obvious answer, which everyone else has found too.",
         evidence: ["room.consensus"],
@@ -290,7 +300,7 @@ function committeeRebuttal(seat: Seat, d: Deal) {
       };
     case "skeptic":
       return {
-        response: `That's a fair distinction, and I'll grant it — if it genuinely takes work away, it has a better shot. But the first time it fails, it's out of the house. Same position, a little less sure.`,
+        response: `That's a fair distinction, and I'll grant it — if it genuinely takes work away, it has a better shot. But the first time it lets them down, they stop using it. Same position, a little less sure.`,
         conceded: false,
         revisedStance: round2(clamp(-0.52 + lean * 0.6, -0.95, 0.9)),
         revisedConfidence: 0.7,
@@ -307,7 +317,7 @@ function committeeTasks(d: Deal) {
       { question: `Is the market for the ${it} big enough to return the fund?`, assignedTo: "gp", why: "Market size is the lead partner's call." },
       { question: `Who actually pays for it, and has anyone paid yet?`, assignedTo: "principal", why: "The principal did the diligence on customers." },
       { question: `What has this kind of product failed as before?`, assignedTo: "skeptic", why: "Finding the flaw is the skeptical partner's job." },
-      { question: `Could ${d.market.incumbent} ship this within two quarters?`, assignedTo: "gp", why: "Timing sits with the lead partner." },
+      { question: `Could ${clause(d.market.incumbent)} ship this within two quarters?`, assignedTo: "gp", why: "Timing sits with the lead partner." },
       { question: `How do the first thousand customers find it, and what does each one cost?`, assignedTo: "principal", why: "Go-to-market is diligence." },
     ],
   };
@@ -317,7 +327,7 @@ function preRead(seat: Seat, d: Deal) {
   const it = d.pitch.short;
   const lean = evidenceLean(d);
   const bySeat: Record<string, { lean: number; q: string[]; kill: string }> = {
-    gp: { lean: 0.3, q: [`Why does the ${it} have to exist now?`, `What stops ${d.market.incumbent} shipping it?`], kill: "The market tops out below a fund-returning outcome." },
+    gp: { lean: 0.3, q: [`Why does the ${it} have to exist now?`, `What stops ${clause(d.market.incumbent)} from shipping it?`], kill: "The market tops out below a fund-returning outcome." },
     principal: { lean: -0.1, q: ["Who signs the cheque?", "What does one customer cost to win?"], kill: "Nobody's paid, and the people who liked it can't pay." },
     skeptic: { lean: -0.5, q: ["What has this failed as before?", "What happens on day ninety?"], kill: `The usual ${d.market.category} story: ${d.market.failure}.` },
   };
@@ -460,7 +470,7 @@ function councilVerdict(seat: Seat, c: Council) {
 
   const position: Record<string, string> = {
     market: c.asked
-      ? `${c.have} of the ${c.asked} people we asked in ${c.city} have this, and ${c.pay} would pay to fix it. ${incidence >= 0.4 ? "That's a real market." : "It's real, but it's a niche"} — mostly ${who}, not everyone.`
+      ? `${c.have} of the ${c.asked} people we asked in ${c.city} ${c.have === 1 ? "has" : "have"} this, and ${c.pay} would pay to fix it. ${incidence >= 0.4 ? "That's a real market" : "It's real, but it's a niche"} — mostly ${who}, not everyone.`
       : `I don't have enough people from ${c.city} to size this honestly. That's a finding in itself.`,
     founder: `You could build this in ${c.city}. The first ten customers are probably two introductions away from people already here — the question is whether that edge lasts past year one.`,
     customer:
@@ -471,7 +481,7 @@ function councilVerdict(seat: Seat, c: Council) {
       ? `Nothing here blocks it, but it needs ${c.market.regulation}. Budget for that before launch, not after.`
       : `No hard blocker in ${c.city}, but buying here is slow enough that it's part of the market, not an inconvenience.`,
     capital: `${c.city} can fund a seed round for this${c.capital !== null ? ` — capital density is ${c.capital} out of 100` : ""}. The harder part is finding people who've built ${c.market.category} before; they're not all here.`,
-    contrarian: `This council's heading for "good problem, hard sale" — that's the answer every room reaches about everything. Nobody's asked whether the price alone fixes it.`,
+    contrarian: `This council's heading for "good problem, hard sale", which is what every room concludes about everything. Nobody's asked whether ${who} would actually drop ${c.market.incumbent} for it.`,
   };
 
   const reasoning: Record<string, string> = {
@@ -681,7 +691,7 @@ function demoReactions(user: string) {
   const people = parsePersonas(user);
   const problems = parseProblems(user);
   const ids = problems.map((p) => p.id);
-  const productText = user.match(/PRODUCT:\n"([\s\S]*?)"\n\nCANDIDATE PROBLEMS:/)?.[1] ?? "";
+  const productText = user.match(/PRODUCT:\n"([\s\S]*?)"\n/)?.[1] ?? "";
   const product = contentWords(productText);
   const pitch = readPitch(productText || "this");
 
@@ -763,20 +773,26 @@ function demoReactions(user: string) {
  * That is the classic mistake, and it is exactly what the reveal exists to
  * catch, so it is worth stating grammatically rather than as a fragment.
  */
-function founderFraming(solution: string): string {
+function founderFraming(solution: string, consumer = false): string {
+  // The first sentence is the product; the rest ("It keeps milk cold for 18
+  // hours") is a feature list, and a problem statement that trails off into
+  // one reads as a clipped paste.
   const s = solution
     .trim()
+    .split(/(?<=[.!?])\s+/)[0]
     .replace(/[.!\s]+$/, "")
     .replace(/^we(?:'ve| have)? (?:built|made|are building)\s+/i, "");
-  const clipped = (t: string) => (t.length > 150 ? `${t.slice(0, 150).trimEnd()}…` : t);
+  const end = (t: string) => (t.length > 150 ? `${t.slice(0, 150).trimEnd()}…` : `${t}.`);
 
   const relative = s.match(/^(?:an?\s+|the\s+)?(.+?)\s+(?:that|which)\s+(.+)$/i);
-  if (relative) return clipped(`Teams have no ${lowerFirst(relative[1])} that ${relative[2]}`) + ".";
+  if (relative) {
+    return end(`${consumer ? "There's no" : "Teams have no"} ${lowerFirst(relative[1])} that ${relative[2]}`);
+  }
 
   const bare = s.match(/^(?:an?|the)\s+(.+)$/i);
-  if (bare) return clipped(`There is no ${lowerFirst(bare[1])}`) + ".";
+  if (bare) return end(`There is no ${lowerFirst(bare[1])}`);
 
-  return clipped(`Nobody has this yet: ${lowerFirst(s)}`) + ".";
+  return end(`Nobody has this yet: ${lowerFirst(s)}`);
 }
 
 /** "Software" → "software", but "AI tool" stays "AI tool". */
@@ -791,7 +807,7 @@ function demoProblems(user: string) {
   return {
     problems: [
       {
-        statement: founderFraming(solution),
+        statement: founderFraming(solution, pitch.consumer),
         whoHasIt: `The ${pitch.audience} you pictured when you started building.`,
         severity: 44,
         frequency: "All the time",
@@ -822,11 +838,17 @@ function demoReason(p: ParsedPersona, addressed: number, pitch: Pitch): string {
     `I can afford it. What I won't pay for is another ${it} that works for a month.`,
     "The money's not the issue. Whether it still works in six months is.",
   ];
-  const advocate = [
-    "I feel this every week, but I'm not the one who decides what we spend on.",
-    `I'd use the ${it} tomorrow. Convincing whoever holds the wallet is the hard part.`,
-    "This is my problem, and I've got no budget to fix it.",
-  ];
+  const advocate = pitch.consumer
+    ? [
+        "I feel this every week, but money's tight and this isn't top of the list.",
+        `I'd use the ${it} tomorrow. Talking myself into paying for it is the hard part.`,
+        "This is my problem. I just can't justify spending on it right now.",
+      ]
+    : [
+        "I feel this every week, but I'm not the one who decides what we spend on.",
+        `I'd use the ${it} tomorrow. Convincing whoever holds the wallet is the hard part.`,
+        "This is my problem, and I've got no budget to fix it.",
+      ];
   const skeptic = [
     `I tried something like the ${it} before and stopped using it within a month.`,
     "The problem's real, but I don't think a product fixes it — it's a habit thing.",
@@ -902,12 +924,14 @@ function demoPersonaReply(system: string, user: string) {
   const it = pitch.short;
   const market = MARKETS[pitch.domain];
   const theirProblem = system.match(/The problem you actually have is: "([^"]+)"/)?.[1];
+  const today = system.match(/What you do about it today: "([^"]+)"/)?.[1];
   const workaround = market.incumbent;
 
   const question = (user.match(/THE FOUNDER ASKS: "([^"]*)"/)?.[1] ?? "").toLowerCase();
   const greeting = /the call just connected/i.test(user) || /^(hi|hey|hello)\b/.test(question);
   const aboutPrice = /price|cost|pay|budget|sign|buy|purchas|afford|\$|money|spend/.test(question);
-  const aboutUse = /use|workflow|day|how would|integrate|today|currently|right now|routine|set up|setup/.test(question);
+  const aboutToday = /what do you (?:do|use)|how do you (?:handle|deal|cope|manage)|today|currently|right now|at the moment/.test(question);
+  const aboutUse = /use|workflow|day|how would|integrate|routine|set up|setup/.test(question);
   const aboutRival = /competitor|alternative|instead|versus|who else|anyone else|already|rival|vs\b/.test(question);
   const aboutProblem = /problem|pain|struggle|frustrat|annoy|hard|difficult|why/.test(question);
   const aboutIgnore = /ignore|never|wouldn't|would not|stop you|put you off|deal.?breaker/.test(question);
@@ -937,6 +961,10 @@ function demoPersonaReply(system: string, user: string) {
     line = tech >= 8
       ? "If it's unreliable even once, I'm out. I'll try anything, but I drop things fast."
       : "If it needs another app, another account and another charger, I won't bother.";
+  } else if (aboutToday) {
+    line = today
+      ? `Right now? ${cap(today.replace(/[.]+$/, ""))}. It's not great, but it's what I've got.`
+      : "Honestly, nothing — it's not something I have to deal with.";
   } else if (aboutUse) {
     line =
       tech >= 8

@@ -4,6 +4,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { CrowdVerdict } from "@/lib/discovery/types";
 import type { CrowdSignals } from "@/lib/discovery/signals";
+import type { Minutes } from "@/lib/minutes";
 
 // ============================================================================
 // SAVED RUNS.
@@ -43,6 +44,8 @@ export type SessionSummary = {
   decision?: "invest" | "conditional" | "pass";
   score?: number;
   killShot?: string;
+  /** The chair's record of the meeting, rewritten after the pitch. */
+  minutes?: Minutes;
 
   /** Set when this run followed another — the refine loop. */
   parentId?: string;

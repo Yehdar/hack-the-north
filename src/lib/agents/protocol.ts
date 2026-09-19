@@ -99,6 +99,10 @@ export type DeliberateOptions = {
   onEvent?: (e: DeliberationEvent) => void;
   /** Skip cross-examination and rebuttal. Faster, and strictly worse. */
   quick?: boolean;
+  /** What the chair is chairing, e.g. "the Toronto hub council". Both rooms
+   *  share this engine, and a city council told it is an investment committee
+   *  answers like one. */
+  room?: string;
 };
 
 // --------------------------------------------------------------------------- schemas
@@ -326,7 +330,7 @@ async function decompose(
 
   const res = await llm
     .completeJSON<{ tasks: { question: string; assignedTo: string; why: string }[] }>({
-      system: `You chair an investment committee. You hold no opinion of your own and never express one.
+      system: `You chair ${opts.room ?? "an investment committee"}. You hold no opinion of your own and never express one.
 
 Your only job is to split the decision into concrete diligence questions and assign each to the one member whose lane owns it. A question assigned to the wrong lane wastes that member's turn.`,
       user: `${opts.context}
@@ -353,7 +357,7 @@ Do not assign two members the same question.`,
   if (valid.length === 0) {
     return opts.agents.map((a, i) => ({
       id: `t${i + 1}`,
-      question: `Assess this venture on: ${a.focus.join(", ")}.`,
+      question: `What's your honest read on ${a.focus.slice(0, 3).join(", ")}?`,
       assignedTo: a.id,
       why: "Fallback assignment by declared lane.",
     }));
