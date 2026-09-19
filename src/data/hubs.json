@@ -1,0 +1,222 @@
+[
+  {
+    "id": "sf",
+    "name": "San Francisco",
+    "country": "United States",
+    "lat": 37.77,
+    "lon": -122.42,
+    "personas": 34,
+    "capitalDensity": 100,
+    "tilt": { "techAdoption": 1.5, "riskTolerance": 1.2, "priceSensitivity": -1.5 },
+    "note": "Deepest capital and the shortest patience for anything that is not a platform."
+  },
+  {
+    "id": "nyc",
+    "name": "New York",
+    "country": "United States",
+    "lat": 40.71,
+    "lon": -74.01,
+    "personas": 28,
+    "capitalDensity": 88,
+    "tilt": { "budgetAuthority": 1.0, "priceSensitivity": -0.8 },
+    "note": "Buyers with budgets and procurement processes to match."
+  },
+  {
+    "id": "boston",
+    "name": "Boston",
+    "country": "United States",
+    "lat": 42.36,
+    "lon": -71.06,
+    "personas": 16,
+    "capitalDensity": 72,
+    "tilt": { "riskTolerance": -0.6, "brandLoyalty": 0.6 },
+    "note": "Healthcare, bio and enterprise; conservative and evidence-led."
+  },
+  {
+    "id": "toronto",
+    "name": "Toronto",
+    "country": "Canada",
+    "lat": 43.65,
+    "lon": -79.38,
+    "personas": 18,
+    "capitalDensity": 62,
+    "tilt": { "riskTolerance": -0.8 },
+    "note": "Strong talent, thinner late-stage capital; companies leave to raise."
+  },
+  {
+    "id": "waterloo",
+    "name": "Waterloo",
+    "country": "Canada",
+    "lat": 43.46,
+    "lon": -80.52,
+    "personas": 12,
+    "capitalDensity": 40,
+    "tilt": { "techAdoption": 1.0, "budgetAuthority": -1.2 },
+    "note": "Engineering density far above its capital density."
+  },
+  {
+    "id": "london",
+    "name": "London",
+    "country": "United Kingdom",
+    "lat": 51.51,
+    "lon": -0.13,
+    "personas": 24,
+    "capitalDensity": 85,
+    "tilt": { "riskTolerance": -0.5 },
+    "note": "Fintech gravity and the deepest capital pool outside the US."
+  },
+  {
+    "id": "paris",
+    "name": "Paris",
+    "country": "France",
+    "lat": 48.86,
+    "lon": 2.35,
+    "personas": 16,
+    "capitalDensity": 66,
+    "tilt": { "brandLoyalty": 0.7, "priceSensitivity": 0.5 },
+    "note": "State-backed deep tech and enterprise; long sales cycles."
+  },
+  {
+    "id": "berlin",
+    "name": "Berlin",
+    "country": "Germany",
+    "lat": 52.52,
+    "lon": 13.4,
+    "personas": 16,
+    "capitalDensity": 64,
+    "tilt": { "priceSensitivity": 1.0, "brandLoyalty": -0.8 },
+    "note": "Price-conscious, privacy-conscious, and allergic to lock-in."
+  },
+  {
+    "id": "stockholm",
+    "name": "Stockholm",
+    "country": "Sweden",
+    "lat": 59.33,
+    "lon": 18.07,
+    "personas": 12,
+    "capitalDensity": 58,
+    "tilt": { "techAdoption": 1.2, "riskTolerance": 0.4 },
+    "note": "Small home market forces global thinking from day one."
+  },
+  {
+    "id": "amsterdam",
+    "name": "Amsterdam",
+    "country": "Netherlands",
+    "lat": 52.37,
+    "lon": 4.9,
+    "personas": 11,
+    "capitalDensity": 52,
+    "tilt": { "priceSensitivity": 0.6 },
+    "note": "Logistics and payments corridor for Europe."
+  },
+  {
+    "id": "telaviv",
+    "name": "Tel Aviv",
+    "country": "Israel",
+    "lat": 32.08,
+    "lon": 34.78,
+    "personas": 16,
+    "capitalDensity": 78,
+    "tilt": { "riskTolerance": 1.8, "techAdoption": 1.2 },
+    "note": "Security and infrastructure depth; sells to the US from day one."
+  },
+  {
+    "id": "dubai",
+    "name": "Dubai",
+    "country": "United Arab Emirates",
+    "lat": 25.2,
+    "lon": 55.27,
+    "personas": 11,
+    "capitalDensity": 55,
+    "tilt": { "budgetAuthority": 1.2, "priceSensitivity": -0.6 },
+    "note": "Concentrated buying power, regional gateway, young ecosystem."
+  },
+  {
+    "id": "bangalore",
+    "name": "Bangalore",
+    "country": "India",
+    "lat": 12.97,
+    "lon": 77.59,
+    "personas": 22,
+    "capitalDensity": 70,
+    "tilt": { "priceSensitivity": 2.0, "techAdoption": 0.8 },
+    "note": "Enormous engineering supply, severe price sensitivity."
+  },
+  {
+    "id": "singapore",
+    "name": "Singapore",
+    "country": "Singapore",
+    "lat": 1.35,
+    "lon": 103.82,
+    "personas": 16,
+    "capitalDensity": 68,
+    "tilt": { "budgetAuthority": 0.8 },
+    "note": "Regional HQ economy; small domestic market, wide reach."
+  },
+  {
+    "id": "tokyo",
+    "name": "Tokyo",
+    "country": "Japan",
+    "lat": 35.68,
+    "lon": 139.69,
+    "personas": 14,
+    "capitalDensity": 60,
+    "tilt": { "brandLoyalty": 1.8, "riskTolerance": -1.2 },
+    "note": "Incumbent loyalty is the dominant force; trust is earned slowly."
+  },
+  {
+    "id": "seoul",
+    "name": "Seoul",
+    "country": "South Korea",
+    "lat": 37.57,
+    "lon": 126.98,
+    "personas": 12,
+    "capitalDensity": 56,
+    "tilt": { "techAdoption": 1.4, "brandLoyalty": 0.8 },
+    "note": "Fast consumer adoption behind conglomerate gatekeepers."
+  },
+  {
+    "id": "sydney",
+    "name": "Sydney",
+    "country": "Australia",
+    "lat": -33.87,
+    "lon": 151.21,
+    "personas": 12,
+    "capitalDensity": 50,
+    "tilt": { "riskTolerance": -0.4 },
+    "note": "Proven playbook for global SaaS from a small home market."
+  },
+  {
+    "id": "saopaulo",
+    "name": "São Paulo",
+    "country": "Brazil",
+    "lat": -23.55,
+    "lon": -46.63,
+    "personas": 14,
+    "capitalDensity": 54,
+    "tilt": { "priceSensitivity": 2.2 },
+    "note": "Largest Latin American market; fintech-led, price-led."
+  },
+  {
+    "id": "lagos",
+    "name": "Lagos",
+    "country": "Nigeria",
+    "lat": 6.52,
+    "lon": 3.38,
+    "personas": 10,
+    "capitalDensity": 38,
+    "tilt": { "priceSensitivity": 2.4, "painTolerance": 1.2 },
+    "note": "Infrastructure gaps create both the problems and the constraints."
+  },
+  {
+    "id": "shanghai",
+    "name": "Shanghai",
+    "country": "China",
+    "lat": 31.23,
+    "lon": 121.47,
+    "personas": 12,
+    "capitalDensity": 64,
+    "tilt": { "techAdoption": 1.0, "priceSensitivity": 1.2 },
+    "note": "Scale and speed; a separate software stack from the west."
+  }
+]

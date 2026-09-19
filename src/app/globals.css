@@ -1,34 +1,47 @@
 @import "tailwindcss";
 
 /* ===========================================================================
-   ATLAS — deep navy + signal amber.
+   ATLAS — warm ink, bone inserts, electric coral.
 
-   Three rules hold this together:
-     1. Sentiment runs cold-blue to amber, never red-to-green. It reads as
-        market heat rather than pass/fail, and it stays legible to the ~8% of
-        men who cannot separate red from green.
-     2. Amber is reserved. It marks the reveal and it marks dissent, nothing
+   What makes this not look like every other dark AI dashboard is the warm/cool
+   split: the shell is a warm near-black (violet-leaning, never navy), and the
+   findings sit on raised BONE cards — actual light paper inside a dark app,
+   like printed inserts in a research binder. Data that matters gets printed;
+   chrome stays dark.
+
+   Rules:
+     1. Sentiment runs slate -> coral. Not red-to-green: it reads as heat in a
+        market rather than pass/fail, and it survives colourblindness.
+     2. Coral is reserved. The reveal, dissent, and the current stage. Nothing
         else. An accent used everywhere is not an accent.
-     3. Mono is for data, sans is for prose. All-mono reads as a hacker
-        terminal; this is meant to read as an analyst's instrument.
+     3. Negative is NOT the coral. If the "look here" colour and the "this is
+        bad" colour are the same, neither one means anything.
+     4. Mono for data, sans for prose.
    =========================================================================== */
 
 :root {
-  --ground: #080b14;
-  --surface: #0f1524;
-  --surface-2: #151d33;
-  --border: #1e2842;
-  --border-bright: #2f3d61;
-  --text: #e8ecf5;
-  --muted: #8494b4;
-  --faint: #4f5d7d;
+  --ground: #0c0b0f;
+  --surface: #16141b;
+  --surface-2: #1f1c27;
+  --border: #2a2630;
+  --border-bright: #3d3748;
 
-  --accent: #ffb020;
-  --accent-dim: #8a5f14;
+  /* The printed layer. */
+  --insert: #f2efe8;
+  --insert-2: #e6e1d6;
+  --insert-ink: #17151c;
+  --insert-muted: #6c6559;
 
-  --cold: #3b82f6;
-  --positive: #34d399;
-  --negative: #f43f5e;
+  --text: #edeae4;
+  --muted: #9a9490;
+  --faint: #625c68;
+
+  --accent: #ff5a3c;
+  --accent-dim: #8a2f1e;
+
+  --cold: #6b7280;
+  --positive: #4ade80;
+  --negative: #e5484d;
 }
 
 @theme inline {
@@ -37,6 +50,10 @@
   --color-surface-2: var(--surface-2);
   --color-edge: var(--border);
   --color-edge-bright: var(--border-bright);
+  --color-insert: var(--insert);
+  --color-insert-2: var(--insert-2);
+  --color-insert-ink: var(--insert-ink);
+  --color-insert-muted: var(--insert-muted);
   --color-ink: var(--text);
   --color-muted: var(--muted);
   --color-faint: var(--faint);
@@ -55,12 +72,11 @@ body {
   font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
 }
 
-/* Panels: 2px radius. Enough to stop it reading as a terminal, not enough to
-   read as a consumer app. */
+/* Dark chrome. */
 .panel {
   background: color-mix(in srgb, var(--surface) 92%, transparent);
   border: 1px solid var(--border);
-  border-radius: 2px;
+  border-radius: 3px;
   backdrop-filter: blur(8px);
 }
 
@@ -68,24 +84,53 @@ body {
   border-color: var(--border-bright);
 }
 
-/* The reveal and dissent only. */
+/* The printed layer — findings, not chrome. Used sparingly or it stops
+   signalling anything. */
+.insert {
+  background: var(--insert);
+  color: var(--insert-ink);
+  border-radius: 3px;
+  box-shadow:
+    0 1px 0 0 var(--insert-2) inset,
+    0 18px 40px -18px rgb(0 0 0 / 0.8);
+}
+
+.insert-muted {
+  color: var(--insert-muted);
+}
+
+/* Reserved: the reveal, dissent, the live stage. */
 .glow-accent {
-  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
-  background: color-mix(in srgb, var(--accent) 8%, var(--surface));
-  box-shadow: 0 0 24px -8px color-mix(in srgb, var(--accent) 45%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  background: color-mix(in srgb, var(--accent) 9%, var(--surface));
+  box-shadow: 0 0 28px -10px color-mix(in srgb, var(--accent) 60%, transparent);
 }
 
 .label {
   font-family: var(--font-geist-mono), ui-monospace, monospace;
   font-size: 10px;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.15em;
   text-transform: uppercase;
   color: var(--faint);
+}
+
+.insert .label {
+  color: var(--insert-muted);
 }
 
 .num {
   font-family: var(--font-geist-mono), ui-monospace, monospace;
   font-variant-numeric: tabular-nums;
+}
+
+/* A hairline rule that reads as printed rather than drawn. */
+.rule {
+  height: 1px;
+  background: repeating-linear-gradient(
+    to right,
+    var(--border) 0 3px,
+    transparent 3px 6px
+  );
 }
 
 ::-webkit-scrollbar { width: 8px; height: 8px; }

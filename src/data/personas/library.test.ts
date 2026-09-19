@@ -4,8 +4,16 @@ import { PERSONAS, inferIndustries, personasByHub, selectRelevant } from "./inde
 
 describe("persona library", () => {
   it("has a full population with unique ids", () => {
-    expect(PERSONAS.length).toBe(300);
-    expect(new Set(PERSONAS.map((p) => p.id)).size).toBe(300);
+    // Head count is driven by hubs.json, so assert the invariant rather than a
+    // magic number that breaks every time a hub is added.
+    expect(PERSONAS.length).toBeGreaterThan(250);
+    expect(new Set(PERSONAS.map((p) => p.id)).size).toBe(PERSONAS.length);
+  });
+
+  it("covers every hub the globe knows about", () => {
+    const covered = new Set(PERSONAS.map((p) => p.hubId));
+    for (const hub of HUB_POINTS) expect(covered.has(hub.id)).toBe(true);
+    expect(covered.size).toBeGreaterThanOrEqual(15);
   });
 
   it("places everyone in a hub the globe knows about", () => {

@@ -12,7 +12,7 @@
 // so the globe looks like the real world instead of a uniform sprinkle.
 // ============================================================================
 
-import { writeFileSync, mkdirSync } from "node:fs";
+import { writeFileSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -46,18 +46,14 @@ const scale = (bias = 0) => {
   return Math.max(1, Math.min(10, Math.round(base * 10 + bias)));
 };
 
-const HUBS = [
-  { id: "sf", city: "San Francisco", country: "United States", lat: 37.77, lon: -122.42, n: 60, tilt: { techAdoption: 1.5, riskTolerance: 1.2, priceSensitivity: -1.5 } },
-  { id: "nyc", city: "New York", country: "United States", lat: 40.71, lon: -74.01, n: 45, tilt: { budgetAuthority: 1.0, priceSensitivity: -0.8 } },
-  { id: "london", city: "London", country: "United Kingdom", lat: 51.51, lon: -0.13, n: 35, tilt: { riskTolerance: -0.5 } },
-  { id: "bangalore", city: "Bangalore", country: "India", lat: 12.97, lon: 77.59, n: 30, tilt: { priceSensitivity: 2.0, techAdoption: 0.8 } },
-  { id: "toronto", city: "Toronto", country: "Canada", lat: 43.65, lon: -79.38, n: 25, tilt: { riskTolerance: -0.8 } },
-  { id: "berlin", city: "Berlin", country: "Germany", lat: 52.52, lon: 13.4, n: 25, tilt: { priceSensitivity: 1.0, brandLoyalty: -0.8 } },
-  { id: "singapore", city: "Singapore", country: "Singapore", lat: 1.35, lon: 103.82, n: 25, tilt: { budgetAuthority: 0.8 } },
-  { id: "telaviv", city: "Tel Aviv", country: "Israel", lat: 32.08, lon: 34.78, n: 22, tilt: { riskTolerance: 1.8, techAdoption: 1.2 } },
-  { id: "waterloo", city: "Waterloo", country: "Canada", lat: 43.46, lon: -80.52, n: 18, tilt: { techAdoption: 1.0, budgetAuthority: -1.2 } },
-  { id: "saopaulo", city: "São Paulo", country: "Brazil", lat: -23.55, lon: -46.63, n: 15, tilt: { priceSensitivity: 2.2 } },
-];
+// Single source of truth, shared with the app. Duplicating the hub list here
+// is how the globe and the crowd drift apart.
+const HUBS = JSON.parse(
+  readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), "..", "src", "data", "hubs.json"),
+    "utf8"
+  )
+).map((h) => ({ ...h, city: h.name, n: h.personas }));
 
 const FIRST = [
   "Alex","Priya","Jordan","Mei","Tomas","Amara","Noah","Yuki","Sofia","Dmitri","Chen","Aisha","Liam","Ines","Omar",

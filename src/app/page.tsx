@@ -9,6 +9,7 @@ import { AgentFeed, type FeedItem } from "@/components/hud/AgentFeed";
 import { Intake } from "@/components/Intake";
 import { SystemPanel } from "@/components/hud/SystemPanel";
 import { PersonaCall } from "@/components/PersonaCall";
+import { StageRail, deriveStages } from "@/components/StageRail";
 import { useVenture } from "@/lib/store";
 import { streamPost } from "@/lib/sse";
 import type { ProblemStatement } from "@/lib/types";
@@ -301,6 +302,19 @@ export default function Discover() {
     };
   });
 
+  const stages = deriveStages({
+    hasIdea: Boolean(ventureFile),
+    problems: problems.length,
+    deployed: personas.length,
+    answered: reactions.size,
+    total: personas.length,
+    hasVerdict: Boolean(verdict),
+    councilRunning,
+    councilDone: Boolean(pvs) || councilLog.length > 0,
+    hasPvs: Boolean(pvs),
+    running,
+  });
+
   const marketProblem = problems.find((p) => p.id === verdict?.marketProblemId);
   const pitchedProblem = problems.find((p) => p.id === verdict?.pitchedProblemId);
   const focused = focus ? personas.find((p) => p.id === focus) : null;
@@ -313,6 +327,13 @@ export default function Discover() {
       </AnimatePresence>
 
       <div className="flex h-full">
+        <StageRail
+          state={stages}
+          onJump={(id) => {
+            if (id === "pitch" && pvs) acceptMarketProblem();
+          }}
+        />
+
         <div className="relative flex-1">
           <Globe dots={dots} onDotClick={(id) => setFocus(Number(id.slice(1)))} className="h-full w-full" />
 
@@ -711,31 +732,36 @@ export default function Discover() {
               initial={{ y: 24, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               transition={{ delay: 0.15 }}
-              className="panel glow-accent mx-6 max-w-2xl p-8"
+              className="insert mx-6 max-w-2xl p-8"
             >
-              <p className="label text-accent">The market disagrees with you</p>
+              <p className="label" style={{ color: "var(--accent)" }}>
+                The market disagrees with you
+              </p>
 
               <div className="mt-5">
                 <p className="label">You pitched</p>
-                <p className="mt-1 text-sm leading-relaxed text-muted line-through decoration-negative/60">
+                <p className="insert-muted mt-1 text-sm leading-relaxed line-through decoration-negative/70">
                   {pitchedProblem.statement}
                 </p>
               </div>
 
               <div className="mt-5">
-                <p className="label text-accent">The problem they actually have</p>
-                <p className="mt-1 text-xl leading-snug text-ink">{marketProblem.statement}</p>
-                <p className="mt-2 text-xs text-muted">
-                  Felt by {marketProblem.whoHasIt}
+                <p className="label" style={{ color: "var(--accent)" }}>
+                  The problem they actually have
                 </p>
+                <p className="mt-1 text-xl leading-snug">{marketProblem.statement}</p>
+                <p className="insert-muted mt-2 text-xs">Felt by {marketProblem.whoHasIt}</p>
               </div>
 
-              <div className="mt-6 grid grid-cols-3 gap-4 border-t border-edge pt-4">
+              <div
+                className="mt-6 grid grid-cols-3 gap-4 pt-4"
+                style={{ borderTop: "1px solid var(--insert-2)" }}
+              >
                 {verdict?.problemVotes.slice(0, 3).map((v) => (
                   <div key={v.problemId}>
                     <p className="label">{v.problemId}</p>
-                    <p className="num mt-0.5 text-lg text-ink">{v.votes}</p>
-                    <p className="num text-[10px] text-muted">
+                    <p className="num mt-0.5 text-lg">{v.votes}</p>
+                    <p className="num insert-muted text-[10px]">
                       sev {v.meanSeverity.toFixed(0)} · {(v.payRate * 100).toFixed(0)}% pay
                     </p>
                   </div>
@@ -751,7 +777,7 @@ export default function Discover() {
                 </button>
                 <button
                   onClick={() => setShowReveal(false)}
-                  className="px-4 py-2.5 font-mono text-[11px] uppercase tracking-[0.14em] text-muted transition hover:text-ink"
+                  className="insert-muted px-4 py-2.5 font-mono text-[11px] uppercase tracking-[0.14em] transition hover:opacity-70"
                 >
                   Keep my framing
                 </button>

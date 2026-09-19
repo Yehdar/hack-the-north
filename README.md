@@ -11,7 +11,8 @@ you actually have?" The answer is frequently not the one you pitched. A council
 of five agents then argues about whether the problem is worth solving in a
 specific city, and the run produces a Problem Validation Score.
 
-**Part 2 — the committee.** You pitch out loud to three VC partner agents. They
+**Part 2 — the committee.** You choose one of twenty-five real firms, from Sand
+Hill Road to Lagos, and pitch out loud to three of its partner agents. They
 interrupt, track what you dodged, and vote — weighted by seat, with dissent
 surfaced rather than averaged away.
 
@@ -65,7 +66,7 @@ npm run dev
 npm test            # vitest
 npm run typecheck
 npm run build
-npm run personas    # regenerate the 300-persona library (deterministic)
+npm run personas    # regenerate the persona library from hubs.json (deterministic)
 ```
 
 ## Demo mode

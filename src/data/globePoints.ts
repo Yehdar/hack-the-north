@@ -1,42 +1,50 @@
 import type { SeatId } from "@/lib/types";
+import hubs from "./hubs.json";
 
-// ============================================================================
-// GLOBE POSITIONS — presentational only. Track B owns this file.
-//
-// At the hour-11 integration this is replaced by Track A's src/data/hubs.ts as
-// the source of hub coordinates; these exist so the globe is not empty while
-// Track A is still building. The seat positions stay either way — the
-// committee sits at the firm's HQ.
-// ============================================================================
+// Hub coordinates come from the shared hubs.json that the persona generator
+// also reads. Duplicating the list is how the globe and the crowd drift apart.
 
-export type GlobePoint = { id: string; label: string; lat: number; lon: number };
+export type GlobePoint = {
+  id: string;
+  label: string;
+  lat: number;
+  lon: number;
+  country?: string;
+  capitalDensity?: number;
+  note?: string;
+};
 
-/** Placeholder hubs. Track A's hubs.ts supersedes these. */
-export const HUB_POINTS: GlobePoint[] = [
-  { id: "sf", label: "San Francisco", lat: 37.77, lon: -122.42 },
-  { id: "nyc", label: "New York", lat: 40.71, lon: -74.01 },
-  { id: "toronto", label: "Toronto", lat: 43.65, lon: -79.38 },
-  { id: "waterloo", label: "Waterloo", lat: 43.46, lon: -80.52 },
-  { id: "london", label: "London", lat: 51.51, lon: -0.13 },
-  { id: "berlin", label: "Berlin", lat: 52.52, lon: 13.4 },
-  { id: "telaviv", label: "Tel Aviv", lat: 32.08, lon: 34.78 },
-  { id: "bangalore", label: "Bangalore", lat: 12.97, lon: 77.59 },
-  { id: "singapore", label: "Singapore", lat: 1.35, lon: 103.82 },
-  { id: "saopaulo", label: "São Paulo", lat: -23.55, lon: -46.63 },
-];
+export const HUB_POINTS: GlobePoint[] = (
+  hubs as {
+    id: string;
+    name: string;
+    country: string;
+    lat: number;
+    lon: number;
+    capitalDensity: number;
+    note: string;
+  }[]
+).map((h) => ({
+  id: h.id,
+  label: h.name,
+  lat: h.lat,
+  lon: h.lon,
+  country: h.country,
+  capitalDensity: h.capitalDensity,
+  note: h.note,
+}));
+
+export function hubById(id: string): GlobePoint | undefined {
+  return HUB_POINTS.find((h) => h.id === id);
+}
 
 /**
- * The committee sits at the firm's HQ, fanned out slightly so three dots in
- * the same city remain individually clickable rather than overlapping into one.
+ * The committee sits at the firm's HQ, fanned out slightly so seats in the same
+ * city stay individually clickable rather than overlapping into one dot.
  */
 export const SEAT_POINTS: Record<SeatId | "devils-advocate", GlobePoint> = {
   gp: { id: "gp", label: "General Partner", lat: 37.77, lon: -122.42 },
   principal: { id: "principal", label: "Principal", lat: 37.42, lon: -122.14 },
   skeptic: { id: "skeptic", label: "Skeptic", lat: 37.49, lon: -122.79 },
-  "devils-advocate": {
-    id: "devils-advocate",
-    label: "Devil's Advocate",
-    lat: 38.15,
-    lon: -122.6,
-  },
+  "devils-advocate": { id: "devils-advocate", label: "Devil's Advocate", lat: 38.15, lon: -122.6 },
 };
