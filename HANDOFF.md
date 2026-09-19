@@ -25,37 +25,54 @@ npm run personas  # regenerate the persona library from hubs.json
 ```
 
 **State:** 110/110 tests pass, lint clean, build clean, nothing half-finished.
-Branch `jaineel-changes` at `dca6b53`.
+Branch `jaineel-changes`.
 
 `.env.local` holds a working **ElevenLabs** key (scoped to `text_to_speech` and
-`speech_to_text` only, which is fine and handled). **There is no LLM key.** That
-is the single most important fact on this page.
+`speech_to_text` only, which is fine and handled). **There is no LLM key yet** —
+add one locally before demoing, see the next section. It is one line, not work.
 
 ---
 
-## READ FIRST: the agents cannot hear you
+## READ FIRST: put a key in .env.local before demoing
 
 Without `OPENAI_API_KEY` or `ANTHROPIC_API_KEY`, every word in the app comes
 from `src/lib/providers/demo.ts`. It reads the founder's pitch and picks
 sensible-sounding lines, but it cannot respond to the *content* of an answer,
-cannot tell a good answer from a bad one, and cannot follow up.
+cannot tell a good answer from a bad one, and cannot follow up. That is what
+gets reported as "the responses are stale" or "it sounds AI generated".
 
-This gets raised as "the responses are stale" or "it sounds AI generated", and
-the honest answer is that it is not the model. **The models are already
-`gpt-5.6-sol` and `claude-opus-5`** — the best available. There is simply no key
-for them to run on.
+**It is not the model.** The models are already `gpt-5.6-sol` and
+`claude-opus-5`, the best available. There is no key for them to run on. Do not
+spend an afternoon swapping models; it will not help.
 
-Setting one key fixes: persona depth, committee responses, the chair's rulings,
-the problem split, and the advice in the report. Everything downstream is
-already wired for it.
+**This is a one-line local setup step, not product work.** Nobody else needs a
+key — the app is only ever run on our own machine for the demo. Everything is
+already wired:
 
-Then re-record the fixtures, because `fixtures/llm.json` currently holds a run
+```bash
+echo 'OPENAI_API_KEY=sk-...' >> .env.local   # or ANTHROPIC_API_KEY
+npm run dev
+open http://localhost:3000/api/system/check  # both tiers should show live
+```
+
+`.env.local` is gitignored, the provider is picked automatically from whichever
+key is present (`src/lib/llm.ts`, `selectBase`), and `/api/system/check` makes
+one tiny call per tier and reports back. With no key it says so in plain words
+rather than failing oddly.
+
+One key turns on: persona depth, committee responses, the chair's rulings, the
+problem split, and the advice in the report.
+
+Then record the fixtures, because `fixtures/llm.json` currently holds a run
 captured from the *demo* provider, so `DEMO_MODE=1` replays canned content:
 
 ```bash
 RECORD_FIXTURES=1 npm run dev    # do one full run: intake -> verdict -> pitch
 DEMO_MODE=1 npm run dev          # check it replays with the network off
 ```
+
+That replay is the stage insurance: it needs no key and no network, so venue
+wifi cannot take the demo down.
 
 ---
 
@@ -118,7 +135,7 @@ is working or stuck.
 
 | # | Item | Notes |
 |---|---|---|
-| 1 | **No LLM key** | See the top. Nothing else here matters as much. |
+| 1 | **No LLM key in `.env.local`** | One line, see the top. Nothing else here matters as much, and it is setup rather than work. |
 | 2 | **`fixtures/llm.json` is a demo recording** | Re-record once a key exists. |
 | 3 | **Typography** | The reviewer's most repeated point: text too small, too technical, too many different fonts, too much of it. Largely untouched. |
 | 4 | **Rounder corners, transparent popups** | "If it's a five, turn it into 25." Cards over the globe should let the globe through. |
