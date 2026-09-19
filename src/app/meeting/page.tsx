@@ -141,9 +141,14 @@ export default function Meeting() {
       const text = await recorder.current?.stop().catch(() => "");
       recorder.current = null;
       setHeard("");
-      // Lands in the box rather than sending. Dictation that fires the instant
-      // you stop talking punishes a stumble, and in a pitch you stumble.
-      if (text) setTyped((prev) => (prev ? `${prev} ${text}` : text));
+      // Sends straight away. A pitch is a conversation — stopping to press a
+      // button after every sentence is not how you talk to a partner, and the
+      // pause breaks the back-and-forth the room is meant to have.
+      const merged = [typed, text].filter(Boolean).join(" ").trim();
+      if (merged) {
+        setTyped("");
+        await sendTurn(merged);
+      }
       return;
     }
 
@@ -154,7 +159,7 @@ export default function Meeting() {
     } catch {
       setError("Microphone unavailable — type instead.");
     }
-  }, [tier, recording]);
+  }, [tier, recording, typed, sendTurn]);
 
   const objections = vf?.objections ?? [];
   const unanswered = objections.filter((o) => o.status !== "answered").length;
@@ -352,7 +357,7 @@ export default function Meeting() {
                     </p>
                   </div>
                   <p className="label mt-1.5">
-                    press stop to put it in the box · nothing is sent until you send it
+                    stop when you are done — it goes to the room straight away
                   </p>
                 </motion.div>
               )}
@@ -366,7 +371,7 @@ export default function Meeting() {
                   recording ? "bg-negative text-ink" : "bg-accent text-ground"
                 }`}
               >
-                {recording ? "■ Stop · review it" : "● Hold the floor"}
+                {recording ? "■ Stop · send it" : "● Hold the floor"}
               </button>
 
               <form

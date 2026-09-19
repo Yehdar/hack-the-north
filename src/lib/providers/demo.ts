@@ -376,11 +376,8 @@ export class DemoProvider implements LLMProvider {
         } as T;
       }
 
-      case "seat_response": {
-        const options = SPOKEN[seat];
-        const pick = options[Math.floor(turnCounter / MODERATOR_ROTATION.length) % options.length];
-        return { line: pick.line, isObjection: true, objectionText: pick.objectionText } as T;
-      }
+      case "seat_response":
+        return seatResponse(seat, req.user) as T;
 
       default:
         return {} as T;
@@ -828,4 +825,96 @@ function demoPersonaReply(system: string, user: string) {
     shifted: false,
     sentiment: Math.min(1, Math.max(0, (tech * 0.8 + (10 - price) * 0.6 + budget * 0.4) / 18)),
   };
+}
+
+
+// --- what a partner says back ----------------------------------------------
+
+/**
+ * WITHOUT A MODEL, A PARTNER CANNOT ACTUALLY LISTEN.
+ *
+ * The old version picked from a fixed pool, so a founder pitching eco-friendly
+ * fridges got "coverage dashboards promised the same thing" — an answer to a
+ * question nobody asked. That reads as broken rather than as a simulation.
+ *
+ * This cannot fix that properly; only a real model can. What it does is stay
+ * inside what it can actually know: it pulls the subject out of the venture
+ * file and asks questions that are hard about ANY business, so the words at
+ * least belong to this conversation. Set OPENAI_API_KEY and the partners
+ * genuinely respond to what was said.
+ */
+function seatResponse(seat: Seat, user: string) {
+  // The founder's own words, from the venture-file block in the prompt.
+  const subject =
+    user.match(/THE FOUNDER'S SOLUTION[^:]*:\s*\n?"?([^"\n]{8,120})/i)?.[1]?.trim() ??
+    user.match(/PRODUCT:\s*\n?"([^"]{8,120})"/i)?.[1]?.trim() ??
+    "this";
+
+  // Cut to a short noun phrase. Dropping the whole sentence in mid-clause
+  // produces "shipping fridge that runs on eco-friendly refrigerant and costs
+  // half as much as a feature", which is worse than saying nothing.
+  const it = (() => {
+    const stripped = subject
+      .replace(/^(we|i)\s+(are\s+)?(built|building|made|making|have built)\s+/i, "")
+      .replace(/^(an?|the)\s+/i, "")
+      .replace(/[.!?]+$/, "");
+    // Stop at the first clause boundary, then cap the length.
+    const head = stripped.split(/\s+(?:that|which|who|where|so|and|because|with)\s+/i)[0];
+    const words = head.split(/\s+/).slice(0, 5).join(" ");
+    return words.length >= 3 ? words.toLowerCase() : "this";
+  })();
+
+  const last = user.match(/THE FOUNDER JUST SAID:\s*\n?"([^"]{0,300})"/i)?.[1]?.trim() ?? "";
+  const vague = last.length > 0 && last.split(/\s+/).length < 12;
+
+  const BY_SEAT: Record<string, { line: string; objectionText: string }[]> = {
+    gp: [
+      {
+        line: `Why does ${it} have to exist this year rather than next? Nothing you have said yet is a reason to move now.`,
+        objectionText: "No why-now established",
+      },
+      {
+        line: `If ${it} works, what does it look like at a hundred million in revenue? I cannot see the shape of that from here.`,
+        objectionText: "Cannot see the path to a fund-returning outcome",
+      },
+      {
+        line: "You are describing the product again. I asked about the market.",
+        objectionText: "Answered product when asked about market",
+      },
+    ],
+    principal: [
+      {
+        line: "Who has paid for this? Name one customer and the number on the invoice.",
+        objectionText: "No paying customer named",
+      },
+      {
+        line: `Who signs for ${it} — and is that the same person who told you they wanted it?`,
+        objectionText: "Buyer and champion may not be the same person",
+      },
+      {
+        line: "What does it cost you to acquire one customer, and how long before that pays back?",
+        objectionText: "Unit economics unknown",
+      },
+    ],
+    skeptic: [
+      {
+        line: `What stops the incumbent shipping ${it} as a feature the quarter after you launch?`,
+        objectionText: "No defensibility against an incumbent",
+      },
+      {
+        line: "Who has tried this before and failed, and what do you know that they did not?",
+        objectionText: "No account of prior failures in the category",
+      },
+      {
+        line: vague
+          ? "That was not an answer. I will ask it again: what makes this hard to copy?"
+          : "You are assuming the problem is worth paying to fix. Show me someone who already did.",
+        objectionText: vague ? "Dodged the defensibility question" : "Willingness to pay unproven",
+      },
+    ],
+  };
+
+  const pool = BY_SEAT[seat] ?? BY_SEAT.gp;
+  const pick = pool[Math.floor(turnCounter / MODERATOR_ROTATION.length) % pool.length];
+  return { line: pick.line, isObjection: true, objectionText: pick.objectionText };
 }
