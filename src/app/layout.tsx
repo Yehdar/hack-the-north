@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Atlas — find the problem, defend the answer",
+  title: "Vision — see the problem, defend the answer",
   description:
     "Submit a product. A simulated market tells you which problem it actually solves, then an investment committee decides whether that problem is big enough.",
 };

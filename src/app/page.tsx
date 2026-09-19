@@ -350,7 +350,6 @@ export default function Discover() {
                 />
               ) : (
                 <motion.div key="idle" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-                  <h1 className="font-mono text-lg tracking-tight">Atlas</h1>
                   {ventureFile ? (
                     <>
                       <p className="mt-2 text-xs leading-relaxed text-muted">

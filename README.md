@@ -1,6 +1,6 @@
-# Atlas
+# Vision
 
-Founders build solutions before they understand the problem. Atlas tells you
+Founders build solutions before they understand the problem. Vision tells you
 which problem you are actually solving, whether a market wants it, and whether
 an investor would fund it — in that order, because that is the order the answers
 matter in.

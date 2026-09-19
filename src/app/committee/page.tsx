@@ -191,7 +191,7 @@ export default function Home() {
           <div className="pointer-events-none absolute left-8 top-8 z-40">
             {!running && !decision && (
               <div className="pointer-events-auto">
-                <h1 className="font-mono text-xl tracking-tight">Atlas</h1>
+                <h1 className="font-mono text-xl tracking-tight">Vision</h1>
                 {ventureFile ? (
                   <>
                     <p className="mt-2 max-w-xs font-mono text-xs leading-relaxed text-muted">

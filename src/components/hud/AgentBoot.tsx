@@ -2,12 +2,13 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
+import { Logo } from "@/components/Logo";
 
 // Boot sequence. Buys the pre-read call its latency back by making the wait
 // feel like the system coming online rather than a spinner.
 
 const STEPS = [
-  "Initializing committee",
+  "Waking the room",
   "Loading firm thesis and anti-portfolio",
   "Seating partners",
   "Distributing the venture file",
@@ -59,24 +60,22 @@ export function AgentBoot({ onComplete }: { onComplete: () => void }) {
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.45 }}
-          style={{ backgroundColor: "#000" }}
+          style={{ backgroundColor: "var(--ground)" }}
           className="fixed inset-0 z-50 flex items-center justify-center"
         >
           <div className="mx-auto w-full max-w-md px-8">
             <div className="mb-8">
-              <div className="mb-4 flex items-center gap-2 font-mono text-xs text-white/40">
-                <span>Find</span>
-                <span>The Problem</span>
-                <span>Defend The Answer</span>
-              </div>
-              <h1 className="font-mono text-2xl text-white">Atlas</h1>
+              {/* The mark opens as it loads, so the logo IS the progress. */}
+              <Logo size={44} open={progress / 100} className="text-ink" />
+              <h1 className="mt-4 font-mono text-2xl text-ink">Vision</h1>
+              <p className="label mt-1">see the problem · defend the answer</p>
             </div>
 
             <motion.p
               key={step}
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
-              className="mb-6 font-mono text-sm text-white/70"
+              className="mb-6 font-mono text-sm text-muted"
             >
               {STEPS[step]}
             </motion.p>
@@ -86,13 +85,13 @@ export function AgentBoot({ onComplete }: { onComplete: () => void }) {
                 <div
                   key={i}
                   className={`h-3 flex-1 transition-colors duration-200 ${
-                    i < filled ? "bg-white" : "bg-white/15"
+                    i < filled ? "bg-white" : "bg-edge"
                   }`}
                 />
               ))}
             </div>
 
-            <div className="mt-3 flex justify-between font-mono text-xs text-white/40">
+            <div className="mt-3 flex justify-between font-mono text-xs text-faint">
               <span>{Math.round(progress)}%</span>
               <span>
                 {step + 1}/{STEPS.length}

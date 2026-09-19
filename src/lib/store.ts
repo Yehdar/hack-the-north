@@ -81,6 +81,12 @@ export const useVenture = create<State>()(
 
       reset: () => set({ ventureFile: null, deliberation: null }),
     }),
-    { name: "atlas.ventureFile" }
+    {
+      name: "vision.session",
+      version: 1,
+      // Renamed from atlas.ventureFile. Anyone mid-run when this shipped keeps
+      // their work rather than silently losing it.
+      migrate: (state) => state as State,
+    }
   )
 );

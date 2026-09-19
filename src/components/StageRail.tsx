@@ -1,6 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
+import { Wordmark } from "@/components/Logo";
 
 // ============================================================================
 // THE STAGE RAIL.
@@ -47,8 +48,8 @@ export function StageRail({
   return (
     <nav className="flex h-full w-[212px] shrink-0 flex-col border-r border-edge bg-surface/40">
       <div className="p-4">
-        <p className="font-mono text-[13px] tracking-tight text-ink">Atlas</p>
-        <p className="label mt-0.5">find it · defend it</p>
+        <Wordmark size={18} />
+        <p className="label mt-1">see it · defend it</p>
       </div>
 
       <div className="rule mx-4" />
