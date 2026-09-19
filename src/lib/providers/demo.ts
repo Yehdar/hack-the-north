@@ -852,55 +852,73 @@ function demoProblems(user: string) {
 
 /** Varied by attribute rather than random, so the reaction list reads as many
  *  different people instead of one sentence pasted 120 times. */
+/**
+ * A reaction in three parts: what this is like for them today, what they make
+ * of the product, and the condition attached.
+ *
+ * One-liners were the complaint, and rightly — "I'd use it tomorrow" tells a
+ * founder nothing they can act on. Each clause is chosen by a different
+ * attribute, so two people with different scores say genuinely different
+ * things rather than the same sentence reworded.
+ */
 function demoReason(p: ParsedPersona, addressed: number, pitch: Pitch): string {
   const it = pitch.short;
-  const heard = [
-    "This is pitched at the problem I actually have — and I'd pay for that.",
-    "Finally framed around the part that actually costs me. I'd try it.",
-    `If the ${it} really does that, I'll pay for it this month.`,
-  ];
-  if (p.budget >= 7 && addressed >= 0.6) return heard[(p.id * 7) % heard.length];
 
-  const buyer = [
-    `I'd pay for it, but only if it replaces something I already spend money on.`,
-    `I can afford it. What I won't pay for is another ${it} that works for a month.`,
-    "The money's not the issue. Whether it still works in six months is.",
-  ];
-  const advocate = pitch.consumer
-    ? [
-        "I feel this every week, but money's tight and this isn't top of the list.",
-        `I'd use the ${it} tomorrow. Talking myself into paying for it is the hard part.`,
-        "This is my problem. I just can't justify spending on it right now.",
-      ]
-    : [
-        "I feel this every week, but I'm not the one who decides what we spend on.",
-        `I'd use the ${it} tomorrow. Convincing whoever holds the wallet is the hard part.`,
-        "This is my problem, and I've got no budget to fix it.",
-      ];
-  const skeptic = [
-    `I tried something like the ${it} before and stopped using it within a month.`,
-    "The problem's real, but I don't think a product fixes it — it's a habit thing.",
-    "Show me it still works after six months and I'll care.",
-  ];
-  const eager = [
-    `I'd try the ${it} the day it came out.`,
-    "I've been hacking together a worse version of this myself.",
-    "If it actually works, this changes my week.",
-  ];
+  // 1. Where they are today — driven by how much friction they absorb.
+  const today = pitch.consumer
+    ? p.pain <= 3
+      ? "This gets on my nerves most weeks and I've never found a fix I stuck with."
+      : p.pain >= 8
+        ? "Honestly I've just lived with this for years and stopped noticing it."
+        : "It comes up often enough that I've thought about doing something."
+    : p.pain <= 3
+      ? "This costs my team real hours every sprint and I can name the last three times it bit us."
+      : p.pain >= 8
+        ? "We've worked around this for so long it's just how things are here."
+        : "It's a recurring irritation — not a fire, but it never goes away.";
 
-  const pool =
-    p.budget >= 7 ? buyer : p.brand >= 7 || p.risk <= 3 ? skeptic : p.tech >= 8 ? eager : advocate;
-  return pool[(p.id * 7) % pool.length];
+  // 2. What they make of it — appetite for new things, and brand loyalty.
+  const onIt =
+    addressed >= 0.6
+      ? `What you're describing is aimed at the part that actually hurts, which is more than most ${it} pitches manage.`
+      : p.brand >= 7
+        ? `My instinct is that whoever we already pay should just do this, so a separate ${it} has to be clearly better.`
+        : p.tech >= 8
+          ? `I'd try the ${it} the week it shipped — I've bodged together worse versions myself.`
+          : p.risk <= 3
+            ? `I've been burned by tools like this before, so I'd want to see it working somewhere else first.`
+            : `The ${it} sounds plausible; I just can't tell yet whether it survives contact with how we actually work.`;
+
+  // 3. The condition — this is the part a founder can act on.
+  const condition = pitch.consumer
+    ? p.price >= 7
+      ? "Price decides it for me. Anything that feels like another subscription is an immediate no."
+      : p.budget >= 7
+        ? "I could just buy it if it proved itself in a fortnight."
+        : "I'd need it to be obviously worth it before I'd spend on it."
+    : p.budget >= 7
+      ? "I can sign for this. What I can't defend is a line item that duplicates something we already licence."
+      : p.budget <= 3
+        ? "I don't hold the budget, so you'd need my director in the room — I can only advocate."
+        : "I'd have to build the case internally, and that means numbers I don't have yet.";
+
+  return `${today} ${onIt} ${condition}`;
 }
 
 function demoShrug(p: ParsedPersona, pitch: Pitch): string {
-  const pool = [
-    "Not something I think about. It's fine as it is.",
-    "Honestly, it reads like a solution looking for a problem.",
-    "I've got bigger problems than this one.",
-    `I wouldn't pay for a ${pitch.short}, and I wouldn't tell anyone about it either.`,
-  ];
-  return pool[(p.id * 5) % pool.length];
+  const why = pitch.consumer
+    ? p.pain >= 7
+      ? "It's just not something I think about — whatever I do now is good enough."
+      : "I can see the idea, it's only that nothing about my week changes if it exists."
+    : p.pain >= 7
+      ? "We've absorbed this for years and nobody upstairs has ever asked me to fix it."
+      : "I can see the idea. It's just nowhere near the top of what's on fire here.";
+
+  const cost = p.price >= 7
+    ? "And anything with a price on it needs to beat things I'm already paying for."
+    : "I'd have to be convinced it's worth the switch, and right now I'm not.";
+
+  return `${why} ${cost} Honestly I'd read a ${pitch.short} pitch and move on.`;
 }
 
 // --- the refine loop ---------------------------------------------------------
