@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import { AgentFace, moodOf } from "@/components/AgentFace";
 
 // ============================================================================
@@ -17,7 +18,7 @@ type Stance = { stance: number; confidence?: number };
 type Message = { id: string; from: string; to: string; kind: string; text: string };
 
 const SHORT: Record<string, string> = {
-  gp: "GP",
+  gp: "Lead",
   principal: "Principal",
   skeptic: "Skeptic",
   "devils-advocate": "Devil's adv.",
@@ -35,35 +36,55 @@ const EDGE: Record<string, string> = {
   concession: "var(--positive)",
 };
 
-/** Stance as a fill: crimson for no, green for yes, neutral grey between. */
-function stanceFill(s?: number): string {
-  if (s === undefined) return "var(--surface-2)";
-  const pct = Math.round(Math.min(1, Math.abs(s)) * 100);
-  const end = s >= 0 ? "var(--positive)" : "var(--negative)";
-  return `color-mix(in srgb, ${end} ${pct}%, var(--border-bright))`;
-}
-
 export function DeliberationGraph({
   seats,
   stances,
   messages,
   active,
   conceded,
-  height = 210,
+  voiced,
+  height,
 }: {
   seats: Seat[];
   stances: Record<string, Stance | undefined>;
   messages: Message[];
   active?: Set<string>;
   conceded?: Set<string>;
+  /** The message being read aloud right now — null between lines, undefined
+   *  when the room is not being read aloud. The voice runs behind the
+   *  transcript, so the face that moves and the caption under the table
+   *  follow what you can hear, not the newest line to arrive. */
+  voiced?: string | null;
+  /** Fixed height; by default it grows with the width it is given. */
   height?: number;
 }) {
+  // Drawn at the width it actually has, so a wider panel spreads the table
+  // out instead of blowing the same 300px drawing up — text stays its size.
+  const box = useRef<HTMLDivElement>(null);
+  const [measured, setMeasured] = useState(300);
+  useEffect(() => {
+    const el = box.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([entry]) => {
+      const w = Math.round(entry.contentRect.width);
+      if (w > 0) setMeasured(w);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
   const voting = seats.filter((s) => s.weight > 0);
-  const W = 300;
-  const H = height;
+  const W = Math.max(260, measured);
+  const H = height ?? Math.round(Math.min(330, Math.max(210, W * 0.6)));
   const cx = W / 2;
   const cy = H / 2;
   const R = Math.min(W, H) / 2 - 36;
+  // Faces grow with the table, up to half again their size at the old width.
+  // Weight still sets the size, from a floor at which a 10% seat is a face
+  // you can read rather than a dot.
+  const grow = Math.min(1.5, Math.max(1, R / 69));
+  const radius = (s: Seat) => (11 + s.weight * 22) * grow;
+  const radiusOf = new Map(voting.map((s) => [s.id, radius(s)]));
 
   const pos = new Map(
     voting.map((s, i) => {
@@ -73,11 +94,20 @@ export function DeliberationGraph({
   );
 
   const directed = messages.filter((m) => m.to !== "room" && pos.has(m.from) && pos.has(m.to));
-  const latest = messages[messages.length - 1];
-  const latestEdge = [...directed].reverse()[0];
+  const latest =
+    voiced === undefined
+      ? messages[messages.length - 1]
+      : messages.find((m) => m.id === voiced);
+  const latestEdge =
+    voiced === undefined
+      ? [...directed].reverse()[0]
+      : directed.find((m) => m.id === voiced);
+  // Between two spoken lines nobody's mouth moves, but the caption keeps the
+  // last thing said rather than blanking.
+  const caption = latest ?? messages[messages.length - 1];
 
   return (
-    <div>
+    <div ref={box}>
       <svg
         viewBox={`0 0 ${W} ${H}`}
         className="w-full"
@@ -129,8 +159,11 @@ export function DeliberationGraph({
             const d = Math.hypot(dx, dy) || 1;
             return { x: p.x + (dx / d) * by, y: p.y + (dy / d) * by };
           };
-          const start = trim(a, { x: qx, y: qy }, 14);
-          const end = trim(b, { x: qx, y: qy }, 16);
+          // Trimmed to each face's own size, so the arrowhead lands on the
+          // edge of whoever was addressed rather than under a big face or
+          // short of a small one.
+          const start = trim(a, { x: qx, y: qy }, (radiusOf.get(m.from) ?? 14) + 2);
+          const end = trim(b, { x: qx, y: qy }, (radiusOf.get(m.to) ?? 14) + 5);
           const isLatest = m.id === latestEdge?.id;
           const color = EDGE[m.kind] ?? "var(--muted)";
 
@@ -153,7 +186,7 @@ export function DeliberationGraph({
         {voting.map((s) => {
           const p = pos.get(s.id)!;
           const v = stances[s.id];
-          const r = 8 + s.weight * 24;
+          const r = radius(s);
           const speaking = latest?.from === s.id;
           const labelBelow = p.y >= cy - 1;
 
@@ -232,12 +265,12 @@ export function DeliberationGraph({
       </svg>
 
       <div className="mt-1 min-h-[34px]">
-        {latest ? (
-          <p key={latest.id} className="narrate text-[11px] leading-snug text-ink/80">
-            <span className="font-mono text-[9px] uppercase tracking-[0.12em]" style={{ color: EDGE[latest.kind] ?? "var(--muted)" }}>
-              {SHORT[latest.from] ?? latest.from} → {latest.to === "room" ? "the room" : SHORT[latest.to] ?? latest.to} · {latest.kind}
+        {caption ? (
+          <p key={caption.id} className="narrate text-[11px] leading-snug text-ink/80">
+            <span className="font-mono text-[9px] uppercase tracking-[0.12em]" style={{ color: EDGE[caption.kind] ?? "var(--muted)" }}>
+              {SHORT[caption.from] ?? caption.from} → {caption.to === "room" ? "the room" : SHORT[caption.to] ?? caption.to} · {caption.kind}
             </span>{" "}
-            {latest.text}
+            {caption.text}
           </p>
         ) : (
           <p className="text-[11px] text-faint">Nobody has spoken yet.</p>

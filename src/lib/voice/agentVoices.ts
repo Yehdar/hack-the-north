@@ -1,4 +1,4 @@
-import type { VoiceProfile } from "@/lib/voice/client";
+import { stopSpeaking, type VoiceProfile } from "@/lib/voice/client";
 
 // ============================================================================
 // VOICES FOR THE DELIBERATING AGENTS.
@@ -91,10 +91,21 @@ export class SpeechQueue {
     return this.queue.length;
   }
 
+  /** Something is being said, or is waiting to be. A screen that paces itself
+   *  by the voice waits on this before showing the next line. */
+  get busy(): boolean {
+    return this.running || this.queue.length > 0;
+  }
+
+  /** Silence the room but keep listening — used when the founder skips ahead. */
+  clear() {
+    this.queue = [];
+    stopSpeaking();
+  }
+
   /** Drop everything still queued — used when the user leaves or restarts. */
   stop() {
     this.stopped = true;
-    this.queue = [];
-    if (typeof window !== "undefined") window.speechSynthesis?.cancel();
+    this.clear();
   }
 }

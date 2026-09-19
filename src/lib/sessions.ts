@@ -126,7 +126,9 @@ export function recordVerdict(solution: string, patch: Partial<SessionSummary>) 
 /** Everything a crowd run establishes, folded into one patch. */
 export function summariseCrowd(
   verdict: CrowdVerdict,
-  signals: CrowdSignals,
+  /** Null when the crowd was graded in the browser after its stream stalled:
+   *  who-responded needs the persona library, which lives on the server. */
+  signals: CrowdSignals | null,
   problems: { id: string; statement: string }[],
   crowdSize: number
 ): Partial<SessionSummary> {
@@ -140,8 +142,8 @@ export function summariseCrowd(
     marketProblem: find(verdict.marketProblemId),
     mismatch: verdict.mismatch,
     meanSentiment: verdict.meanSentiment,
-    engaged: signals.engaged,
-    warning: signals.warning,
+    engaged: signals?.engaged ?? verdict.attention.full,
+    warning: signals?.warning ?? null,
   };
 }
 

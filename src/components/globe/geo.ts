@@ -81,13 +81,15 @@ function inside(ring: Ring, x: number, y: number): boolean {
 
 /**
  * A great-circle arc lifted off the surface, highest in the middle. Longer
- * arcs fly higher, capped so a trip to Sydney stays inside the frame.
+ * arcs fly higher, capped under a fifth of the radius: the old cap of 0.45 put
+ * the middle of a trip to Sydney far outside the globe's outline, and seen
+ * from above the launch city those arcs left the frame as straight rays.
  */
 export function arcPoints(from: LatLon, to: LatLon, segments = 48): Vector3[] {
   const a = latLonToVector3(from.lat, from.lon, 1);
   const b = latLonToVector3(to.lat, to.lon, 1);
   const theta = a.angleTo(b);
-  const lift = Math.min(0.45, 0.08 + theta * 0.18);
+  const lift = Math.min(0.18, 0.05 + theta * 0.09);
   const s = Math.sin(theta);
 
   const points: Vector3[] = [];

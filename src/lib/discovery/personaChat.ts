@@ -38,25 +38,23 @@ const SCHEMA = {
 /**
  * Voice character derived from psychographics rather than demographics.
  *
- * Deliberate: inferring a voice from someone's name or gender is both
- * unreliable and a bad idea. What actually makes two people sound different in
- * a research call is how certain they are and how much they care — a sceptical
- * laggard is slower and flatter than a high-influence executive, regardless of
- * who they are.
+ * Disposition shapes the delivery: a sceptical laggard is slower and flatter
+ * than a high-influence executive. The voice itself follows the figure the
+ * persona is drawn as on the globe — an explicit attribute of the persona,
+ * never a guess from their name — so the person you clicked sounds like the
+ * person you see.
  */
 export function voiceProfile(p: Persona): { pitch: number; rate: number; voiceId: string } {
   const g = p.psychographics;
   const assertive = (g.influenceScore + g.budgetAuthority) / 20;
   const eager = g.techAdoption / 10;
 
-  // Four library voices, chosen by disposition so the same persona always
-  // sounds like themselves.
-  const VOICES = [
-    "pNInz6obpgDQGcFmaJgB",
-    "21m00Tcm4TlvDq8ikWAM",
-    "VR6AewLTigWG4xSOukaG",
-    "EXAVITQu4vr4xnSDxMaL",
-  ];
+  // Two library voices per figure, alternating by id so the same persona
+  // always sounds like themselves.
+  const VOICES =
+    p.figure === "girl"
+      ? ["21m00Tcm4TlvDq8ikWAM", "EXAVITQu4vr4xnSDxMaL"]
+      : ["pNInz6obpgDQGcFmaJgB", "VR6AewLTigWG4xSOukaG"];
 
   return {
     pitch: +(0.78 + eager * 0.35 + (1 - g.painTolerance / 10) * 0.12).toFixed(2),

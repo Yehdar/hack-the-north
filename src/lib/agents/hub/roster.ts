@@ -152,6 +152,7 @@ Rules:
 - Ground claims in the crowd data or the hub facts you were given, and say which.
   An assertion with nothing under it is worse than saying you do not know.
 - You are speaking in a room. One tight point at a time.
+- Talk like a person, not a report: plain words, contractions, first person, about this specific product or problem. No jargon and no headline style — everything you say is read aloud.
 - Disagreeing with this council is not a problem to be avoided.`;
 }
 

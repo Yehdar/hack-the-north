@@ -23,9 +23,14 @@ export type Industry =
   | "energy"
   | "government";
 
+/** How a person is drawn on the globe. Chosen explicitly when the library is
+ *  generated — never inferred from a name. */
+export type FigureKind = "girl" | "boy";
+
 export type Persona = {
   id: number;
   name: string;
+  figure: FigureKind;
   title: string;
   hubId: HubId;
   location: { city: string; country: string; lat: number; lon: number };

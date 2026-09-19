@@ -15,6 +15,7 @@ import {
   latLonToVector3,
   type LatLon,
 } from "./geo";
+import { FigureLayer, shirtColor, stanceColor, type FigureKind, type FigureSpec } from "./figures";
 
 // ============================================================================
 // GLOBE — the navigator both phases hang off.
@@ -40,6 +41,10 @@ export type GlobeDot = {
   weight?: number;
   /** Pulsing = this agent is thinking right now. */
   active?: boolean;
+  /** A person, drawn as a small figure rather than a dot. Places stay dots. */
+  figure?: FigureKind;
+  /** Size multiplier for a figure. */
+  figureScale?: number;
 };
 
 /** A named place. Rendered as a label anchored at the city itself, separate
@@ -75,6 +80,11 @@ type Props = {
   arcs?: GlobeArc[];
   /** A place that keeps pulsing — where the council or committee is sitting. */
   beacon?: LatLon | null;
+  /** Camera distance to ease to whenever this changes; larger is a smaller
+   *  globe. Unset leaves the distance to the user's scroll wheel. */
+  distance?: number;
+  /** The person being talked to: they wave hello and keep a ring at their feet. */
+  selected?: string | null;
   className?: string;
 };
 
@@ -85,32 +95,12 @@ const LAND_DOT = new THREE.Color("#5b5366");
 const ARC_GROW_MS = 1100;
 const ARC_FADE_MS = 500;
 const RIPPLE_MS = 1100;
-
-/**
- * Dots carry the same red / amber / green the side panel uses.
- *
- * They used to be a blue-to-amber temperature ramp, which meant the globe and
- * the panel were describing the same people in two different languages. One
- * language, and it is the one everybody already reads without a legend.
- */
-function stanceColor(stance?: number): string {
-  if (stance === undefined) return "#4a5468";
-
-  const t = Math.max(0, Math.min(1, (stance + 1) / 2));
-  const stop = [0xe5, 0x53, 0x4b];
-  const caution = [0xd9, 0xa4, 0x41];
-  const go = [0x3f, 0xb9, 0x50];
-
-  const [from, to, local] =
-    t < 0.5 ? [stop, caution, t * 2] : [caution, go, (t - 0.5) * 2];
-
-  const channel = (i: number) =>
-    Math.round(from[i] + (to[i] - from[i]) * local)
-      .toString(16)
-      .padStart(2, "0");
-
-  return `#${channel(0)}${channel(1)}${channel(2)}`;
-}
+/** Where a city's label may sit, relative to the city, in the order tried:
+ *  just above it, a little higher over its crowd, then just below. No
+ *  further: a label floated far off its city names the wrong one — Paris
+ *  ended up printed above Berlin — so beyond this it gives way, and the city
+ *  is still named in the side panel. */
+const LABEL_LIFTS = [-30, -48, -66, 14, 32];
 
 /** A soft round sprite, so land dots are circles rather than GL squares. */
 function dotSprite(): THREE.Texture {
@@ -139,7 +129,7 @@ type LiveArc = {
   dying: number | null;
 };
 
-export function Globe({ dots, places, onDotClick, focus, arcs, beacon, className }: Props) {
+export function Globe({ dots, places, onDotClick, focus, arcs, beacon, distance, selected, className }: Props) {
   const mount = useRef<HTMLDivElement>(null);
   const overlay = useRef<HTMLDivElement>(null);
 
@@ -154,11 +144,13 @@ export function Globe({ dots, places, onDotClick, focus, arcs, beacon, className
   const clickHandler = useRef(onDotClick);
   const focusTarget = useRef(focus);
   const beaconTarget = useRef(beacon);
+  const distanceTarget = useRef(distance);
   const spawnRipple = useRef<(at: THREE.Vector3, color: THREE.Color, reach?: number) => void>(
     () => {}
   );
   const liveArcs = useRef<Map<string, LiveArc>>(new Map());
   const arcMaterial = useRef<LineMaterial | null>(null);
+  const figures = useRef<FigureLayer | null>(null);
 
   // The render loop reads the latest props through refs, refreshed after each
   // commit rather than during render.
@@ -168,6 +160,7 @@ export function Globe({ dots, places, onDotClick, focus, arcs, beacon, className
     clickHandler.current = onDotClick;
     focusTarget.current = focus;
     beaconTarget.current = beacon;
+    distanceTarget.current = distance;
   });
 
   // ---- scene, once -------------------------------------------------------
@@ -180,6 +173,9 @@ export function Globe({ dots, places, onDotClick, focus, arcs, beacon, className
     cam.position.set(0, 1.4, 6);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    // Two passes a frame — the globe, then the people over it — so the clears
+    // are done by hand.
+    renderer.autoClear = false;
     renderer.setSize(el.clientWidth, el.clientHeight);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     el.appendChild(renderer.domElement);
@@ -255,11 +251,17 @@ export function Globe({ dots, places, onDotClick, focus, arcs, beacon, className
     // A drag hands control to the user until a different place is focused.
     let released = false;
     let focusedOn = "";
+    // Likewise the scroll wheel owns the distance until a new one is asked for.
+    let zoomTo: number | null = null;
+    let zoomedFor: number | undefined;
 
     renderer.domElement.addEventListener("pointerdown", () => {
       controls.autoRotate = false;
       released = true;
       renderer.domElement.style.cursor = "grabbing";
+    });
+    renderer.domElement.addEventListener("wheel", () => {
+      zoomTo = null;
     });
     renderer.domElement.addEventListener("pointerup", () => {
       renderer.domElement.style.cursor = "grab";
@@ -339,12 +341,30 @@ export function Globe({ dots, places, onDotClick, focus, arcs, beacon, className
     );
     arcMaterial.current = arcMat;
 
+    // ---- people ------------------------------------------------------------
+    const people = new FigureLayer();
+    figures.current = people;
+    // For the browser tests: who is standing where, so "no two figures
+    // overlap" is checked by measurement rather than by eye. Dev only.
+    const debug = window as unknown as { __globeFigures?: () => unknown };
+    if (process.env.NODE_ENV !== "production") debug.__globeFigures = () => people.snapshot();
+
     // ---- raycast ---------------------------------------------------------
     const raycaster = new THREE.Raycaster();
     const pointer = new THREE.Vector2();
 
     const onClick = (e: MouseEvent) => {
       const rect = renderer.domElement.getBoundingClientRect();
+
+      // People first, picked in screen space: a figure is a small target and
+      // a click a few pixels off should still reach them.
+      const person = people.pick(e.clientX - rect.left, e.clientY - rect.top);
+      if (person) {
+        people.wave(person, performance.now());
+        clickHandler.current?.(person);
+        return;
+      }
+
       pointer.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
       pointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
       raycaster.setFromCamera(pointer, cam);
@@ -358,15 +378,38 @@ export function Globe({ dots, places, onDotClick, focus, arcs, beacon, className
     };
     renderer.domElement.addEventListener("click", onClick);
 
+    // A hand over anyone you can talk to.
+    let dragging = false;
+    const onMove = (e: PointerEvent) => {
+      if (dragging) return;
+      const rect = renderer.domElement.getBoundingClientRect();
+      const person = people.pick(e.clientX - rect.left, e.clientY - rect.top);
+      people.setHovered(person);
+      renderer.domElement.style.cursor = person ? "pointer" : "grab";
+    };
+    const onDown = () => {
+      dragging = true;
+      people.setHovered(null);
+    };
+    const onUp = () => {
+      dragging = false;
+    };
+    renderer.domElement.addEventListener("pointermove", onMove);
+    renderer.domElement.addEventListener("pointerdown", onDown);
+    window.addEventListener("pointerup", onUp);
+
     // ---- loop ------------------------------------------------------------
     let raf = 0;
     let lastBeacon = 0;
+    let lastFrame = performance.now();
     const tmp = new THREE.Vector3();
     const camDir = new THREE.Vector3();
 
     const tick = () => {
       raf = requestAnimationFrame(tick);
       const now = performance.now();
+      const frames = Math.min(600, (now - lastFrame) / (1000 / 60));
+      lastFrame = now;
 
       // Orbit the camera round until the requested coordinate faces it. The
       // globe itself never rotates, so dot positions stay in world space.
@@ -378,7 +421,23 @@ export function Globe({ dots, places, onDotClick, focus, arcs, beacon, className
       }
       if (f && !released) {
         controls.autoRotate = false;
-        cam.position.copy(focusStep(cam.position, f.lat, f.lon));
+        // Eased per unit of time, not per frame. Per frame, a projector laptop
+        // drawing at 20fps took three times as long to arrive, and a tab that
+        // had been in the background resumed mid-turn, facing the wrong city;
+        // now a long gap simply lands on the target.
+        cam.position.copy(focusStep(cam.position, f.lat, f.lon, 1 - Math.pow(1 - 0.06, frames)));
+      }
+
+      const d = distanceTarget.current;
+      if (d !== zoomedFor) {
+        zoomedFor = d;
+        zoomTo = d === undefined ? null : Math.min(controls.maxDistance, Math.max(controls.minDistance, d));
+      }
+      if (zoomTo !== null) {
+        const len = cam.position.length();
+        const next = len + (zoomTo - len) * (1 - Math.pow(1 - 0.08, frames));
+        cam.position.setLength(next);
+        if (Math.abs(zoomTo - next) < 0.005) zoomTo = null;
       }
 
       controls.update();
@@ -394,10 +453,15 @@ export function Globe({ dots, places, onDotClick, focus, arcs, beacon, className
         // Pulse in brightness, not size — a pulsing radius made dots collide
         // with their neighbours on every beat.
         mesh.scale.setScalar(base);
+        const mat = mesh.material as THREE.MeshBasicMaterial;
         if (d.active) {
-          const mat = mesh.material as THREE.MeshBasicMaterial;
           mat.opacity = 0.45 + Math.sin(t * 5 + mesh.id) * 0.3;
           mat.transparent = true;
+        } else if (mat.transparent) {
+          // Back to solid once it stops thinking. Left alone, every dot kept
+          // whatever opacity its last pulse happened to reach.
+          mat.opacity = 1;
+          mat.transparent = false;
         }
       }
 
@@ -493,9 +557,14 @@ export function Globe({ dots, places, onDotClick, focus, arcs, beacon, className
         });
       }
 
+      // The people are posed first, so the labels can keep off them.
+      people.update(now, cam, rect.width, rect.height, frames);
+
       // Active place first, then the heavier ones, then whatever faces us most
-      // squarely. A label that loses the contest is hidden, not moved — moving
-      // it detaches the name from the city it belongs to.
+      // squarely. A label that loses the contest is hidden, never slid
+      // sideways — that detaches the name from its city. It may rise straight
+      // up over its own city's crowd, or drop just below it, because a city's
+      // name is exactly where its people stand.
       candidates.sort(
         (a, b) =>
           Number(b.place.active ?? false) - Number(a.place.active ?? false) ||
@@ -503,31 +572,48 @@ export function Globe({ dots, places, onDotClick, focus, arcs, beacon, className
           a.depth - b.depth
       );
 
-      const taken: { x: number; y: number; w: number; h: number }[] = [];
+      // Everyone standing on the globe is an obstacle a label may not cover.
+      const taken: { x: number; y: number; w: number; h: number }[] = people
+        .occupied()
+        .map((b) => ({ x: b.x0, y: b.y0, w: b.x1 - b.x0, h: b.y1 - b.y0 }));
+
       for (const c of candidates) {
         // Measured, not estimated. A character-count guess was ~15% under the
         // real width once letter-spacing and the plate padding were counted,
         // which let London and Paris print on top of each other.
         const w = c.mark.el.offsetWidth || c.place.name.length * 7 + 16;
         const h = c.mark.el.offsetHeight || 18;
-        const box = { x: c.x - w / 2, y: c.y - 30, w, h };
 
-        const clash = taken.some(
-          (t) =>
-            box.x < t.x + t.w + 6 &&
-            box.x + box.w + 6 > t.x &&
-            box.y < t.y + t.h + 4 &&
-            box.y + box.h + 4 > t.y
-        );
+        let lift: number | null = null;
+        for (const dy of LABEL_LIFTS) {
+          const box = { x: c.x - w / 2, y: c.y + dy, w, h };
+          // Only wholly on screen — a label pushed up over its crowd must
+          // not rise out of the top of the canvas.
+          if (box.x < 0 || box.y < 0 || box.x + w > rect.width || box.y + h > rect.height) continue;
+          const clash = taken.some(
+            (t) =>
+              box.x < t.x + t.w + 6 &&
+              box.x + box.w + 6 > t.x &&
+              box.y < t.y + t.h + 4 &&
+              box.y + box.h + 4 > t.y
+          );
+          if (clash) continue;
+          taken.push(box);
+          lift = dy;
+          break;
+        }
 
-        c.mark.el.style.opacity = clash ? "0" : "1";
-        if (clash) continue;
-
-        taken.push(box);
-        c.mark.el.style.transform = `translate(-50%, 0) translate(${c.x}px, ${c.y - 30}px)`;
+        c.mark.el.style.opacity = lift === null ? "0" : "1";
+        if (lift === null) continue;
+        c.mark.el.style.transform = `translate(-50%, 0) translate(${c.x}px, ${c.y + lift}px)`;
       }
 
+      renderer.clear();
       renderer.render(sc, cam);
+      // The people stand over the globe, never in it: with the depth cleared,
+      // the planet cannot cut into a figure on its rim.
+      renderer.clearDepth();
+      renderer.render(people.scene, cam);
     };
     tick();
 
@@ -554,6 +640,12 @@ export function Globe({ dots, places, onDotClick, focus, arcs, beacon, className
       cancelAnimationFrame(raf);
       ro.disconnect();
       renderer.domElement.removeEventListener("click", onClick);
+      renderer.domElement.removeEventListener("pointermove", onMove);
+      renderer.domElement.removeEventListener("pointerdown", onDown);
+      window.removeEventListener("pointerup", onUp);
+      people.dispose();
+      figures.current = null;
+      if (debug.__globeFigures) delete debug.__globeFigures;
       controls.dispose();
       ringGeometry.dispose();
       sprite.dispose();
@@ -577,16 +669,52 @@ export function Globe({ dots, places, onDotClick, focus, arcs, beacon, className
     const layer = overlay.current;
     if (!group || !layer) return;
 
-    const seen = new Set(dots.map((d) => d.id));
+    // People become figures; places stay dots.
+    figures.current?.sync(
+      dots
+        .filter((d) => d.figure)
+        .map(
+          (d): FigureSpec => ({
+            id: d.id,
+            kind: d.figure!,
+            lat: d.lat,
+            lon: d.lon,
+            color: shirtColor(d.stance),
+            weight: d.weight ?? 0.4,
+            active: Boolean(d.active),
+            scale: d.figureScale,
+          })
+        ),
+      performance.now()
+    );
+
+    for (const d of dots) {
+      if (!d.figure) continue;
+      // Someone just answered: a ripple in their colour at their feet.
+      const before = seenStance.current.get(d.id);
+      if (before === undefined && d.stance !== undefined) {
+        spawnRipple.current(
+          latLonToVector3(d.lat, d.lon, RADIUS * 1.015),
+          new THREE.Color(stanceColor(d.stance))
+        );
+      }
+      seenStance.current.set(d.id, d.stance);
+    }
+
+    const seen = new Set(dots.filter((d) => !d.figure).map((d) => d.id));
 
     for (const [id, mesh] of dotMeshes.current) {
       if (seen.has(id)) continue;
       group.remove(mesh);
       dotMeshes.current.delete(id);
-      seenStance.current.delete(id);
+    }
+    const alive = new Set(dots.map((d) => d.id));
+    for (const id of seenStance.current.keys()) {
+      if (!alive.has(id)) seenStance.current.delete(id);
     }
 
     for (const d of dots) {
+      if (d.figure) continue;
       const color = new THREE.Color(stanceColor(d.stance));
       let mesh = dotMeshes.current.get(d.id);
 
@@ -595,12 +723,17 @@ export function Globe({ dots, places, onDotClick, focus, arcs, beacon, className
           new THREE.SphereGeometry(1, 12, 12),
           new THREE.MeshBasicMaterial({ color })
         );
-        mesh.position.copy(latLonToVector3(d.lat, d.lon, RADIUS * 1.015));
         group.add(mesh);
         dotMeshes.current.set(d.id, mesh);
       } else {
         (mesh.material as THREE.MeshBasicMaterial).color = color;
       }
+      // Every time, not only on creation. The committee's seats keep their ids
+      // when the firm changes — and the first render always has the default
+      // firm, because the persisted one arrives after hydration — so placing
+      // them once left the committee sitting in San Francisco while the camera
+      // and the header had moved to the real HQ.
+      mesh.position.copy(latLonToVector3(d.lat, d.lon, RADIUS * 1.015));
 
       // Someone just answered: a ripple in their colour.
       const before = seenStance.current.get(d.id);
@@ -610,6 +743,14 @@ export function Globe({ dots, places, onDotClick, focus, arcs, beacon, className
       seenStance.current.set(d.id, d.stance);
     }
   }, [dots]);
+
+  // ---- the person being talked to waves hello ------------------------------
+  useEffect(() => {
+    const people = figures.current;
+    if (!people) return;
+    people.setSelected(selected ?? null);
+    if (selected) people.wave(selected, performance.now());
+  }, [selected]);
 
   // ---- place labels, on change -------------------------------------------
   useEffect(() => {

@@ -1,7 +1,7 @@
 "use client";
 
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { createJSONStorage, persist } from "zustand/middleware";
 import type { AgentVerdict, VentureFile } from "@/lib/types";
 import type { CrowdVerdict } from "@/lib/discovery/types";
 import type { CrowdSignals } from "@/lib/discovery/signals";
@@ -41,6 +41,30 @@ export function newVentureFile(solution: string): VentureFile {
     hubFindings: {},
     pitchTranscript: [],
     objections: [],
+  };
+}
+
+const KEY = "vision.session";
+/** Where this store lived before the rename. */
+const LEGACY_KEY = "atlas.ventureFile";
+
+/**
+ * Reads fall back to the pre-rename key, so a session started before the
+ * rename is picked up rather than lost; the first write retires the old key.
+ *
+ * zustand's `migrate` cannot do this on its own — it only ever sees data
+ * stored under the current name — which is why the rename quietly dropped
+ * every earlier session while the comment below said it kept them.
+ */
+export function withLegacyFallback(store: Pick<Storage, "getItem" | "setItem" | "removeItem">) {
+  return {
+    getItem: (name: string) =>
+      store.getItem(name) ?? (name === KEY ? store.getItem(LEGACY_KEY) : null),
+    setItem: (name: string, value: string) => {
+      store.setItem(name, value);
+      if (name === KEY) store.removeItem(LEGACY_KEY);
+    },
+    removeItem: (name: string) => store.removeItem(name),
   };
 }
 
@@ -91,10 +115,11 @@ export const useVenture = create<State>()(
       reset: () => set({ ventureFile: null, deliberation: null, crowd: null }),
     }),
     {
-      name: "vision.session",
+      name: KEY,
       version: 1,
-      // Renamed from atlas.ventureFile. Anyone mid-run when this shipped keeps
-      // their work rather than silently losing it.
+      // Renamed from atlas.ventureFile, which was unversioned (0). The storage
+      // hands its data over under the new name, and this accepts it as is.
+      storage: createJSONStorage(() => withLegacyFallback(localStorage)),
       migrate: (state) => state as State,
     }
   )

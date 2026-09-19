@@ -240,6 +240,19 @@ body {
 .narrate {
   animation: narrate 480ms ease-out both;
 }
+/* A hello from the call card's figure: the right arm swings up from the
+   shoulder, waves three times, and comes back down. */
+@keyframes figure-wave {
+  0% { transform: rotate(-12deg); }
+  16% { transform: rotate(-150deg); }
+  28% { transform: rotate(-122deg); }
+  40% { transform: rotate(-160deg); }
+  52% { transform: rotate(-122deg); }
+  64% { transform: rotate(-160deg); }
+  78% { transform: rotate(-140deg); }
+  100% { transform: rotate(-12deg); }
+}
+
 @keyframes narrate {
   from { opacity: 0; filter: blur(6px); transform: translateY(4px); }
   to { opacity: 1; filter: blur(0); transform: translateY(0); }

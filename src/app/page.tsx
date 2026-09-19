@@ -26,10 +26,13 @@ import { Door, DOOR_MS, armDoor } from "@/components/Door";
 import { useVenture } from "@/lib/store";
 import { diffSessions, summariseCrowd, useSessions, type SessionDelta } from "@/lib/sessions";
 import { streamPost } from "@/lib/sse";
+import { aggregate } from "@/lib/discovery/aggregate";
+import { SpeechQueue } from "@/lib/voice/agentVoices";
+import { detectTier, speak, unlockAudio, type VoiceTier } from "@/lib/voice/client";
 import { hubById } from "@/data/globePoints";
 import { FIRMS } from "@/data/firms";
 import type { AgentVerdict, PVSBreakdown, ProblemStatement } from "@/lib/types";
-import type { Attention, CrowdReaction, CrowdVerdict } from "@/lib/discovery/types";
+import type { Attention, CrowdReaction, CrowdVerdict, FigureKind } from "@/lib/discovery/types";
 import type { CrowdSignals } from "@/lib/discovery/signals";
 
 // ============================================================================
@@ -46,6 +49,7 @@ import type { CrowdSignals } from "@/lib/discovery/signals";
 type DeployedPersona = {
   id: number;
   name: string;
+  figure: FigureKind;
   title: string;
   hubId: string;
   lat: number;
@@ -117,6 +121,13 @@ const PACE = {
   batch: 1300, // between groups of answers
   round: 1400, // the narrator explains a council round before it starts
 };
+
+/** Nothing new from the stream for this long, while the screen is waiting on
+ *  it rather than on the founder, and the founder is offered a way on. Real
+ *  model calls can take a while; this only offers, it never decides. */
+const STALL_MS = 25_000;
+const STALL_LINE =
+  "Nothing new has come back for a while. The model may just be slow — or stuck. Keep waiting, or carry on with what has arrived.";
 
 /** Roughly how long a line takes to read, clamped so the room never stalls. */
 function readingTime(text: string): number {
@@ -200,6 +211,13 @@ export default function Discover() {
   const [councilRound, setCouncilRound] = useState(0);
   const [pvs, setPvs] = useState<PVSBreakdown | null>(null);
 
+  // ---- hearing the council. Off by default, like the committee's: a page
+  // that starts talking on its own is hostile.
+  const [hear, setHear] = useState(false);
+  const [tier, setTier] = useState<VoiceTier | null>(null);
+  const [voiced, setVoiced] = useState<string | null>(null);
+  const speech = useRef<SpeechQueue | null>(null);
+
   // ---- what has arrived but not been shown yet. Refs, not state: the stream
   // writes here as fast as it likes, and nothing re-renders until playback
   // decides it is time.
@@ -219,6 +237,15 @@ export default function Discover() {
   const nextAt = useRef(0);
   /** Skip: finish the current segment quickly. */
   const skipping = useRef(false);
+  /** When the screen last moved, and whether it has sat waiting on the stream
+   *  long enough to offer the founder a way past it. */
+  const idleSince = useRef(0);
+  const stalledRef = useRef(false);
+  /** The stream has closed. One that closed without its last event is not
+   *  coming back, so there is no point making the founder wait it out. */
+  const runEnded = useRef(false);
+  const councilEnded = useRef(false);
+  const [stalled, setStalled] = useState(false);
   /** A rewrite run already knows its problems and crowd, so it walks itself
    *  through those segments and slows down for the answers. */
   const auto = useRef(false);
@@ -237,6 +264,30 @@ export default function Discover() {
     setFeed((f) => f.filter((i) => i.id !== id));
   }, []);
 
+  useEffect(() => {
+    void detectTier().then(setTier);
+    return () => speech.current?.stop();
+  }, []);
+
+  const toggleHear = () => {
+    // Inside the click, because browsers silently refuse audio that no
+    // gesture started.
+    unlockAudio();
+    if (hear) {
+      speech.current?.stop();
+      speech.current = null;
+      setVoiced(null);
+    } else {
+      speech.current = new SpeechQueue(
+        // Playback only needs synthesis, which browsers without speech
+        // recognition still have — the "text" tier is about the microphone.
+        (text, voice) => speak(text, voice, tier === "elevenlabs" ? "elevenlabs" : "browser"),
+        (_agentId, id) => setVoiced(id)
+      );
+    }
+    setHear(!hear);
+  };
+
   // ---------------------------------------------------------------- the run
   const run = useCallback((opts: RunOptions = {}) => {
     // Read the store directly: the intake writes the file and calls run() in
@@ -244,6 +295,10 @@ export default function Discover() {
     const vf = useVenture.getState().ventureFile;
     if (!vf) return;
 
+    speech.current?.clear();
+    stalledRef.current = false;
+    setStalled(false);
+    runEnded.current = false;
     const token = ++runToken.current;
     const sessionId = useSessions.getState().begin(vf.solution, opts.parentId);
     sessionRef.current = sessionId;
@@ -331,7 +386,9 @@ export default function Discover() {
             break;
         }
       }
-    ).catch(fail);
+    ).then(() => {
+      if (token === runToken.current) runEnded.current = true;
+    }, fail);
   }, []);
 
   // ---------------------------------------------------------------- playback
@@ -366,6 +423,24 @@ export default function Discover() {
       );
     };
 
+    // Progress is anything new on screen. Waiting on the founder is not a
+    // stall; waiting on the stream is, once it has gone on long enough.
+    idleSince.current = performance.now();
+    const moved = () => {
+      idleSince.current = performance.now();
+      if (stalledRef.current) {
+        stalledRef.current = false;
+        setStalled(false);
+      }
+    };
+    const starved = (now: number) => {
+      const ended = segment === "council" ? councilEnded.current : runEnded.current;
+      if (!stalledRef.current && (ended || now - idleSince.current > STALL_MS)) {
+        stalledRef.current = true;
+        setStalled(true);
+      }
+    };
+
     const tick = () => {
       const now = performance.now();
       if (now < nextAt.current) return;
@@ -376,8 +451,11 @@ export default function Discover() {
         if (problemsShown.current < all.length) {
           problemsShown.current += 1;
           setProblems(all.slice(0, problemsShown.current));
+          moved();
           nextAt.current = now + (quick || auto.current ? 150 : PACE.problem);
-        } else if (all.length > 0 && auto.current) {
+        } else if (all.length === 0) {
+          starved(now);
+        } else if (auto.current) {
           nextAt.current = now + 400;
           setSegment("deploy");
         }
@@ -387,7 +465,8 @@ export default function Discover() {
       if (segment === "deploy") {
         if (personasRef.current.length === 0) {
           const crowd = bufPersonas.current;
-          if (crowd.length === 0) return;
+          if (crowd.length === 0) return starved(now);
+          moved();
           personasRef.current = crowd;
           setPersonas(crowd);
           setProgress({ done: 0, total: crowd.length });
@@ -406,19 +485,31 @@ export default function Discover() {
         if (batchesShown.current < batches.length) {
           showBatch(batches[batchesShown.current]);
           batchesShown.current += 1;
+          moved();
           nextAt.current = now + (quick ? 90 : PACE.batch);
         } else if (bufVerdict.current) {
           skipping.current = false;
           setFeed([]);
           setSegment("heard");
+        } else {
+          starved(now);
         }
         return;
       }
 
       // ---- the council, one event at a time
       const queue = councilQueue.current;
-      if (councilShown.current >= queue.length) return;
+      if (councilShown.current >= queue.length) return starved(now);
       const ev = queue[councilShown.current];
+
+      // Heard, not only read: the next line (and the council's end) waits
+      // until the last line has been said, so the voices and the transcript
+      // never drift apart the way the committee's used to. A line being
+      // spoken is progress, not a stall.
+      if ((ev.type === "message" || ev.type === "done") && !quick && speech.current?.busy) {
+        moved();
+        return;
+      }
 
       const round =
         ev.type === "message"
@@ -442,6 +533,7 @@ export default function Discover() {
       }
 
       councilShown.current += 1;
+      moved();
       switch (ev.type) {
         case "start":
           setCouncilRoster(ev.roster as CouncilSeat[]);
@@ -450,6 +542,7 @@ export default function Discover() {
         case "message": {
           const m = ev.message as CouncilMsg;
           setCouncilLog((l) => [...l, m]);
+          if (!quick) speech.current?.push(m.id, m.from, m.text);
           nextAt.current = now + (quick ? 90 : readingTime(m.text));
           break;
         }
@@ -480,6 +573,7 @@ export default function Discover() {
   const skip = () => {
     skipping.current = true;
     nextAt.current = 0;
+    speech.current?.clear();
   };
 
   /** Everyone has answered: put the market's answer on screen. */
@@ -509,6 +603,7 @@ export default function Discover() {
       const token = ++councilToken.current;
       const sessionId = sessionRef.current;
       const fit = hubRanking.find((h) => h.hubId === hubId)?.fitScore ?? 0;
+      speech.current?.clear();
 
       councilQueue.current = [];
       councilShown.current = 0;
@@ -518,6 +613,9 @@ export default function Discover() {
       skipping.current = false;
       nextAt.current = 0;
 
+      stalledRef.current = false;
+      setStalled(false);
+      councilEnded.current = false;
       setCouncilHub(hubId);
       setCouncilLog([]); setCouncilStances({}); setCouncilRoster([]); setCouncilRound(0);
       setPvs(null);
@@ -534,9 +632,13 @@ export default function Discover() {
             sessionId
           );
         }
-      }).catch(() => {
-        if (token === councilToken.current) councilQueue.current.push({ type: "error" });
-      });
+      })
+        .then(() => {
+          if (token === councilToken.current) councilEnded.current = true;
+        })
+        .catch(() => {
+          if (token === councilToken.current) councilQueue.current.push({ type: "error" });
+        });
     },
     [problems, verdict, hubRanking]
   );
@@ -613,8 +715,7 @@ export default function Discover() {
   }, [problems, verdict, walkedInWith]);
 
   /** Part 1 closes the doors; Part 2 opens them. */
-  const enterCommittee = useCallback(() => {
-    acceptMarketProblem();
+  const walkThroughDoor = useCallback(() => {
     setFinding(false);
     setDoor("open");
     setTimeout(() => setDoor("closed"), 40);
@@ -622,7 +723,84 @@ export default function Discover() {
       armDoor();
       router.push("/committee");
     }, 40 + DOOR_MS + 200);
-  }, [acceptMarketProblem, router]);
+  }, [router]);
+
+  const enterCommittee = useCallback(() => {
+    acceptMarketProblem();
+    walkThroughDoor();
+  }, [acceptMarketProblem, walkThroughDoor]);
+
+  /**
+   * Straight to Part 2 with whatever Part 1 has established — for a stream that
+   * never came back, or a market that has none of the candidate problems. The
+   * committee already treats a missing validation as a finding rather than
+   * refusing to sit, so nothing is invented to get there.
+   */
+  const forceCommittee = useCallback(() => {
+    const vf = useVenture.getState().ventureFile;
+    if (!vf) return;
+    // Late events from either stream land on nothing.
+    runToken.current++;
+    councilToken.current++;
+    speech.current?.clear();
+
+    if (verdict?.marketProblemId) {
+      acceptMarketProblem();
+    } else {
+      replaceVenture({
+        ...vf,
+        version: vf.version + 1,
+        extractedProblems: problems.length > 0 ? problems : vf.extractedProblems,
+        // Cleared rather than kept: a problem chosen in an earlier run was not
+        // validated by this one.
+        chosenProblem: undefined,
+        pvs: undefined,
+      });
+    }
+    walkThroughDoor();
+  }, [verdict, acceptMarketProblem, replaceVenture, problems, walkThroughDoor]);
+
+  /** Past a stream that has stopped arriving, keeping everything that came. */
+  const moveOn = () => {
+    stalledRef.current = false;
+    setStalled(false);
+    speech.current?.clear();
+
+    if (segment === "listen" && bufBatches.current.length > 0) {
+      // Grade the people who did answer. The remainder, if it ever arrives,
+      // is dropped with the run token.
+      runToken.current++;
+      const answered = bufBatches.current.flatMap((b) => b.batch);
+      const v = aggregate(answered, bufProblems.current);
+      bufVerdict.current = v;
+      bufSignals.current = null;
+      if (sessionRef.current) {
+        const ranking = rankFromCrowd(v, personasRef.current);
+        useSessions.getState().record(
+          {
+            ...summariseCrowd(v, null, bufProblems.current, answered.length),
+            topHub: ranking[0] ? { hubId: ranking[0].hubId, fitScore: ranking[0].fitScore } : undefined,
+          },
+          sessionRef.current
+        );
+      }
+      setFeed([]);
+      revealResult();
+      return;
+    }
+
+    if (segment === "council") {
+      // Close the council on what it has said. Without a score it goes to the
+      // committee unscored, which the committee is told.
+      councilToken.current++;
+      skipping.current = false;
+      setSegment("deliberated");
+      return;
+    }
+
+    // Nothing usable arrived at all.
+    forceCommittee();
+  };
 
   // Newest stage sits at the top of the sidebar, so the next thing to do is
   // always on screen. Scroll up when a new one arrives.
@@ -655,6 +833,7 @@ export default function Discover() {
       stance: r ? r.sentiment * 2 - 1 : undefined,
       weight: r?.attention === "full" ? 0.8 : r?.attention === "partial" ? 0.45 : 0.2,
       active: listening && !r,
+      figure: p.figure,
     };
   });
 
@@ -742,7 +921,7 @@ export default function Discover() {
           ? {
               step: 3,
               title: "Deploy",
-              line: `${personas.length} people in ${cities} cities who work in this space — many of them can sign for it. Click any dot to see why they were picked.`,
+              line: `${personas.length} people in ${cities} cities who work in this space — many of them can sign for it. Click anyone to talk to them and see why they were picked.`,
             }
           : {
               step: 3,
@@ -788,7 +967,11 @@ export default function Discover() {
                 ? `Validation ${pvs.total}/100 — it clears the bar. An investment committee is waiting to test it.`
                 : `Validation ${pvs.total}/100 — below the bar of ${pvs.threshold}. You can pitch anyway; the committee will be told.`,
             }
-          : { step: 7, title: "Validation", line: "" };
+          : {
+              step: 7,
+              title: "Validation",
+              line: "The council ended early, so there is no validation score this time. You can still take it to the committee — it will be told the problem is unscored.",
+            };
       case "result":
         if (!verdict?.marketProblemId) {
           return {
@@ -801,7 +984,9 @@ export default function Discover() {
           ? {
               step: 5,
               title: "The reveal",
-              line: `You pitched ${verdict.pitchedProblemId}. The market has ${verdict.marketProblemId} — and ${Math.round((marketVote?.payRate ?? 0) * 100)}% of them would pay to fix it. Next: is it worth solving, and where?`,
+              // In words. "You pitched p1. The market has p2" read out schema
+              // ids to an audience that has never seen the schema.
+              line: `The market has a different problem from the one you pitched — and ${Math.round((marketVote?.payRate ?? 0) * 100)}% of the people who have it would pay to fix it. Next: is it worth solving, and where?`,
             }
           : {
               step: 5,
@@ -857,6 +1042,15 @@ export default function Discover() {
     score: "See the validation score →",
     committee: "Take it to the committee →",
   };
+
+  // Offered, never forced: a slow model looks exactly like a stuck one.
+  const stuck = stalled && PLAYING.includes(segment);
+  const moveOnLabel =
+    segment === "listen" && progress.done > 0
+      ? `Grade the ${progress.done} who answered ▸`
+      : segment === "council"
+        ? "End the council here ▸"
+        : "Skip to the committee ▸";
 
   const nextDisabled =
     next === "splitting" ||
@@ -971,13 +1165,24 @@ export default function Discover() {
             dots={dots}
             places={places}
             onDotClick={(id) => setFocus(Number(id.slice(1)))}
-            // Face Hack the North while the idea is split and sent out, so the
-            // arcs fan out towards the audience; then the council's city.
+            // Whoever you are talking to waves hello, from the globe or the list.
+            selected={focus ? `p${focus}` : null}
+            // Hack the North in view while the idea is split and sent out, then
+            // the council's city. Not dead centre: every great circle through
+            // the point under the camera projects as a straight line, so from
+            // directly above Waterloo the arcs fanned out as a starburst of
+            // rays. From due south they read as the arcs they are, and
+            // Waterloo sits top centre, clear of the panels either side.
             focus={
-              councilPoint
+              // Whoever you are talking to is turned into the upper half of
+              // the globe: the call card opens over the lower half, and a
+              // hello nobody can see is no hello.
+              focused
+                ? { lat: Math.max(-70, focused.lat - 18), lon: focused.lon }
+                : councilPoint
                 ? { lat: councilPoint.lat, lon: councilPoint.lon }
                 : segment === "split" || segment === "deploy"
-                  ? { lat: HOME.lat, lon: HOME.lon }
+                  ? { lat: HOME.lat - 28, lon: HOME.lon }
                   : null
             }
             beacon={councilPoint ? { lat: councilPoint.lat, lon: councilPoint.lon } : null}
@@ -989,7 +1194,12 @@ export default function Discover() {
           {/* Sits on the action it explains: what is happening, then the button. */}
           {!intakeOpen && !focused && (
             <div className="absolute bottom-[76px] left-1/2 z-30 w-[520px] max-w-[calc(100%-48px)] -translate-x-1/2">
-              <Narrator step={guide.step} total={TOTAL_STEPS} title={guide.title} line={guide.line} />
+              <Narrator
+                step={guide.step}
+                total={TOTAL_STEPS}
+                title={guide.title}
+                line={stuck ? STALL_LINE : guide.line}
+              />
             </div>
           )}
 
@@ -1154,6 +1364,43 @@ export default function Discover() {
                 </button>
               )}
 
+              {stuck && (
+                <button
+                  onClick={moveOn}
+                  title="Nothing new has arrived for a while. Carry on with what did."
+                  className="px-3 py-2 font-mono text-[11px] uppercase tracking-[0.14em] transition hover:brightness-125"
+                  style={{ color: "var(--caution)" }}
+                >
+                  {moveOnLabel}
+                </button>
+              )}
+
+              {/* Nobody in the crowd had any of the problems. Run again is the
+                  honest next step, but not the only one on stage. */}
+              {segment === "result" && verdict && !verdict.marketProblemId && (
+                <button
+                  onClick={forceCommittee}
+                  className="px-3 py-2 font-mono text-[11px] uppercase tracking-[0.14em] text-muted transition hover:text-ink"
+                >
+                  Take it to the committee anyway →
+                </button>
+              )}
+
+              {/* Offered from the reveal on, so it can be switched on before
+                  the council convenes rather than halfway through it. */}
+              {marketProblem &&
+                (segment === "result" || segment === "council" || segment === "deliberated") && (
+                  <button
+                    onClick={toggleHear}
+                    title={hear ? "The council is speaking aloud" : "Hear the council argue out loud"}
+                    className={`px-3 py-2 font-mono text-[11px] uppercase tracking-[0.14em] transition ${
+                      hear ? "text-accent" : "text-faint hover:text-ink"
+                    }`}
+                  >
+                    {hear ? "🔊 hearing them" : "🔈 hear them"}
+                  </button>
+                )}
+
               {segment === "result" && verdict?.mismatch && !councilHub && (
                 <button
                   onClick={() => void startRefine()}
@@ -1245,6 +1492,7 @@ export default function Discover() {
                   stances={councilStances}
                   messages={councilLog}
                   conceded={conceded}
+                  voiced={hear ? voiced : undefined}
                 />
               </div>
             </div>

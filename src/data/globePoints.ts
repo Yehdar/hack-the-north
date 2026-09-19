@@ -1,4 +1,5 @@
 import type { SeatId } from "@/lib/types";
+import type { FigureKind } from "@/lib/discovery/types";
 import hubs from "./hubs.json";
 
 // Hub coordinates come from the shared hubs.json that the persona generator
@@ -40,38 +41,40 @@ export function hubById(id: string): GlobePoint | undefined {
 
 type SeatKey = SeatId | "devils-advocate";
 
-const SEATS: { id: SeatKey; label: string }[] = [
-  { id: "gp", label: "General Partner" },
-  { id: "principal", label: "Principal" },
-  { id: "skeptic", label: "Skeptic" },
-  { id: "devils-advocate", label: "Devil's Advocate" },
+/** Each partner's figure matches the voice they already speak in. */
+const SEATS: { id: SeatKey; label: string; figure: FigureKind }[] = [
+  { id: "gp", label: "Lead Partner", figure: "boy" },
+  { id: "principal", label: "Principal", figure: "girl" },
+  { id: "skeptic", label: "Skeptical Partner", figure: "boy" },
+  { id: "devils-advocate", label: "Devil's Advocate", figure: "girl" },
 ];
 
+/** Degrees between neighbouring partners: wide enough that four figures stand
+ *  side by side without touching, at every distance the camera allows. */
+const SEAT_SPACING = 2.8;
+
 /**
- * The committee sits round a table at the firm's HQ: four seats on a small
- * ring about the city, wide enough that each dot stays individually clickable
- * instead of merging into one. Longitude is stretched by latitude so the ring
- * stays round in Stockholm as well as in Lagos.
+ * The committee stands in a row at the firm's HQ, facing you — a panel, which
+ * is what an investment committee is. They used to sit on a small ring as
+ * dots; as figures, a ring stacked heads on feet. Longitude is stretched by
+ * latitude so the row keeps its spacing in Stockholm as well as in Lagos.
  */
-export function seatPointsAt(hubId: string): Record<SeatKey, GlobePoint> {
+export function seatPointsAt(hubId: string): Record<SeatKey, GlobePoint & { figure: FigureKind }> {
   const hub = hubById(hubId) ?? hubById("sf")!;
-  const ring = 1.6;
   const stretch = 1 / Math.max(0.35, Math.cos((hub.lat * Math.PI) / 180));
 
   return Object.fromEntries(
-    SEATS.map((s, i) => {
-      const a = (i / SEATS.length) * Math.PI * 2 + Math.PI / 4;
-      return [
-        s.id,
-        {
-          id: s.id,
-          label: s.label,
-          lat: hub.lat + Math.sin(a) * ring,
-          lon: hub.lon + Math.cos(a) * ring * stretch,
-        },
-      ];
-    })
-  ) as Record<SeatKey, GlobePoint>;
+    SEATS.map((s, i) => [
+      s.id,
+      {
+        id: s.id,
+        label: s.label,
+        figure: s.figure,
+        lat: hub.lat,
+        lon: hub.lon + (i - (SEATS.length - 1) / 2) * SEAT_SPACING * stretch,
+      },
+    ])
+  ) as Record<SeatKey, GlobePoint & { figure: FigureKind }>;
 }
 
 export const SEAT_POINTS = seatPointsAt("sf");

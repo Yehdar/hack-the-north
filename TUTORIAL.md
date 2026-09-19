@@ -60,8 +60,10 @@ other 30% are deliberately drawn from people who scored *lower*, so the room
 contains sceptics and people with no buying power. Without that slice the
 result is a fan club, which is a pleasant and useless thing to show a founder.
 
-**Click any dot.** You get that person, their attributes, what they said, and
-*why they were selected*. Retrieval you cannot interrogate is retrieval you
+**Click anyone on the globe.** Every person is a small figure — a girl or a
+boy, shirt in the colour of their answer — and the one you click waves hello
+and turns to face you. You get that person, their attributes, what they said,
+and *why they were selected*. Retrieval you cannot interrogate is retrieval you
 have no reason to trust.
 
 Each person carries seven traits scored 1–10:

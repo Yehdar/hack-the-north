@@ -68,6 +68,15 @@ describe("globe focus", () => {
     expect(camera.length()).toBeCloseTo(START.length(), 6);
   });
 
+  it("lands in one step when a long gap between frames makes the ease 1", () => {
+    // The Globe eases per unit of time, so a tab resuming from the background
+    // gets an ease of ~1 and must arrive on its first frame, not mid-turn.
+    const drifted = START.clone().applyAxisAngle(new Vector3(0, 1, 0), 2.1);
+    const toronto = latLonToVector3(43.65, -79.38, 1);
+    const camera = focusStep(drifted, 43.65, -79.38, 1);
+    expect(camera.clone().normalize().dot(toronto.normalize())).toBeGreaterThan(0.99999);
+  });
+
   it("takes the short way round", () => {
     // Tokyo from a camera sitting just past it: the first step must move
     // toward it by a small angle, not unwind most of a full turn.

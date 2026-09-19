@@ -15,7 +15,7 @@ export type PartTwoStep = (typeof STEPS)[number]["href"];
 
 export function PartTwoNav({ current }: { current: PartTwoStep }) {
   return (
-    <nav className="panel flex items-center gap-0.5 px-1.5 py-1 font-mono text-[10px] uppercase tracking-[0.14em]">
+    <nav className="panel flex items-center gap-0.5 whitespace-nowrap px-1.5 py-1 font-mono text-[10px] uppercase tracking-[0.14em]">
       <Link href="/" className="px-2 py-1 text-faint transition hover:text-ink">
         ← Part one
       </Link>

@@ -84,6 +84,7 @@ export async function POST(req: Request) {
           personas: hits.map((h) => ({
             id: h.persona.id,
             name: h.persona.name,
+            figure: h.persona.figure,
             title: h.persona.title,
             hubId: h.persona.hubId,
             lat: h.persona.location.lat,

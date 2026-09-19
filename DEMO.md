@@ -48,8 +48,9 @@ ripples on the map; reactions stream top-right.
 > tolerate before they complain. A hundred and twenty are selected for this
 > idea, and every selection is explainable."
 
-Click one dot mid-run. Show the persona: their attributes, what they said, and
-**why they were selected**.
+Click one person on the globe mid-run — each is a small figure wearing their
+answer, and they wave hello. Show the persona: their attributes, what they
+said, and **why they were selected**.
 
 > "Retrieval you cannot interrogate is retrieval you have no reason to trust."
 

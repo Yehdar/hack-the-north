@@ -1,12 +1,19 @@
 import type { LLMProvider, LLMRequest } from "@/lib/llm";
+import { MARKETS, marketProblems, readPitch, type Market, type Pitch } from "@/lib/providers/pitch";
 
 // ============================================================================
 // DEMO PROVIDER — realistic, differentiated, deterministic, and free.
 //
 // The plain mock returns "[mock]" for every field, which is fine for asserting
-// shapes and useless for looking at. This one returns content written in each
-// seat's actual voice, so the app can be run, demoed and screenshotted with no
-// API key, no network, and no cost.
+// shapes and useless for looking at. This one reads the founder's pitch — what
+// it is, who it is for, which market — and writes every line from that, in the
+// way people actually talk in a partner meeting, so the app can be run and
+// demoed with no API key, no network, and no cost.
+//
+// It used to be one script written for one dev-tools pitch, and every idea got
+// that argument: pitch a feeder for cats and the committee debated "coverage
+// dashboards". It still cannot truly listen — only a model can — but it now
+// argues about the idea on the table.
 //
 // It is also the stage insurance policy: if the venue wifi dies mid-demo,
 // LLM_PROVIDER=demo produces a full deliberation that looks like the real one.
@@ -19,9 +26,9 @@ type Seat =
 function whoAmI(system: string): Seat {
   // Investment committee
   if (system.includes("Devil's Advocate")) return "devil";
-  if (system.includes("Anti-Portfolio")) return "skeptic";
+  if (system.includes("Skeptical Partner") || system.includes("Anti-Portfolio")) return "skeptic";
   if (system.includes("Principal")) return "principal";
-  if (system.includes("General Partner")) return "gp";
+  if (system.includes("Lead Partner") || system.includes("General Partner")) return "gp";
   // Hub council
   if (system.includes("Contrarian")) return "contrarian";
   if (system.includes("Market Analyst")) return "market";
@@ -31,275 +38,6 @@ function whoAmI(system: string): Seat {
   if (system.includes("Capital & Talent")) return "capital";
   return "chair";
 }
-
-const VERDICTS: Record<string, Record<string, unknown>> = {
-  gp: {
-    stance: 0.45,
-    confidence: 0.6,
-    position:
-      "Risk attribution is a real wedge, but I am not yet convinced it is a company rather than a feature.",
-    reasoning:
-      "The reframing from test generation to risk ranking is the right move and it is defensible. What I cannot see yet is the path from a ranking tool to something that owns the reliability budget. Our thesis is that recurring revenue with real retention beats one-time capture, and ranking is the kind of thing a platform absorbs.",
-    evidence: ["firm.thesis[0]", "hub.sf.unserved"],
-    whatWouldChangeMyMind:
-      "Evidence that the ranking becomes a system of record teams plan against, not a report they read once.",
-  },
-  principal: {
-    stance: -0.15,
-    confidence: 0.85,
-    position:
-      "No pricing, no design partners, and the buyer they named does not control the budget they are counting on.",
-    reasoning:
-      "They claim reliability budget pays for this, but the stated buyer is a staff engineer, who influences that budget rather than holding it. That is a two-person sale being modelled as a one-person sale, which shows up later as a CAC payback problem rather than a positioning problem. Evidence strength of 41 is the weakest component of their own score and they did not address it.",
-    evidence: ["vf.pvs.evidenceStrength", "vf.chosenProblem.willingnessToPay"],
-    whatWouldChangeMyMind:
-      "Three paying design partners where the EM signed, not the staff engineer.",
-  },
-  skeptic: {
-    stance: -0.7,
-    confidence: 0.75,
-    position:
-      "This rhymes with the coverage dashboards we already have, and those got gamed into meaninglessness.",
-    reasoning:
-      "Every tool that scores code eventually becomes a number that teams optimise instead of a signal they act on. Coverage percentage went exactly this way. I passed on eBay because I could not see past stamps and coins, so I hold my pattern-matching loosely — but the failure mode here is not obscure, it is the same failure mode as the incumbent they are displacing.",
-    evidence: ["firm.antiPortfolio[3]", "hub.sf.incumbents[1]"],
-    whatWouldChangeMyMind:
-      "A mechanism that makes the ranking expensive to game, built in from the start rather than promised.",
-  },
-  devil: {
-    stance: 0.55,
-    confidence: 0.55,
-    position:
-      "The room is converging on 'feature, not company' because that is the comfortable call, and it is the same call that lost us Airbnb.",
-    reasoning:
-      "Two seats have independently reached for an incumbent analogy, which is the tell that we are pattern-matching rather than reasoning. The observation that platforms absorb rankings is true in general and says nothing about whether this specific team gets there first. Every category-defining company looked like a feature to somebody in this room.",
-    evidence: ["firm.antiPortfolio[5]"],
-    whatWouldChangeMyMind:
-      "A credible argument that the incumbent can ship this in a quarter.",
-  },
-  chair: { stance: 0, confidence: 0.5, position: "", reasoning: "", evidence: [], whatWouldChangeMyMind: "" },
-};
-
-const CHALLENGES: Record<string, { to: string; text: string }[]> = {
-  gp: [
-    {
-      to: "skeptic",
-      text: "You are arguing from the failure of coverage dashboards, but those failed because the metric was trivially gameable. Blast radius is not. Is your analogy doing real work or is it just available?",
-    },
-  ],
-  principal: [
-    {
-      to: "gp",
-      text: "You called it a real wedge. On what revenue? There is no pricing in this file and no design partner has paid anything. A wedge that nobody has bought is a hypothesis.",
-    },
-  ],
-  skeptic: [
-    {
-      to: "gp",
-      text: "You want it to become a system of record. Name the workflow it inserts itself into. If you cannot, 'system of record' is a wish rather than a plan.",
-    },
-  ],
-  devil: [],
-  chair: [],
-};
-
-const REBUTTALS: Record<string, Record<string, unknown>> = {
-  gp: {
-    response:
-      "Both fair. I was describing an outcome rather than a mechanism, and I do not have the workflow. I am moving down but not off — the reframing is still the most interesting thing in this file.",
-    conceded: true,
-    revisedStance: 0.15,
-    revisedConfidence: 0.65,
-  },
-  principal: {
-    response:
-      "Pricing absence is not a modelling quibble. I hold my position.",
-    conceded: false,
-    revisedStance: -0.15,
-    revisedConfidence: 0.88,
-  },
-  skeptic: {
-    response:
-      "The distinction between gameable and non-gameable metrics is real and I will grant it. But blast radius is computed from inputs the team controls, so it is gameable one level up. Position unchanged, confidence slightly lower.",
-    conceded: false,
-    revisedStance: -0.62,
-    revisedConfidence: 0.7,
-  },
-  devil: { response: "", conceded: false, revisedStance: 0.55, revisedConfidence: 0.55 },
-  chair: { response: "", conceded: false, revisedStance: 0, revisedConfidence: 0.5 },
-};
-
-const TASKS = {
-  tasks: [
-    { question: "Is the risk-attribution market large enough to return a fund?", assignedTo: "gp", why: "Market sizing is the GP's lane." },
-    { question: "Who holds the reliability budget, and has anyone paid yet?", assignedTo: "principal", why: "Unit economics and buyer identification." },
-    { question: "What has this pattern failed as before?", assignedTo: "skeptic", why: "Historical analogues." },
-    { question: "Can an incumbent ship this within two quarters?", assignedTo: "gp", why: "Competitive timing sits with the decision owner." },
-    { question: "What is the go-to-market motion for a two-person sale?", assignedTo: "principal", why: "GTM is the Principal's lane." },
-  ],
-};
-
-
-// --- live meeting ----------------------------------------------------------
-
-const MODERATOR_ROTATION: Seat[] = ["principal", "skeptic", "gp"];
-let turnCounter = 0;
-
-const SPOKEN: Record<string, { line: string; objectionText: string }[]> = {
-  gp: [
-    {
-      line: "Stop there. You keep describing what it does. Tell me why a team buys it this quarter rather than next year.",
-      objectionText: "No why-now established",
-    },
-    {
-      line: "If this works, what does it look like at a hundred million in revenue? I cannot see the shape of that from here.",
-      objectionText: "Cannot see the path to a fund-returning outcome",
-    },
-  ],
-  principal: [
-    {
-      line: "You said teams would pay. Who has? Name one company and what they paid.",
-      objectionText: "No paying customer named",
-    },
-    {
-      line: "The buyer you described does not control that budget. Who actually signs?",
-      objectionText: "Named buyer does not hold the budget",
-    },
-  ],
-  skeptic: [
-    {
-      line: "We have seen this shape before. Coverage dashboards promised the same thing and became a number teams gamed. What stops that here?",
-      objectionText: "Metric is gameable, like the incumbent it replaces",
-    },
-    {
-      line: "You answered a different question than the one you were asked. I will ask it again: what makes this hard to copy?",
-      objectionText: "Dodged the defensibility question",
-    },
-  ],
-  devil: [{ line: "", objectionText: "" }],
-  chair: [{ line: "", objectionText: "" }],
-};
-
-
-// --- hub council -----------------------------------------------------------
-
-const HUB_VERDICTS: Record<string, Record<string, unknown>> = {
-  market: {
-    stance: 0.35,
-    confidence: 0.7,
-    position:
-      "The incidence is real but narrow — this is a serious problem for a specific seniority band, not a broad market.",
-    reasoning:
-      "The people who report this problem cluster at lead and above, which caps the seat count hard. That is not fatal, but it means the price has to carry the small numbers, and nothing in the crowd data suggests they would tolerate an enterprise price.",
-    evidence: ["crowd.problemVotes[0]", "crowd.attention"],
-    whatWouldChangeMyMind:
-      "Evidence that the buyer rolls it out to their whole team rather than using it alone.",
-  },
-  founder: {
-    stance: 0.6,
-    confidence: 0.65,
-    position:
-      "Buildable here, and sellable here — the first ten customers are all within two degrees of anyone already in this ecosystem.",
-    reasoning:
-      "This city produces exactly this kind of company, which cuts both ways: the talent is available and so are three competitors nobody has named yet. The network advantage is real for the first year and gone after that.",
-    evidence: ["hub.talent", "crowd.reactions"],
-    whatWouldChangeMyMind: "A founder with no existing network in this ecosystem.",
-  },
-  customer: {
-    stance: -0.25,
-    confidence: 0.8,
-    position:
-      "I would use it. I would not be the one who pays for it, and the person who pays has not been asked.",
-    reasoning:
-      "The crowd shows enthusiasm concentrated in people without budget authority and hesitation in the people who have it. That gap is the entire sale, and nothing here addresses it.",
-    evidence: ["crowd.reactions", "persona.budgetAuthority"],
-    whatWouldChangeMyMind: "One named buyer who signed, rather than a user who liked it.",
-  },
-  regulatory: {
-    stance: 0.1,
-    confidence: 0.55,
-    position:
-      "No hard blocker, but procurement here is slow enough to be a market characteristic rather than an inconvenience.",
-    reasoning:
-      "Nothing about this touches regulated data in a way that stops it. What will bite is the six-month cycle to get it approved at the company sizes where the budget actually lives.",
-    evidence: ["hub.regulatory"],
-    whatWouldChangeMyMind: "A bottoms-up motion that reaches the budget holder without procurement.",
-  },
-  capital: {
-    stance: 0.3,
-    confidence: 0.6,
-    position:
-      "Fundable here at seed, and the talent exists — but the people who have solved this exact problem before are elsewhere.",
-    reasoning:
-      "Local capital covers the first round comfortably. The constraint is domain depth: there are plenty of engineers and very few who have built risk attribution at scale, and training them is expensive talent on a delay.",
-    evidence: ["hub.capitalDensity", "hub.talentDepth"],
-    whatWouldChangeMyMind: "Two senior hires already committed.",
-  },
-  contrarian: {
-    stance: -0.55,
-    confidence: 0.5,
-    position:
-      "This council has converged on 'good problem, hard sale', which is the comfortable answer and the one every room reaches about every tool.",
-    reasoning:
-      "Three members independently reached for the budget-authority gap, which is the tell that they are pattern-matching a known failure shape rather than reasoning about this market. The gap is real and it is also solvable by pricing, which nobody here has considered.",
-    evidence: ["crowd.reactions"],
-    whatWouldChangeMyMind: "Someone in this room arguing a position they did not walk in with.",
-  },
-};
-
-const HUB_CHALLENGES: Record<string, { to: string; text: string }[]> = {
-  market: [
-    { to: "founder", text: "You say the first ten customers are within two degrees. Two degrees of whom? The founder has no network here in this file." },
-  ],
-  founder: [
-    { to: "customer", text: "You are treating the budget gap as fatal. Every bottoms-up tool in the last decade started exactly like this and got bought by the budget holder later." },
-  ],
-  customer: [
-    { to: "market", text: "You sized this on the people who reported the problem. I am telling you the people who pay are a different, smaller set. Your number is the optimistic one." },
-  ],
-  regulatory: [],
-  capital: [
-    { to: "market", text: "If the seat count is genuinely capped at leads and above, the price you are implying does not clear a fund-returning outcome. Say which one you are giving up." },
-  ],
-  contrarian: [],
-};
-
-const HUB_REBUTTALS: Record<string, Record<string, unknown>> = {
-  market: {
-    response:
-      "Granted — I sized incidence, not buyers, and those are different populations. Revising down and holding confidence.",
-    conceded: true,
-    revisedStance: 0.05,
-    revisedConfidence: 0.75,
-  },
-  founder: {
-    response:
-      "The network point stands for the first year and I said as much. I am not moving.",
-    conceded: false,
-    revisedStance: 0.6,
-    revisedConfidence: 0.6,
-  },
-  customer: {
-    response:
-      "Bottoms-up worked for tools an individual could adopt alone. This one only produces value once a team acts on it, which is precisely why the budget holder has to be in the room on day one. Position unchanged.",
-    conceded: false,
-    revisedStance: -0.25,
-    revisedConfidence: 0.85,
-  },
-  regulatory: { response: "", conceded: false, revisedStance: 0.1, revisedConfidence: 0.55 },
-  capital: { response: "", conceded: false, revisedStance: 0.3, revisedConfidence: 0.6 },
-  contrarian: { response: "", conceded: false, revisedStance: -0.55, revisedConfidence: 0.5 },
-};
-
-const HUB_TASKS = {
-  tasks: [
-    { question: "How many people in this city actually have this problem, and is that a market?", assignedTo: "market", why: "Market sizing." },
-    { question: "Can a team be assembled and the first customers found here?", assignedTo: "founder", why: "Execution reality." },
-    { question: "Would the person with the budget in this city pay for it?", assignedTo: "customer", why: "The buyer's lane." },
-    { question: "What operational or regulatory friction applies here?", assignedTo: "regulatory", why: "Constraints." },
-    { question: "Is there local capital and domain-deep talent?", assignedTo: "capital", why: "Inputs to building here." },
-  ],
-};
 
 const HUB_SEATS = new Set(["market", "founder", "customer", "regulatory", "capital", "contrarian"]);
 
@@ -315,50 +53,36 @@ export class DemoProvider implements LLMProvider {
     // resolving instantly and hiding the round structure.
     await delay(400 + Math.random() * 900);
     const seat = whoAmI(req.system);
+    const hub = HUB_SEATS.has(seat);
 
     switch (req.schema?.name) {
       case "diligence_tasks":
         // The chair prompt names the room, so we can tell which council this is.
-        return (req.system.includes("investment committee") ? TASKS : HUB_TASKS) as T;
+        return (req.system.includes("investment committee")
+          ? committeeTasks(readDeal(req.user))
+          : councilTasks(readCouncil(req.user))) as T;
       case "agent_verdict":
-        if (!HUB_SEATS.has(seat)) return VERDICTS[seat] as T;
-        return shiftStance(HUB_VERDICTS[seat], "stance", hubLean(seat, req.user)) as T;
+        return (hub
+          ? shiftStance(councilVerdict(seat, readCouncil(req.user)), "stance", hubLean(seat, req.user))
+          : committeeVerdict(seat, readDeal(req.user))) as T;
       case "challenges":
         return {
-          challenges: HUB_SEATS.has(seat) ? (HUB_CHALLENGES[seat] ?? []) : CHALLENGES[seat],
+          challenges: hub ? councilChallenges(seat, readCouncil(req.user)) : committeeChallenges(seat, readDeal(req.user)),
         } as T;
       case "rebuttal":
-        if (!HUB_SEATS.has(seat)) return REBUTTALS[seat] as T;
-        return shiftStance(HUB_REBUTTALS[seat], "revisedStance", hubLean(seat, req.user)) as T;
+        return (hub
+          ? shiftStance(councilRebuttal(seat, readCouncil(req.user)), "revisedStance", hubLean(seat, req.user))
+          : committeeRebuttal(seat, readDeal(req.user))) as T;
       case "problem_split":
         return demoProblems(req.user) as T;
-
       case "crowd_reactions":
         return demoReactions(req.user) as T;
-
       case "refined_pitch":
         return demoRefine(req.user) as T;
-
       case "persona_reply":
         return demoPersonaReply(req.system, req.user) as T;
-
       case "seat_pre_read":
-        return {
-          initialLean: ({ gp: 0.3, principal: -0.1, skeptic: -0.5 } as Record<string, number>)[seat] ?? 0,
-          topQuestions:
-            seat === "gp"
-              ? ["Why does this have to exist now?", "What stops an incumbent shipping it?"]
-              : seat === "principal"
-                ? ["Who signs the cheque?", "What is CAC payback today?"]
-                : ["What has this failed as before?", "What makes the ranking hard to game?"],
-          killCriterion:
-            seat === "gp"
-              ? "The market caps out below a fund-returning outcome."
-              : seat === "principal"
-                ? "No one has paid, and the named buyer holds no budget."
-                : "The metric is gameable, so it becomes another number teams optimise.",
-          rationale: "Pre-read drafted from the venture file.",
-        } as T;
+        return preRead(seat, readDeal(req.user)) as T;
       case "moderator_decision": {
         // Speak on most turns, but stay silent on one in four so the room does
         // not read as heckling.
@@ -369,16 +93,12 @@ export class DemoProvider implements LLMProvider {
           shouldRespond: !silent,
           seatId: silent ? "" : who,
           objectionType: who === "principal" ? "unit-economics" : who === "skeptic" ? "competitor" : "timing",
-          trigger: silent
-            ? "Nothing here needs pressing yet."
-            : "The founder made a claim with nothing behind it.",
+          trigger: silent ? "Nothing here needs pressing yet." : "The founder made a claim with nothing behind it.",
           resolutions: [],
         } as T;
       }
-
       case "seat_response":
         return seatResponse(seat, req.user) as T;
-
       default:
         return {} as T;
     }
@@ -389,13 +109,445 @@ function delay(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-// --- hub council, per city -------------------------------------------------
-//
-// The council's written positions are the same everywhere; what moves each
-// stance is the crowd data for the city under assessment, parsed back out of
-// the context the way a model would read it. Without this every city scores
-// identically, and anyone who clicks two cities sees through the demo at once.
+function hash(s: string): number {
+  let h = 0;
+  for (const c of s) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  return h;
+}
 
+/** One of a few ways to say it, fixed per idea — two pitches do not get the
+ *  identical sentence, and one pitch always gets the same one. */
+function oneOf<T>(key: string, options: T[]): T {
+  return options[hash(key) % options.length];
+}
+
+const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n));
+const round2 = (n: number) => Math.round(n * 100) / 100;
+const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
+/** The first clause of a problem statement, for saying out loud. */
+function gist(statement: string): string {
+  const first = statement.split(/,\s*so\b|\s—\s|;\s/)[0].replace(/[.!]+$/, "").trim();
+  return /^[A-Z][a-z]/.test(first) ? first.charAt(0).toLowerCase() + first.slice(1) : first;
+}
+
+/** "Working cat owners who already hold the budget for…" → "working cat owners". */
+function whoShort(who: string): string {
+  return who
+    .replace(/[.]+$/, "")
+    .split(/\s+(?:who|that|which|and the|,)\s+/i)[0]
+    .replace(/^the\s+/i, "")
+    .toLowerCase();
+}
+
+// =============================================================================
+// THE INVESTMENT COMMITTEE
+//
+// A partner meeting, not a panel of scorecards: people who have read the memo
+// saying what they think of this product, disagreeing by name, and some of
+// them moving. Stances follow the evidence — the validation score and whether
+// the research found a problem at all — so a strong file gets a warmer room.
+
+type Deal = {
+  pitch: Pitch;
+  market: Market;
+  problem: string | null;
+  who: string | null;
+  wtp: string | null;
+  pvs: number | null;
+  evidence: number | null;
+  moved: boolean;
+};
+
+function readDeal(user: string): Deal {
+  const solution =
+    user.match(/THE FOUNDER'S SOLUTION, IN THEIR OWN WORDS:\s*\n([^\n]+)/)?.[1] ??
+    user.match(/PRODUCT:\s*\n?"([^"]+)"/)?.[1] ??
+    "this product";
+  const pitch = readPitch(solution);
+  const pvs = Number(user.match(/PROBLEM VALIDATION SCORE: (\d+)\/100/)?.[1] ?? NaN);
+  const evidence = Number(user.match(/Evidence strength (\d+)/)?.[1] ?? NaN);
+  return {
+    pitch,
+    market: MARKETS[pitch.domain],
+    problem: user.match(/ACTUALLY SOLVING:\s*\n"([^"]+)"/)?.[1] ?? null,
+    who: user.match(/Who has it: ([^\n]+)/)?.[1]?.trim() ?? null,
+    wtp: user.match(/Willingness to pay: ([^\n]+)/)?.[1]?.trim() ?? null,
+    pvs: Number.isNaN(pvs) ? null : pvs,
+    evidence: Number.isNaN(evidence) ? null : evidence,
+    moved: /the research moved them/.test(user),
+  };
+}
+
+/** How the evidence moves every partner: a validated, high-scoring problem
+ *  warms the room; no validated problem at all chills it. */
+function evidenceLean(d: Deal): number {
+  if (!d.problem) return -0.25;
+  if (d.pvs === null) return -0.1;
+  return clamp((d.pvs - 58) / 80, -0.3, 0.3);
+}
+
+function committeeVerdict(seat: Seat, d: Deal) {
+  const it = d.pitch.short;
+  const lean = evidenceLean(d);
+  const problem = d.problem ? gist(d.problem) : null;
+  const key = d.pitch.solution;
+
+  switch (seat) {
+    case "gp":
+      return {
+        stance: round2(clamp(0.4 + lean, -0.9, 0.9)),
+        confidence: 0.6,
+        position: problem
+          ? oneOf(key, [
+              `Look, I like the problem — ${problem}. That's real. What I can't see yet is a company rather than a feature: what stops ${d.market.incumbent} from shipping their own ${it} the moment this works?`,
+              `I'll be the one who likes it. ${cap(problem)} — people genuinely feel that. My worry is size. Is this a big company, or a nice product that tops out at a few million?`,
+            ])
+          : `Honestly, I came in wanting to like the ${it}, but the file never says whose problem it solves. Without that I can't tell you how big it gets.`,
+        reasoning: `${problem ? `The research moved this from "${it}" to a real problem, which is the right direction.` : "There is no validated problem in the file."} In ${d.market.category} the question is always whether the product owns a relationship — recurring revenue, retention, a reason to stay — or gets absorbed by ${d.market.incumbent}. Nothing here compounds yet.`,
+        evidence: ["vf.chosenProblem", "firm.thesis[0]"],
+        whatWouldChangeMyMind: "A reason this gets bigger every month a customer keeps it — not just a better version of something that exists.",
+      };
+    case "principal":
+      return {
+        stance: round2(clamp(-0.15 + lean, -0.9, 0.9)),
+        confidence: 0.85,
+        position: d.wtp
+          ? `I did the homework on this one, and I'm not there yet. There's no price in the file and nobody's paid. The research says willingness to pay is "${d.wtp.replace(/[.]$/, "")}" — that's a feeling, not a number.`
+          : `I did the homework on this one, and I'm not there yet. There's no price, no paying customer, and no sense of what it costs to win one.`,
+        reasoning: `${d.who ? `The people who have this problem are ${whoShort(d.who)}. ` : ""}The people who liked it in the research and the people who'd pay for it aren't obviously the same people, and that gap shows up later as an expensive sale.${d.evidence !== null ? ` Evidence strength is ${d.evidence}, and that's the part I'd want to see move.` : ""}`,
+        evidence: ["vf.chosenProblem.willingnessToPay", "vf.pvs.evidenceStrength"],
+        whatWouldChangeMyMind: "Three customers who paid — and who hold the budget themselves.",
+      };
+    case "skeptic":
+      return {
+        stance: round2(clamp(-0.6 + lean * 0.6, -0.95, 0.9)),
+        confidence: 0.75,
+        position: oneOf(key, [
+          `I've seen this movie. In ${d.market.category}, ${d.market.failure}. What makes the ${it} different on day ninety?`,
+          `Here's my problem: products like this don't fail for lack of interest. They fail because ${d.market.failure}. Nothing in this file tells me that won't happen here.`,
+        ]),
+        reasoning: `The failure mode for this category is well known and it's retention, not demand. Until someone shows me usage in month three, I'm treating the enthusiasm in the research as first-week enthusiasm.`,
+        evidence: ["crowd.attention", "vf.chosenProblem.frequency"],
+        whatWouldChangeMyMind: "Real usage data from month three, not sign-ups from week one.",
+      };
+    case "devil":
+      return {
+        stance: round2(clamp(0.5 - lean, -0.9, 0.9)),
+        confidence: 0.55,
+        position:
+          lean >= 0
+            ? `Everyone's warming up to this, and that's exactly when I get nervous. If it's this obvious, why hasn't ${d.market.incumbent} already done it? Somebody here should be arguing it's already too late.`
+            : `The room's heading for "nice idea, not a business". That's the comfortable call — and it's the call every room makes right before someone else funds the category leader.`,
+        reasoning: "When the room converges quickly, it has usually found the obvious answer, which everyone else has found too.",
+        evidence: ["room.consensus"],
+        whatWouldChangeMyMind: "A credible argument I haven't heard yet — in either direction.",
+      };
+    default:
+      return { stance: 0, confidence: 0.5, position: "", reasoning: "", evidence: [], whatWouldChangeMyMind: "" };
+  }
+}
+
+function committeeChallenges(seat: Seat, d: Deal): { to: string; text: string }[] {
+  const it = d.pitch.short;
+  switch (seat) {
+    case "principal":
+      return [{
+        to: "gp",
+        text: `You said the problem's real. Real for whom — and who pays? There's no price in this file and nobody's paid a cent. A wedge nobody's bought is still a hypothesis.`,
+      }];
+    case "skeptic":
+      return [{
+        to: "gp",
+        text: `You want the ${it} to become part of their routine. Which moment does it own — ${d.market.moment}? If you can't name it, "habit" is a wish, not a plan.`,
+      }];
+    case "gp":
+      return [{
+        to: "skeptic",
+        text: `You're arguing from products that got abandoned, but most of those added work. Does the ${it} add work or take it away? Is your analogy doing real work, or is it just the one that came to mind?`,
+      }];
+    default:
+      return [];
+  }
+}
+
+function committeeRebuttal(seat: Seat, d: Deal) {
+  const lean = evidenceLean(d);
+  switch (seat) {
+    case "gp":
+      return {
+        response: "Fair, both of you. I was describing where it ends up, not how it gets there, and I can't name the moment it owns yet. I'm coming down — but not off it. The problem is still the most interesting thing in this file.",
+        conceded: true,
+        revisedStance: round2(clamp(0.1 + lean, -0.9, 0.9)),
+        revisedConfidence: 0.65,
+      };
+    case "principal":
+      return {
+        response: "This isn't me being fussy about a model. No price and no paying customer is the whole question at this stage. I'm holding.",
+        conceded: false,
+        revisedStance: round2(clamp(-0.15 + lean, -0.9, 0.9)),
+        revisedConfidence: 0.88,
+      };
+    case "skeptic":
+      return {
+        response: `That's a fair distinction, and I'll grant it — if it genuinely takes work away, it has a better shot. But the first time it fails, it's out of the house. Same position, a little less sure.`,
+        conceded: false,
+        revisedStance: round2(clamp(-0.52 + lean * 0.6, -0.95, 0.9)),
+        revisedConfidence: 0.7,
+      };
+    default:
+      return { response: "", conceded: false, revisedStance: round2(clamp(0.5 - lean, -0.9, 0.9)), revisedConfidence: 0.55 };
+  }
+}
+
+function committeeTasks(d: Deal) {
+  const it = d.pitch.short;
+  return {
+    tasks: [
+      { question: `Is the market for the ${it} big enough to return the fund?`, assignedTo: "gp", why: "Market size is the lead partner's call." },
+      { question: `Who actually pays for it, and has anyone paid yet?`, assignedTo: "principal", why: "The principal did the diligence on customers." },
+      { question: `What has this kind of product failed as before?`, assignedTo: "skeptic", why: "Finding the flaw is the skeptical partner's job." },
+      { question: `Could ${d.market.incumbent} ship this within two quarters?`, assignedTo: "gp", why: "Timing sits with the lead partner." },
+      { question: `How do the first thousand customers find it, and what does each one cost?`, assignedTo: "principal", why: "Go-to-market is diligence." },
+    ],
+  };
+}
+
+function preRead(seat: Seat, d: Deal) {
+  const it = d.pitch.short;
+  const lean = evidenceLean(d);
+  const bySeat: Record<string, { lean: number; q: string[]; kill: string }> = {
+    gp: { lean: 0.3, q: [`Why does the ${it} have to exist now?`, `What stops ${d.market.incumbent} shipping it?`], kill: "The market tops out below a fund-returning outcome." },
+    principal: { lean: -0.1, q: ["Who signs the cheque?", "What does one customer cost to win?"], kill: "Nobody's paid, and the people who liked it can't pay." },
+    skeptic: { lean: -0.5, q: ["What has this failed as before?", "What happens on day ninety?"], kill: `The usual ${d.market.category} story: ${d.market.failure}.` },
+  };
+  const s = bySeat[seat] ?? bySeat.gp;
+  return {
+    initialLean: round2(clamp(s.lean + lean, -0.95, 0.95)),
+    topQuestions: s.q,
+    killCriterion: s.kill,
+    rationale: "Read the memo before the meeting.",
+  };
+}
+
+// --- the live meeting ---------------------------------------------------------
+
+const MODERATOR_ROTATION: Seat[] = ["principal", "skeptic", "gp"];
+let turnCounter = 0;
+
+/**
+ * WITHOUT A MODEL, A PARTNER CANNOT ACTUALLY LISTEN — but it can notice what
+ * kind of thing was just said. A founder who names a customer and a number
+ * should not be asked "has anyone paid?" as if they had said nothing; they
+ * should be pushed one level deeper on the thing they offered. With a key set,
+ * the partners genuinely respond to what was said.
+ */
+function seatResponse(seat: Seat, user: string) {
+  const solution =
+    user.match(/THE FOUNDER'S SOLUTION[^:]*:\s*\n?"?([^"\n]{8,200})/i)?.[1]?.trim() ??
+    user.match(/PRODUCT:\s*\n?"([^"]{8,200})"/i)?.[1]?.trim() ??
+    "this";
+  const it = readPitch(solution).short;
+  const market = MARKETS[readPitch(solution).domain];
+
+  const last = user.match(/THE FOUNDER JUST SAID:\s*\n?"([^"]{0,600})"/i)?.[1]?.trim() ?? "";
+  const words = last.split(/\s+/).filter(Boolean).length;
+  const vague = words > 0 && words < 10;
+  const amount = last.match(/[$€£]\s?\d[\d,.]*(?:\s?(?:k|m|million|thousand))?(?:\s?(?:a|per)\s(?:month|year|week))?/i)?.[0];
+  const said = {
+    money: Boolean(amount) || /\b(paid|paying|revenue|pilot|contract|mrr|arr|signed|sales?|subscri\w*|invoice)\b/i.test(last),
+    traction: /\b(users?|downloads?|waitlist|sign-?ups?|growth|retention|customers?|orders?)\b/i.test(last),
+    rival: /\b(competitor|unlike|versus|vs\.?|incumbent|nobody else|alternative|different from|better than)\b/i.test(last),
+    timing: /\b(now|this year|recently|finally|changed|cheaper|since|new)\b/i.test(last),
+  };
+
+  const bySeat: Record<string, { line: string; objectionText: string }> = {
+    principal: said.money
+      ? {
+          line: `${amount ? `Okay — ${amount} is a real number, thank you.` : "Okay, that's a start."} Is it renewing, and did the person who signed it actually own the budget, or borrow it for a pilot?`,
+          objectionText: "Revenue named, renewal and buyer unproven",
+        }
+      : said.traction
+        ? {
+            line: `Users are nice. How many of them pay, and what did it cost you to get each one?`,
+            objectionText: "Traction without payment",
+          }
+        : {
+            line: `Let me ask it plainly: who has paid for the ${it}? One name, one number.`,
+            objectionText: "No paying customer named",
+          },
+    skeptic: said.rival
+      ? {
+          line: `Everyone's different on the slide. What stops ${market.incumbent} copying the one thing you just said within a quarter?`,
+          objectionText: "Differentiation claimed, not defended",
+        }
+      : vague
+        ? {
+            line: "That wasn't really an answer. I'll ask again: what makes this hard to copy?",
+            objectionText: "Dodged the defensibility question",
+          }
+        : {
+            line: `I keep coming back to the same thing — in ${market.category}, ${market.failure}. What's your plan for day ninety?`,
+            objectionText: "Retention risk unaddressed",
+          },
+    gp: said.timing
+      ? {
+          line: "Okay — that's a why-now I can work with. So if you're right, how big does this get? Walk me to a hundred million.",
+          objectionText: "Why-now plausible, scale unproven",
+        }
+      : vague
+        ? {
+            line: `Say more. Why does the ${it} have to exist this year rather than next?`,
+            objectionText: "No why-now established",
+          }
+        : {
+            line: `I hear you. What I still can't see is the shape of this at a hundred million in revenue — help me see it.`,
+            objectionText: "Cannot see the path to a fund-returning outcome",
+          },
+  };
+
+  const pick = bySeat[seat] ?? bySeat.gp;
+  return { line: pick.line, isObjection: true, objectionText: pick.objectionText };
+}
+
+// =============================================================================
+// THE HUB COUNCIL
+//
+// Five people assessing one problem in one city, from what that city's crowd
+// actually said. The numbers they quote are parsed back out of their brief, so
+// two cities never get the same conversation.
+
+type Council = {
+  problem: string;
+  who: string;
+  city: string;
+  asked: number;
+  have: number;
+  pay: number;
+  capital: number | null;
+  market: Market;
+  consumer: boolean;
+};
+
+function readCouncil(user: string): Council {
+  const problem = user.match(/THE PROBLEM UNDER ASSESSMENT:\s*\n"([^"]+)"/)?.[1] ?? "this problem";
+  const who = user.match(/Felt by: ([^\n]+)/)?.[1]?.trim() ?? "the people who have it";
+  const num = (re: RegExp) => Number(user.match(re)?.[1] ?? NaN);
+  const pitch = readPitch(`${problem} ${who}`);
+  const capital = num(/Capital density (\d+)\/100/);
+  return {
+    problem,
+    who,
+    city: user.match(/THE CITY: ([^\n]+)/)?.[1]?.trim() ?? "this city",
+    asked: num(/\((\d+) people asked\)/) || 0,
+    have: num(/(\d+) of them have this specific problem/) || 0,
+    pay: num(/(\d+) of those would pay/) || 0,
+    capital: Number.isNaN(capital) ? null : capital,
+    market: MARKETS[pitch.domain],
+    consumer: pitch.consumer,
+  };
+}
+
+const BASE_HUB_STANCE: Record<string, number> = {
+  market: 0.35, founder: 0.6, customer: -0.25, regulatory: 0.1, capital: 0.3, contrarian: -0.55,
+};
+
+function councilVerdict(seat: Seat, c: Council) {
+  const incidence = c.asked ? c.have / c.asked : 0;
+  const payRate = c.have ? c.pay / c.have : 0;
+  const who = whoShort(c.who);
+  const problem = gist(c.problem);
+
+  const position: Record<string, string> = {
+    market: c.asked
+      ? `${c.have} of the ${c.asked} people we asked in ${c.city} have this, and ${c.pay} would pay to fix it. ${incidence >= 0.4 ? "That's a real market." : "It's real, but it's a niche"} — mostly ${who}, not everyone.`
+      : `I don't have enough people from ${c.city} to size this honestly. That's a finding in itself.`,
+    founder: `You could build this in ${c.city}. The first ten customers are probably two introductions away from people already here — the question is whether that edge lasts past year one.`,
+    customer:
+      payRate >= 0.5
+        ? `The people here who have this would actually pay — ${c.pay} of ${c.have}. That's the strongest signal we've got.`
+        : `I'd use it. I'm just not the one who'd pay — and the person who pays wasn't really asked.`,
+    regulatory: c.consumer
+      ? `Nothing here blocks it, but it needs ${c.market.regulation}. Budget for that before launch, not after.`
+      : `No hard blocker in ${c.city}, but buying here is slow enough that it's part of the market, not an inconvenience.`,
+    capital: `${c.city} can fund a seed round for this${c.capital !== null ? ` — capital density is ${c.capital} out of 100` : ""}. The harder part is finding people who've built ${c.market.category} before; they're not all here.`,
+    contrarian: `This council's heading for "good problem, hard sale" — that's the answer every room reaches about everything. Nobody's asked whether the price alone fixes it.`,
+  };
+
+  const reasoning: Record<string, string> = {
+    market: `The problem — ${problem} — shows up here, but it clusters. Size the market on who has it and who'd pay, not on everyone who nodded.`,
+    founder: `${c.city} produces companies like this, which cuts both ways: the talent's here, and so are the competitors nobody's named yet.`,
+    customer: `Enthusiasm and budget sit with different people. That gap is the whole sale.`,
+    regulatory: `The friction here is ${c.consumer ? "certification and returns" : "procurement"}, and it adds months, not years.`,
+    capital: `Money for the first round isn't the constraint. Experienced people are.`,
+    contrarian: `Three of us reached for the same gap independently — that's pattern-matching, not reasoning.`,
+  };
+
+  return {
+    stance: BASE_HUB_STANCE[seat] ?? 0,
+    confidence: seat === "customer" ? 0.8 : seat === "contrarian" ? 0.5 : 0.65,
+    position: position[seat] ?? "",
+    reasoning: reasoning[seat] ?? "",
+    evidence: seat === "capital" ? ["hub.capitalDensity"] : ["crowd.reactions", "crowd.problemVotes"],
+    whatWouldChangeMyMind:
+      seat === "customer" ? "One buyer who actually paid, rather than a user who liked it." : "A number from this city that points the other way.",
+  };
+}
+
+function councilChallenges(seat: Seat, c: Council): { to: string; text: string }[] {
+  const who = whoShort(c.who);
+  switch (seat) {
+    case "market":
+      return [{ to: "founder", text: `You said two introductions away. Two introductions from whom? Nothing here says the founder knows anyone in ${c.city}.` }];
+    case "founder":
+      return [{ to: "customer", text: `You're treating "the payer wasn't asked" as fatal. Plenty of products start with the person who uses them and get bought by the person who pays later.` }];
+    case "customer":
+      return [{ to: "market", text: `You counted who has the problem. I'm telling you who'd pay is a smaller group. Your number's the optimistic one.` }];
+    case "capital":
+      return [{ to: "market", text: `If it's really concentrated in ${who}, the price has to carry small numbers. Which is it — a big market or a premium one?` }];
+    default:
+      return [];
+  }
+}
+
+function councilRebuttal(seat: Seat, c: Council) {
+  const base = BASE_HUB_STANCE[seat] ?? 0;
+  switch (seat) {
+    case "market":
+      return {
+        response: "Fair — I counted people with the problem, not people who'd pay, and those are different groups. I'm coming down a bit.",
+        conceded: true, revisedStance: round2(base - 0.3), revisedConfidence: 0.75,
+      };
+    case "founder":
+      return {
+        response: `The network edge in ${c.city} is real for year one, and I said as much. I'm not moving.`,
+        conceded: false, revisedStance: base, revisedConfidence: 0.6,
+      };
+    case "customer":
+      return {
+        response: "Bought-later works when one person can start using it alone. This needs the payer involved from day one. Same position.",
+        conceded: false, revisedStance: base, revisedConfidence: 0.85,
+      };
+    default:
+      return { response: "", conceded: false, revisedStance: base, revisedConfidence: 0.55 };
+  }
+}
+
+function councilTasks(c: Council) {
+  return {
+    tasks: [
+      { question: `How many people in ${c.city} actually have this — is that a market?`, assignedTo: "market", why: "Sizing is the market analyst's job." },
+      { question: `Could a team build this and find its first customers in ${c.city}?`, assignedTo: "founder", why: "Execution reality." },
+      { question: `Would the person who pays in ${c.city} actually pay for it?`, assignedTo: "customer", why: "The buyer's view." },
+      { question: "What rules or red tape apply here?", assignedTo: "regulatory", why: "Constraints." },
+      { question: `Is there money and experienced talent for this in ${c.city}?`, assignedTo: "capital", why: "The inputs to building here." },
+    ],
+  };
+}
+
+// The written positions set the argument; what moves each stance is the crowd
+// data for the city under assessment, parsed back out of the brief the way a
+// model would read it. Without this every city scores identically.
 function hubLean(seat: Seat, user: string): number {
   const read = (re: RegExp) => Number(user.match(re)?.[1] ?? NaN);
   const asked = read(/\((\d+) people asked\)/);
@@ -436,13 +588,14 @@ function shiftStance(base: Record<string, unknown>, key: string, by: number) {
   return { ...base, [key]: Math.round(moved * 100) / 100 };
 }
 
-function hash(s: string): number {
-  let h = 0;
-  for (const c of s) h = (h * 31 + c.charCodeAt(0)) >>> 0;
-  return h;
-}
-
-// --- reading problems and pitches ------------------------------------------
+// =============================================================================
+// PART 1: DISCOVERY
+//
+// The crowd's reactions are NOT canned. They are computed from each persona's
+// actual attributes, parsed out of the prompt: price-sensitive people with no
+// budget ignore things, low pain-tolerance people feel the problem, and the
+// buyers land on a different problem from the users. That mismatch is the
+// reveal, and it emerges here the same way it would from a model.
 
 const STOP = new Set(
   "the and for that this with from into your their they them when which what whom have has had not but are was were will would can cannot could should does did its our out all any more most some such than then there these those very just also only over under about after before because while where here each other same how why own one ones get gets goes make makes made instead being been who".split(
@@ -474,7 +627,7 @@ function contentWords(text: string): Set<string> {
  */
 const SEGMENTS = {
   buyer: /accountab|owns? the outcome|budget|\bleads?\b|manager|\brisk|incident|dangerous/i,
-  compliance: /audit|complian|regulat|executive|standard|director|report(?:ing)? upward/i,
+  compliance: /audit|complian|regulat|executive|standard|director|report(?:ing)? (?:upward|back)|report\w* (?:to|progress|numbers|spending|results)|can(?:no|')t (?:tell|prove)|cannot prove/i,
   tedium: /tedious|avoid|by hand|manual|individual contributor|\bskip/i,
 } as const;
 
@@ -482,13 +635,18 @@ type Segment = keyof typeof SEGMENTS;
 
 type ParsedProblem = { id: string; segment: Segment | null; words: Set<string> };
 
+/** The founder's own framing is the absence of their product, whatever words
+ *  it happens to contain — "There is no budgeting app" is not a buyer's problem. */
+const FOUNDER_FRAMING = /^(?:there is no|teams have no|nobody has this yet)\b/i;
+
 function parseProblems(user: string): ParsedProblem[] {
   const full = [...user.matchAll(/^\s{2}(p\d+): "(.*)" \(felt by (.*)\)\s*$/gm)];
   if (full.length > 0) {
     return full.map((m) => {
       const text = `${m[2]} ${m[3]}`;
-      const segment =
-        (Object.keys(SEGMENTS) as Segment[]).find((s) => SEGMENTS[s].test(text)) ?? null;
+      const segment = FOUNDER_FRAMING.test(m[2])
+        ? null
+        : ((Object.keys(SEGMENTS) as Segment[]).find((s) => SEGMENTS[s].test(text)) ?? null);
       return { id: m[1], segment, words: contentWords(text) };
     });
   }
@@ -498,15 +656,6 @@ function parseProblems(user: string): ParsedProblem[] {
     words: new Set<string>(),
   }));
 }
-
-// --- Part 1: discovery -----------------------------------------------------
-//
-// These are NOT canned. The crowd reactions are computed from each persona's
-// actual attributes, parsed out of the prompt, so the demo shows the real
-// mechanism: price-sensitive people with no budget ignore things, low
-// pain-tolerance people feel the problem, and the buyers land on a different
-// problem from the users. That mismatch is the reveal, and it emerges here the
-// same way it would from a model.
 
 type ParsedPersona = {
   id: number;
@@ -532,9 +681,9 @@ function demoReactions(user: string) {
   const people = parsePersonas(user);
   const problems = parseProblems(user);
   const ids = problems.map((p) => p.id);
-  const product = contentWords(
-    user.match(/PRODUCT:\n"([\s\S]*?)"\n\nCANDIDATE PROBLEMS:/)?.[1] ?? ""
-  );
+  const productText = user.match(/PRODUCT:\n"([\s\S]*?)"\n\nCANDIDATE PROBLEMS:/)?.[1] ?? "";
+  const product = contentWords(productText);
+  const pitch = readPitch(productText || "this");
 
   const bySegment = new Map<Segment, string>();
   for (const p of problems) {
@@ -578,20 +727,13 @@ function demoReactions(user: string) {
       const addressed = fit(problemId);
 
       // Enthusiasm rises with appetite for new things, falls with price
-      // sensitivity and loyalty to incumbents.
-      //
-      // Through a logistic rather than a clamp. The linear version saturated:
-      // anyone past the top of the range pinned to 0.98, so a hub already
-      // tilted toward high tech adoption and low price sensitivity came back as
-      // thirty people who all felt identically. A sigmoid keeps the ordering
-      // and never flattens the tail.
+      // sensitivity and loyalty to incumbents — through a logistic, so a hub
+      // tilted one way still comes back as individuals rather than a block.
       const z =
         (p.tech - 5.5) * 0.34 +
         (p.risk - 5.5) * 0.26 -
         (p.price - 5.5) * 0.24 -
         (p.brand - 5.5) * 0.18 +
-        // Someone who tolerates friction is harder to excite, whatever else is
-        // true of them.
         (5.5 - p.pain) * 0.14 +
         addressed * 0.7;
       const sentiment = 1 / (1 + Math.exp(-z));
@@ -610,7 +752,7 @@ function demoReactions(user: string) {
         problemId: hasProblem ? problemId : "",
         problemSeverity: hasProblem ? Math.round((10 - p.pain) * 9 + p.budget * 1.5) : 0,
         wouldPay: p.budget >= 6 && p.price <= 6 && sentiment > 0.45,
-        reason: hasProblem ? demoReason(p, addressed) : demoShrug(p),
+        reason: hasProblem ? demoReason(p, addressed, pitch) : demoShrug(p, pitch),
       };
     }),
   };
@@ -644,88 +786,56 @@ function lowerFirst(t: string): string {
 
 function demoProblems(user: string) {
   const solution = (user.match(/"([^"]{10,400})"/)?.[1] ?? "the product").trim();
+  const pitch = readPitch(solution);
 
-  // Written the way the person with the problem would say it out loud.
-  // The old copy — "the people accountable cannot tell which part of it
-  // actually carries risk, so effort goes to the easy areas instead of the
-  // dangerous ones" — is a consultant's sentence. Nobody talks like that, and
-  // a founder skims past it without picturing anyone.
   return {
     problems: [
       {
         statement: founderFraming(solution),
-        whoHasIt: "The people you pictured when you started building.",
+        whoHasIt: `The ${pitch.audience} you pictured when you started building.`,
         severity: 44,
         frequency: "All the time",
-        currentWorkaround: "They do it by hand and grumble about it.",
-        willingnessToPay: "Not much — it feels like housekeeping, not a purchase.",
+        currentWorkaround: "They cope, and grumble about it.",
+        willingnessToPay: "Not much — it doesn't feel like something to buy.",
         confidence: 0.82,
       },
-      {
-        statement:
-          "When something breaks, nobody can say which part was the risky one — so the team keeps tidying the safe corners and the dangerous bits stay untouched.",
-        whoHasIt: "Team leads who get the blame but do not do the work themselves.",
-        severity: 81,
-        frequency: "Every planning meeting, and badly after anything goes wrong",
-        currentWorkaround:
-          "One person happens to know, and a to-do from the last post-mortem that quietly expired.",
-        willingnessToPay: "Yes — this comes out of a budget they will fight for.",
-        confidence: 0.74,
-      },
-      {
-        statement:
-          "They cannot prove to their boss or an auditor that the work was done properly, so they end up arguing about it again every few months.",
-        whoHasIt: "Directors who have to report upwards, especially anywhere regulated.",
-        severity: 66,
-        frequency: "Every quarter",
-        currentWorkaround: "A spreadsheet somebody rebuilds from scratch each time.",
-        willingnessToPay: "Probably — compliance money exists, but buying takes months.",
-        confidence: 0.61,
-      },
-      {
-        statement: "It is boring, so people quietly skip it.",
-        whoHasIt: "The people actually doing the work.",
-        severity: 35,
-        frequency: "Daily",
-        currentWorkaround: "They do not do it.",
-        willingnessToPay: "No — nobody pays out of their own pocket to be less bored.",
-        confidence: 0.88,
-      },
+      // What the market might be feeling instead, written for this market in
+      // the words the person with the problem would use.
+      ...marketProblems(pitch),
     ],
   };
 }
 
 /** Varied by attribute rather than random, so the reaction list reads as many
  *  different people instead of one sentence pasted 120 times. */
-function demoReason(p: ParsedPersona, addressed: number): string {
-  // A buyer hearing their own problem named back to them sounds different
-  // from a buyer hearing a pitch aimed at somebody else.
+function demoReason(p: ParsedPersona, addressed: number, pitch: Pitch): string {
+  const it = pitch.short;
   const heard = [
-    "This is pitched at the problem I actually have, and I own the budget for it.",
-    "Finally framed around what I get blamed for. I would take that meeting.",
-    "If it does this for the people accountable, I can sign for a pilot.",
+    "This is pitched at the problem I actually have — and I'd pay for that.",
+    "Finally framed around the part that actually costs me. I'd try it.",
+    `If the ${it} really does that, I'll pay for it this month.`,
   ];
   if (p.budget >= 7 && addressed >= 0.6) return heard[(p.id * 7) % heard.length];
 
   const buyer = [
-    "I own this budget, and the version of this problem I care about is the one that shows up in my incident reviews.",
-    "I can sign for this, but only if it answers to my board deck rather than my engineers.",
-    "The spend is defensible for me. What is not defensible is another dashboard nobody opens.",
+    `I'd pay for it, but only if it replaces something I already spend money on.`,
+    `I can afford it. What I won't pay for is another ${it} that works for a month.`,
+    "The money's not the issue. Whether it still works in six months is.",
   ];
   const advocate = [
-    "I feel this weekly, but I would have to convince someone else to pay for it.",
-    "This is my problem, and I have zero authority to fix it with money.",
-    "I would use this tomorrow. Procurement would take until spring.",
+    "I feel this every week, but I'm not the one who decides what we spend on.",
+    `I'd use the ${it} tomorrow. Convincing whoever holds the wallet is the hard part.`,
+    "This is my problem, and I've got no budget to fix it.",
   ];
   const skeptic = [
-    "We tried something adjacent two years ago and it became shelfware.",
-    "The pain is real but I do not believe a tool fixes it. It is a process problem.",
-    "Show me it works on a codebase the size of ours before I care.",
+    `I tried something like the ${it} before and stopped using it within a month.`,
+    "The problem's real, but I don't think a product fixes it — it's a habit thing.",
+    "Show me it still works after six months and I'll care.",
   ];
   const eager = [
-    "This is the first thing I have seen that targets the part that actually breaks.",
-    "I have been building a worse version of this internally for months.",
-    "If the ranking is trustworthy, this changes how we plan the quarter.",
+    `I'd try the ${it} the day it came out.`,
+    "I've been hacking together a worse version of this myself.",
+    "If it actually works, this changes my week.",
   ];
 
   const pool =
@@ -733,12 +843,12 @@ function demoReason(p: ParsedPersona, addressed: number): string {
   return pool[(p.id * 7) % pool.length];
 }
 
-function demoShrug(p: ParsedPersona): string {
+function demoShrug(p: ParsedPersona, pitch: Pitch): string {
   const pool = [
-    "Not something I think about. We have lived with it fine.",
-    "Reads like a solution looking for a problem, from where I sit.",
-    "My team has bigger fires than this one.",
-    "I would not pay for this, and I would not champion it either.",
+    "Not something I think about. It's fine as it is.",
+    "Honestly, it reads like a solution looking for a problem.",
+    "I've got bigger problems than this one.",
+    `I wouldn't pay for a ${pitch.short}, and I wouldn't tell anyone about it either.`,
   ];
   return pool[(p.id * 5) % pool.length];
 }
@@ -764,7 +874,7 @@ function demoRefine(user: string) {
       ? "so the directors who answer for it can show an auditor or an executive that the work met the standard"
       : /tedious|avoid|by hand/.test(text)
         ? "so nobody has to do the tedious part by hand"
-        : `built for ${lowerFirst(who || "the people who have this problem")}, because ${lowerFirst(statement.replace(/\.$/, ""))}`;
+        : `built for ${lowerFirst(whoShort(who) || "the people who have this problem")}, because ${lowerFirst(gist(statement))}`;
 
   return { solution: `${solution.replace(/[.!\s]+$/, "")}, ${aim}.` };
 }
@@ -773,49 +883,75 @@ function demoRefine(user: string) {
 
 /**
  * Replies driven by the persona's own attributes, parsed back out of the system
- * prompt. A sceptic stays a sceptic, someone with no budget says so, and nobody
- * is talked round by a single question — which is the behaviour that makes a
- * research call worth anything.
+ * prompt, and about the product they were actually shown. A sceptic stays a
+ * sceptic, someone with no budget says so, and nobody is talked round by a
+ * single question — which is what makes a research call worth anything.
  */
 function demoPersonaReply(system: string, user: string) {
-  const num = (label: string) =>
-    Number(new RegExp(label + "\\s+(\\d+)").exec(system)?.[1] ?? 5);
+  const num = (label: string) => Number(new RegExp(label + "\\s+(\\d+)").exec(system)?.[1] ?? 5);
 
   const budget = num("budget authority");
   const price = num("price");
   const tech = num("new tools");
   const pain = num("pain tolerance");
   const brand = num("brand loyalty");
+  const name = system.match(/^You are ([^,]+),/)?.[1]?.split(" ")[0] ?? "";
+
+  const product = user.match(/THE PRODUCT: "([^"]*)"/)?.[1] ?? "";
+  const pitch = readPitch(product || "this");
+  const it = pitch.short;
+  const market = MARKETS[pitch.domain];
+  const theirProblem = system.match(/The problem you actually have is: "([^"]+)"/)?.[1];
+  const workaround = market.incumbent;
 
   const question = (user.match(/THE FOUNDER ASKS: "([^"]*)"/)?.[1] ?? "").toLowerCase();
-  const aboutPrice = /price|cost|pay|budget|sign|buy|purchas|afford|\$/.test(question);
-  const aboutUse = /use|workflow|day|how would|integrate|today|currently|right now/.test(question);
+  const greeting = /the call just connected/i.test(user) || /^(hi|hey|hello)\b/.test(question);
+  const aboutPrice = /price|cost|pay|budget|sign|buy|purchas|afford|\$|money|spend/.test(question);
+  const aboutUse = /use|workflow|day|how would|integrate|today|currently|right now|routine|set up|setup/.test(question);
   const aboutRival = /competitor|alternative|instead|versus|who else|anyone else|already|rival|vs\b/.test(question);
+  const aboutProblem = /problem|pain|struggle|frustrat|annoy|hard|difficult|why/.test(question);
+  const aboutIgnore = /ignore|never|wouldn't|would not|stop you|put you off|deal.?breaker/.test(question);
+  const aboutWho = /who (?:in|at)|who would|who decides|sign for|approve/.test(question);
 
   let line: string;
 
-  if (aboutPrice) {
+  if (greeting) {
+    line = `Hi${name ? ` — ${name} here` : ""}. You wanted to talk about the ${it}? Happy to — ask me anything.`;
+  } else if (aboutPrice) {
     line =
       budget >= 7
-        ? "I can sign for it. What I cannot do is justify a line item that duplicates something we already licence, so tell me what it replaces."
+        ? `I could pay for it. But I'd need it to replace something I already spend money on — tell me what the ${it} replaces.`
         : price >= 7
-          ? "Whatever the number is, it is going to be too high for a tool I cannot prove saved us anything."
-          : "I have no budget. If you want this bought, you need my director in the room, not me.";
+          ? `Whatever the price is, it's probably too high for me. I'd need to see it save me money first.`
+          : `Honestly? I'm not the one who'd pay. You'd need whoever holds the budget in the room, not me.`;
+  } else if (aboutWho) {
+    line = budget >= 7
+      ? "That'd be me, actually. I sign for this kind of thing — which is why I'm hard to impress."
+      : "Not me. I'd bring it to whoever holds the budget, and they'd ask me why we need it.";
   } else if (aboutRival) {
     line =
       brand >= 7
-        ? "Our incumbent already claims to do this. They do it badly, but nobody ever got fired for keeping them."
-        : "Honestly, the alternative is that we keep doing nothing. That is what you are actually competing with.";
+        ? `Right now I'd just stick with ${workaround}. It's not great, but nobody ever got in trouble for it.`
+        : "Honestly, the real alternative is doing nothing. That's what you're actually up against.";
+  } else if (aboutIgnore) {
+    line = tech >= 8
+      ? "If it's unreliable even once, I'm out. I'll try anything, but I drop things fast."
+      : "If it needs another app, another account and another charger, I won't bother.";
   } else if (aboutUse) {
     line =
       tech >= 8
-        ? "I would wire it into our pipeline the same afternoon and find out whether the output is trustworthy within a week."
-        : "It would have to show up where I already work. If it is another tab, I will open it twice and never again.";
+        ? `I'd set up the ${it} the day it arrived and poke at it all week to see if I trust it.`
+        : `It'd have to fit into what I already do. If it's one more thing to remember, I'll use it twice and forget it.`;
+  } else if (aboutProblem && theirProblem) {
+    line =
+      pain <= 3
+        ? `It genuinely gets to me. The way I'd put it: ${gist(theirProblem)}. That's the bit I'd pay to fix.`
+        : `It's a mild annoyance, if I'm honest. ${cap(gist(theirProblem))} — but I've worked around it for years.`;
   } else {
     line =
       pain <= 3
-        ? "This is a real irritation for me, and I notice it every single week. I just have never had a way to describe it upward."
-        : "It is a mild annoyance. We have worked around it for years and nobody has ever asked me to fix it.";
+        ? `It's a real irritation for me, and I notice it every single week. I just haven't found anything that fixes it.`
+        : `It's a small thing for me. I've made my peace with it, and nobody's ever asked me to fix it.`;
   }
 
   return {
@@ -825,96 +961,4 @@ function demoPersonaReply(system: string, user: string) {
     shifted: false,
     sentiment: Math.min(1, Math.max(0, (tech * 0.8 + (10 - price) * 0.6 + budget * 0.4) / 18)),
   };
-}
-
-
-// --- what a partner says back ----------------------------------------------
-
-/**
- * WITHOUT A MODEL, A PARTNER CANNOT ACTUALLY LISTEN.
- *
- * The old version picked from a fixed pool, so a founder pitching eco-friendly
- * fridges got "coverage dashboards promised the same thing" — an answer to a
- * question nobody asked. That reads as broken rather than as a simulation.
- *
- * This cannot fix that properly; only a real model can. What it does is stay
- * inside what it can actually know: it pulls the subject out of the venture
- * file and asks questions that are hard about ANY business, so the words at
- * least belong to this conversation. Set OPENAI_API_KEY and the partners
- * genuinely respond to what was said.
- */
-function seatResponse(seat: Seat, user: string) {
-  // The founder's own words, from the venture-file block in the prompt.
-  const subject =
-    user.match(/THE FOUNDER'S SOLUTION[^:]*:\s*\n?"?([^"\n]{8,120})/i)?.[1]?.trim() ??
-    user.match(/PRODUCT:\s*\n?"([^"]{8,120})"/i)?.[1]?.trim() ??
-    "this";
-
-  // Cut to a short noun phrase. Dropping the whole sentence in mid-clause
-  // produces "shipping fridge that runs on eco-friendly refrigerant and costs
-  // half as much as a feature", which is worse than saying nothing.
-  const it = (() => {
-    const stripped = subject
-      .replace(/^(we|i)\s+(are\s+)?(built|building|made|making|have built)\s+/i, "")
-      .replace(/^(an?|the)\s+/i, "")
-      .replace(/[.!?]+$/, "");
-    // Stop at the first clause boundary, then cap the length.
-    const head = stripped.split(/\s+(?:that|which|who|where|so|and|because|with)\s+/i)[0];
-    const words = head.split(/\s+/).slice(0, 5).join(" ");
-    return words.length >= 3 ? words.toLowerCase() : "this";
-  })();
-
-  const last = user.match(/THE FOUNDER JUST SAID:\s*\n?"([^"]{0,300})"/i)?.[1]?.trim() ?? "";
-  const vague = last.length > 0 && last.split(/\s+/).length < 12;
-
-  const BY_SEAT: Record<string, { line: string; objectionText: string }[]> = {
-    gp: [
-      {
-        line: `Why does ${it} have to exist this year rather than next? Nothing you have said yet is a reason to move now.`,
-        objectionText: "No why-now established",
-      },
-      {
-        line: `If ${it} works, what does it look like at a hundred million in revenue? I cannot see the shape of that from here.`,
-        objectionText: "Cannot see the path to a fund-returning outcome",
-      },
-      {
-        line: "You are describing the product again. I asked about the market.",
-        objectionText: "Answered product when asked about market",
-      },
-    ],
-    principal: [
-      {
-        line: "Who has paid for this? Name one customer and the number on the invoice.",
-        objectionText: "No paying customer named",
-      },
-      {
-        line: `Who signs for ${it} — and is that the same person who told you they wanted it?`,
-        objectionText: "Buyer and champion may not be the same person",
-      },
-      {
-        line: "What does it cost you to acquire one customer, and how long before that pays back?",
-        objectionText: "Unit economics unknown",
-      },
-    ],
-    skeptic: [
-      {
-        line: `What stops the incumbent shipping ${it} as a feature the quarter after you launch?`,
-        objectionText: "No defensibility against an incumbent",
-      },
-      {
-        line: "Who has tried this before and failed, and what do you know that they did not?",
-        objectionText: "No account of prior failures in the category",
-      },
-      {
-        line: vague
-          ? "That was not an answer. I will ask it again: what makes this hard to copy?"
-          : "You are assuming the problem is worth paying to fix. Show me someone who already did.",
-        objectionText: vague ? "Dodged the defensibility question" : "Willingness to pay unproven",
-      },
-    ],
-  };
-
-  const pool = BY_SEAT[seat] ?? BY_SEAT.gp;
-  const pick = pool[Math.floor(turnCounter / MODERATOR_ROTATION.length) % pool.length];
-  return { line: pick.line, isObjection: true, objectionText: pick.objectionText };
 }

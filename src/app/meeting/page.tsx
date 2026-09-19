@@ -22,9 +22,9 @@ type SeatInfo = { seatId: SeatId; role: string; voiceId?: string; valid?: boolea
 
 const SEAT_ORDER: SeatId[] = ["gp", "principal", "skeptic"];
 const SEAT_LABEL: Record<SeatId, string> = {
-  gp: "General Partner",
+  gp: "Lead Partner",
   principal: "Principal",
-  skeptic: "Anti-Portfolio Skeptic",
+  skeptic: "Skeptical Partner",
 };
 
 const STATUS_STYLE: Record<Objection["status"], string> = {

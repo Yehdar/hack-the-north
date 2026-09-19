@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getLLM } from "@/lib/llm";
+import { activeModels, getLLM } from "@/lib/llm";
 import { PERSONAS } from "@/data/personas";
 import { HUB_COUNCIL, CONTRARIAN } from "@/lib/agents/hub/roster";
 import { SEATS, DEVILS_ADVOCATE, CHAIR } from "@/lib/agents/vc/seats";
@@ -19,10 +19,7 @@ export async function GET() {
 
   return NextResponse.json({
     provider: llm.name,
-    models: {
-      deep: process.env.OPENAI_MODEL ?? process.env.ANTHROPIC_MODEL ?? "demo",
-      fast: process.env.OPENAI_FAST_MODEL ?? process.env.ANTHROPIC_FAST_MODEL ?? "demo",
-    },
+    models: activeModels(),
     voice: isVoiceConfigured() ? "elevenlabs" : "browser",
     firm: getActiveFirm().name,
     crowd: {

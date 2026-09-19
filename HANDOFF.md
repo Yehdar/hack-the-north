@@ -16,7 +16,7 @@ npm run dev                       # http://localhost:3000
 ```
 
 ```bash
-npm test          # 73 tests
+npm test          # 90 tests
 npm run typecheck
 npm run build
 npm run personas  # regenerate the persona library from hubs.json
@@ -46,6 +46,21 @@ SKEPTIC:   We have seen this shape before. Coverage dashboards promised the same
 
 Coverage dashboards, in a pitch about fridges. It reads as broken software
 rather than as a simulation.
+
+**Before you trust a key, check it.** Restart the dev server after adding it,
+then open `/api/system/check` (or the system panel, top right of Part 1 →
+"check the live model"). It makes one tiny call per tier and shows ✓/✗, the
+model and the latency. A model that rejects a request parameter fails every
+call, and every caller swallows that into a neutral placeholder — so without
+this, a bad key looks like a committee with nothing to say.
+
+Both providers were fixed for the models they default to (`llm.test.ts` pins
+the request shapes): Anthropic no longer sends an assistant prefill or
+`temperature` (both 400 on `claude-opus-5`), gives thinking room in
+`max_tokens`, and enables the server-side refusal fallback; OpenAI sends
+`max_completion_tokens` and `reasoning_effort` instead of `max_tokens` and
+`temperature` to GPT-5-family models. Calls time out at 90s with one retry.
+`LLM_EFFORT=low|medium|high` trades speed for depth (default low).
 
 **Partially mitigated, not fixed.** `seatResponse()` now pulls the subject out
 of the venture file and asks questions that are hard about *any* business, so
@@ -114,6 +129,10 @@ src/data/firms.ts            25 firms across 17 cities
 src/data/personas/library.json  326 generated personas (committed)
 
 src/components/globe/Globe.tsx   three.js globe, dots, arcs, place labels
+src/components/globe/figures.ts  the people: instanced 3D mini figures,
+                                 screen-space layout (no overlaps), picking,
+                                 the wave. Places stay dots.
+src/components/FigureAvatar.tsx  the same figure, flat, on the call card
 src/components/DeliberationGraph.tsx  the council, drawn
 src/components/AgentFace.tsx     animated faces
 src/components/Light.tsx         approval lights (go/caution/stop)
@@ -157,26 +176,43 @@ Ordered by how much they hurt a demo.
 
 | # | Issue | Notes |
 |---|---|---|
-| 1 | **Agents cannot hear the founder** | See the section above. Needs an API key. |
-| 2 | **Map focuses the wrong city** | The committee header says one city while the camera sits on another. Focus is passed in `src/app/committee/page.tsx`; check it against `firm.hqHubId`. |
-| 3 | **Hub council has no audio** | `/committee` has a working "hear them" toggle using `SpeechQueue`. The hub council on `/` does not — the same component drops in, roughly ten minutes. |
-| 4 | **No force-move-on button** | If a run stalls or grades badly mid-demo there is no way to skip forward. Was requested; not built. |
-| 5 | **Globe focus easing unverified** | `requestAnimationFrame` is suspended in a backgrounded automated tab so it could never be confirmed by screenshot. Open it and watch. |
-| 6 | **Side panel too narrow / globe too large** | Requested: widen the deliberation panel and shrink the globe when it opens. `aside` is `w-96` in `committee/page.tsx`; `DeliberationGraph` is hard-coded `W = 300`. |
-| 7 | **Faces could be friendlier** | Requested. `AgentFace.tsx` — softer proportions, larger eyes. |
+| 1 | **Agents cannot hear the founder** | See the section above. Needs an API key — then run the check. |
+| 2 | ~~Map focuses the wrong city~~ | **Fixed.** The camera was right; the *seats* were not. Dots were positioned only on creation, and the first render always has the default firm (the persisted one arrives after hydration), so the committee stayed in San Francisco. Positions now update every sync. |
+| 3 | ~~Hub council has no audio~~ | **Fixed.** "Hear them" on Part 1 from the reveal on; each line waits for the last to be spoken, Skip silences it, and a watchdog stops a stuck `speechSynthesis` from holding the room. |
+| 4 | ~~No force-move-on button~~ | **Built.** Part 1 offers "Grade the N who answered ▸" / "End the council here ▸" / "Skip to the committee ▸" after 25s of nothing (at once if the stream closed early), and "Take it to the committee anyway →" when nobody had any problem. The committee offers "Run it again ↻" / "Skip to the pitch →". |
+| 5 | ~~Globe focus easing unverified~~ | **Verified** in headless Chrome at 60fps for SF, Toronto, London, Bangalore, Sydney. Easing is now per unit of time, so a slow machine or a tab back from the background lands instead of stopping mid-turn. |
+| 6 | ~~Side panel too narrow / globe too large~~ | **Done.** The committee panel widens to `min(560px, 40vw)` when convened and the globe steps back (`distance`); `DeliberationGraph` measures its width. |
+| 7 | ~~Faces could be friendlier~~ | **Done.** Bigger eyes with pupils that follow the gaze, blush, softer brows, a resting half-smile; per-face blink offsets. |
 | 8 | **`fixtures/llm.json` is a demo recording** | Re-record against a real model. |
 | 9 | **Chair never adjudicates** | It routes and synthesises but never rules a challenge answered. |
 | 10 | **Rebuttal is one round** | A convergence loop (repeat until variance stops moving) is the natural upgrade; deferred for cost and latency. |
+| 11 | ~~Deploy arcs "shoot off-screen"~~ | **Fixed, and it was never the resolution.** From directly above Waterloo every great circle through it projects as a straight line, and the 0.45 lift carried long arcs out of frame. The deploy view now sits due south and the lift is capped at 0.18. |
 
 ---
+
+## People on the globe
+
+Every persona and every committee partner is a small 3D figure — a girl or a
+boy, shirt in their stance colour — not a dot. `figure` is an explicit
+attribute generated in `scripts/generate-personas.mjs` from its own seeded
+stream (first names are then picked to suit it; nothing else changed), never
+inferred from a name; the call voice follows it. Figures stand upright on
+screen, are drawn in a second pass over the globe so the planet never cuts
+into them, and are laid out in screen space every frame so none overlap —
+the less important one shrinks or steps back, city labels keep off them. Click
+one: they wave, the globe turns them into view above the call card, and the
+card shows the same figure waving. In dev, `window.__globeFigures()` returns
+who is on screen and where, for tests.
 
 ## Testing that still needs doing
 
 The suite covers the maths and the protocol well and the UI barely at all.
 
-**Covered (73 tests):** vote maths, PVS purity, deliberation protocol including
+**Covered (90 tests):** vote maths, PVS purity, deliberation protocol including
 directed challenges and belief revision, crowd aggregation and diversity floor,
-persona library invariants, retrieval, advice grading, session diffing.
+persona library invariants, retrieval, advice grading, session diffing, the
+live providers' request shapes, the store rename, globe focus, and the figure
+layout (no overlaps, picking, the wave).
 
 **Not covered — worth writing:**
 
@@ -190,8 +226,8 @@ persona library invariants, retrieval, advice grading, session diffing.
 - **Error paths in the UI.** The API routes return correct 400/404s (verified by
   hand across ten routes), but nothing checks the pages render sensibly when a
   stream fails midway.
-- **`localStorage` migration.** The key was renamed `atlas.ventureFile` →
-  `vision.session` with a migrate function that is untested.
+- ~~`localStorage` migration.~~ It never worked — zustand's `migrate` only
+  sees the current key. Fixed with a storage fallback; tested in `store.test.ts`.
 - **Concurrent runs.** Starting a second discovery run while one streams is
   untested and probably interleaves state.
 

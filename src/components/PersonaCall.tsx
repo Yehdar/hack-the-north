@@ -11,7 +11,9 @@ import {
   type VoiceProfile,
   type VoiceTier,
 } from "@/lib/voice/client";
-import type { CrowdReaction } from "@/lib/discovery/types";
+import type { CrowdReaction, FigureKind } from "@/lib/discovery/types";
+import { FigureAvatar } from "@/components/FigureAvatar";
+import { figureLook, shirtColor } from "@/components/globe/figures";
 import type { ProblemStatement } from "@/lib/types";
 
 // ============================================================================
@@ -32,6 +34,7 @@ type Props = {
   persona: {
     id: number;
     name: string;
+    figure: FigureKind;
     title: string;
     city: string;
     hubId: string;
@@ -135,15 +138,16 @@ export function PersonaCall({ persona, reaction, solution, problems, onClose }: 
       exit={{ opacity: 0, y: 14 }}
       className="panel panel-bright absolute bottom-24 left-1/2 z-50 flex w-[440px] -translate-x-1/2 flex-col p-4"
     >
-      {/* who you are talking to */}
+      {/* who you are talking to — the same figure as on the globe, saying
+          hello, and wearing how they feel right now */}
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-3">
-          <div
-            className="h-2.5 w-2.5 rounded-full transition-colors"
-            style={{
-              background: speaking ? "var(--accent)" : "var(--border-bright)",
-              boxShadow: speaking ? "0 0 12px var(--accent)" : "none",
-            }}
+          <FigureAvatar
+            kind={persona.figure}
+            {...figureLook(`p${persona.id}`)}
+            shirt={shirtColor(reaction || turns.length > 0 ? sentiment * 2 - 1 : undefined)}
+            waveKey={persona.id}
+            speaking={speaking}
           />
           <div>
             <p className="text-sm text-ink">{persona.name}</p>

@@ -52,6 +52,10 @@ const ROUND_LABEL: Record<number, string> = {
 // 3 findings + 3 challenges + up to 3 rebuttals + 1 adversary
 const EXPECTED_TURNS = 10;
 
+/** Nothing from the stream for this long and the founder is offered a way
+ *  on. Real model calls can be slow; this only offers, it never decides. */
+const STALL_MS = 30_000;
+
 // What each round is for, in a sentence — the protocol explained while it runs.
 const ROUND_MEANING: Record<number, string> = {
   0: "The chair splits the decision into questions and gives each to the one partner whose lane owns it.",
@@ -86,7 +90,13 @@ export default function Committee() {
   const [audio, setAudio] = useState(false);
   const [tier, setTier] = useState<VoiceTier | null>(null);
   const [nowSpeaking, setNowSpeaking] = useState<string | null>(null);
+  const [voicedId, setVoicedId] = useState<string | null>(null);
   const queue = useRef<SpeechQueue | null>(null);
+  // Each run owns the room; a stuck one is aborted when the founder runs again.
+  const runId = useRef(0);
+  const abort = useRef<AbortController | null>(null);
+  const lastEventAt = useRef(0);
+  const [stalled, setStalled] = useState(false);
   const [mindChanges, setMindChanges] = useState<DeliberationSnapshot["metrics"]["mindChanges"]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const ventureFile = useVenture((v) => v.ventureFile);
@@ -96,8 +106,20 @@ export default function Committee() {
 
   useEffect(() => {
     void detectTier().then(setTier);
-    return () => queue.current?.stop();
+    return () => {
+      queue.current?.stop();
+      abort.current?.abort();
+    };
   }, []);
+
+  // A deliberation that has gone quiet: offer the founder a way on.
+  useEffect(() => {
+    if (!running) return;
+    const id = setInterval(() => {
+      if (performance.now() - lastEventAt.current > STALL_MS) setStalled(true);
+    }, 1000);
+    return () => clearInterval(id);
+  }, [running]);
   const firmId = useVenture((v) => v.firmId);
   const sidebar = useRef<HTMLDivElement>(null);
 
@@ -124,20 +146,37 @@ export default function Committee() {
     setFeed((f) => f.filter((i) => i.id !== id));
   }, []);
 
+  const newQueue = useCallback(
+    () =>
+      new SpeechQueue(
+        // Playback only needs synthesis, which browsers without speech
+        // recognition still have — the "text" tier is about the microphone.
+        (text, voice) => speak(text, voice, tier === "elevenlabs" ? "elevenlabs" : "browser"),
+        (agentId, id) => {
+          setNowSpeaking(agentId);
+          setVoicedId(id);
+        }
+      ),
+    [tier]
+  );
+
   const run = useCallback(() => {
     const vf = useVenture.getState().ventureFile;
     if (!vf) return;
+
+    const id = ++runId.current;
+    abort.current?.abort();
+    const controller = new AbortController();
+    abort.current = controller;
+    lastEventAt.current = performance.now();
+    setStalled(false);
+    let finished = false;
 
     setRunning(true);
     setMessages([]); setFeed([]); setStances({}); setDecision(null);
 
     queue.current?.stop();
-    queue.current = audio
-      ? new SpeechQueue(
-          (text, voice) => speak(text, voice, tier ?? "browser"),
-          (agentId) => setNowSpeaking(agentId)
-        )
-      : null;
+    queue.current = audio ? newQueue() : null;
     setMindChanges([]); setRound(0); setStep("Convening"); setSelected(null);
 
     // What the start event establishes is needed again at the end of the same
@@ -148,6 +187,10 @@ export default function Committee() {
     let seated: RosterEntry[] = [];
 
     void streamPost("/api/vc/deliberate", { ventureFile: vf, firmId }, (ev) => {
+      if (id !== runId.current) return;
+      lastEventAt.current = performance.now();
+      setStalled(false);
+      if (ev.type === "done" || ev.type === "error") finished = true;
       switch (ev.type) {
         case "start": {
           firmName = (ev.firm as { name: string }).name;
@@ -225,20 +268,31 @@ export default function Committee() {
           setRunning(false);
           break;
       }
-    }).catch(() => {
-      setStep("Failed");
-      setRunning(false);
-    });
-  }, [replaceVenture, setDeliberation, firmId, audio, tier]);
+    }, controller.signal)
+      .then(() => {
+        // Closed without a verdict: the server died mid-meeting. Waiting on
+        // it would leave "Deliberating…" on screen forever.
+        if (id === runId.current && !finished) setStalled(true);
+      })
+      .catch(() => {
+        if (id !== runId.current) return;
+        setStep("Failed");
+        setRunning(false);
+      });
+  }, [replaceVenture, setDeliberation, firmId, audio, newQueue]);
 
   const seatDots = Object.values(seats);
   const dots: GlobeDot[] = [
-    ...HUB_POINTS.map((h) => ({
+    // Cities stay dots — except those under the committee's feet, which the
+    // row of partners would stand on top of. The beacon marks the HQ itself.
+    ...HUB_POINTS.filter(
+      (h) => Math.hypot(h.lat - hq.lat, (h.lon - hq.lon) * Math.cos((hq.lat * Math.PI) / 180)) > 7
+    ).map((h) => ({
       id: `hub:${h.id}`,
       lat: h.lat,
       lon: h.lon,
       label: h.label,
-      weight: h.id === hq.id ? 0.5 : 0.25,
+      weight: 0.25,
     })),
     ...seatDots.map((s) => ({
       id: s.id,
@@ -248,10 +302,18 @@ export default function Committee() {
       // other. Only whoever is speaking is named.
       label: active.has(s.id) ? s.label : "",
       stance: stances[s.id]?.stance,
-      weight: roster.find((r) => r.id === s.id)?.weight ?? 0.4,
+      // The row reads as a panel only if nobody is dwarfed: size is the same
+      // for every partner, and voting weight stays in the side panel.
+      weight: 0.5,
       active: active.has(s.id),
+      figure: s.figure,
+      figureScale: 1.35,
     })),
   ];
+
+  // Once the room convenes the argument is the thing to watch: the panel
+  // widens and the globe steps back to make room for it.
+  const convened = running || roster.length > 0;
 
   const problem = ventureFile?.chosenProblem;
   const pvs = ventureFile?.pvs;
@@ -265,6 +327,11 @@ export default function Committee() {
           decision.dissents.length > 0 ? "Dissent is kept, not averaged away. " : ""
         }Now defend it out loud — every question you dodge costs you at the vote.`,
       }
+    : running && stalled
+      ? {
+          title: "The room has gone quiet",
+          line: "Nothing has come back for a while — the model may be slow, or stuck. Keep waiting, run the committee again, or go straight to the pitch.",
+        }
     : running
       ? { title: round ? ROUND_LABEL[round] : "Round 0 · decompose", line: ROUND_MEANING[round] }
       : {
@@ -288,8 +355,10 @@ export default function Committee() {
           <Globe
             dots={dots}
             onDotClick={(id) => setSelected(id.startsWith("hub:") ? null : id)}
+            selected={selected}
             focus={{ lat: hq.lat, lon: hq.lon }}
             beacon={{ lat: hq.lat, lon: hq.lon }}
+            distance={convened ? 7.6 : undefined}
             className="h-full w-full"
           />
 
@@ -460,6 +529,24 @@ export default function Committee() {
                     Run again
                   </button>
                 </>
+              ) : running && stalled ? (
+                // Offered, never forced: a slow model looks exactly like a
+                // stuck one. Running again aborts the stuck stream.
+                <>
+                  <button
+                    onClick={run}
+                    className="px-3 py-2 font-mono text-[11px] uppercase tracking-[0.14em] transition hover:brightness-125"
+                    style={{ color: "var(--caution)" }}
+                  >
+                    Run it again ↻
+                  </button>
+                  <Link
+                    href="/meeting"
+                    className="px-3 py-2 font-mono text-[11px] uppercase tracking-[0.14em] text-muted transition hover:text-ink"
+                  >
+                    Skip to the pitch →
+                  </Link>
+                </>
               ) : (
                 <button
                   onClick={run}
@@ -476,10 +563,16 @@ export default function Committee() {
               <button
                 onClick={() => {
                   unlockAudio();
-                  setAudio((v) => {
-                    if (v) queue.current?.stop();
-                    return !v;
-                  });
+                  if (audio) {
+                    queue.current?.stop();
+                    queue.current = null;
+                    setNowSpeaking(null);
+                    setVoicedId(null);
+                  } else if (running) {
+                    // Turned on mid-meeting: speak from the next line on.
+                    queue.current = newQueue();
+                  }
+                  setAudio(!audio);
                 }}
                 title={
                   audio
@@ -505,15 +598,21 @@ export default function Committee() {
         </div>
 
         {/* ------------------------------ sidebar ------------------------------ */}
-        <aside className="flex w-96 shrink-0 flex-col border-l border-edge bg-surface/40">
+        <aside
+          className={`flex shrink-0 flex-col border-l border-edge bg-surface/40 transition-[width] duration-500 ease-out ${
+            convened ? "w-[min(560px,40vw)]" : "w-96"
+          }`}
+        >
           <div className="border-b border-edge p-4">
             <p className="label">
               The room
               <Hint align="left">
-                Five-round protocol: the chair assigns questions by lane, partners answer
-                blind, then challenge each other by name, rebut (and may concede), and the
-                Devil&apos;s Advocate attacks the consensus. Circle size is voting weight;
-                colour is stance; a green ring means that partner conceded.
+                Run like a real partner meeting. The managing partner chairs and hands
+                each question to the partner whose job it is; the partners give their
+                view without hearing the others, then challenge each other by name,
+                answer (and may change their minds), and the devil&apos;s advocate argues
+                against wherever the room settled. Circle size is voting weight; colour is
+                stance; a green tick means that partner conceded.
               </Hint>
             </p>
             {roster.length > 0 ? (
@@ -525,6 +624,7 @@ export default function Committee() {
                     messages={messages}
                     active={active}
                     conceded={conceded}
+                    voiced={audio ? voicedId : undefined}
                   />
                 </div>
                 <div className="mt-3 space-y-1 border-t border-edge pt-3">
@@ -549,8 +649,10 @@ export default function Committee() {
               </>
             ) : (
               <p className="mt-3 font-mono text-xs leading-relaxed text-faint">
-                Not yet convened. Three partners, a Devil&apos;s Advocate, and a chair who
-                routes the questions but never votes.
+                Not yet convened. The lead partner who brought the deal, the principal who
+                did the diligence and a skeptical partner vote; a devil&apos;s advocate
+                argues against the room; the managing partner chairs and keeps the
+                minutes.
               </p>
             )}
           </div>

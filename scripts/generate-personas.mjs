@@ -37,6 +37,9 @@ function rng(seed) {
 }
 
 const rand = rng(20260919);
+// A second stream for the figure, so adding it did not shift a single draw of
+// the first — every other attribute of every persona is exactly as it was.
+const figureRand = rng(20260920);
 const pick = (arr) => arr[Math.floor(rand() * arr.length)];
 const between = (lo, hi) => lo + Math.floor(rand() * (hi - lo + 1));
 /** Bell-ish 1..10 via three samples, so extremes are rare and the middle is
@@ -55,10 +58,17 @@ const HUBS = JSON.parse(
   )
 ).map((h) => ({ ...h, city: h.name, n: h.personas }));
 
-const FIRST = [
-  "Alex","Priya","Jordan","Mei","Tomas","Amara","Noah","Yuki","Sofia","Dmitri","Chen","Aisha","Liam","Ines","Omar",
-  "Hannah","Rafael","Nina","Kwame","Elena","Arjun","Clara","Diego","Fatima","Jonas","Leila","Marco","Sana","Theo","Zoe",
-  "Ravi","Maya","Lucas","Ana","Kenji","Ruth","Sami","Petra","Oscar","Nadia","Felix","Grace","Hugo","Iris","Kai",
+// Each persona is drawn on the globe as a mini figure, a girl or a boy, and the
+// figure is decided here, explicitly, rather than guessed later from a name —
+// names are a poor guide to anybody. The first name is then chosen to suit the
+// figure, so the person on the globe and the name on the call card agree.
+const GIRL_FIRST = [
+  "Priya","Mei","Amara","Yuki","Sofia","Aisha","Ines","Hannah","Nina","Elena","Clara","Fatima","Leila","Sana",
+  "Zoe","Maya","Ana","Ruth","Petra","Nadia","Grace","Iris","Alex","Jordan","Kai",
+];
+const BOY_FIRST = [
+  "Tomas","Noah","Dmitri","Chen","Liam","Omar","Rafael","Kwame","Arjun","Diego","Jonas","Marco","Theo","Ravi",
+  "Lucas","Kenji","Oscar","Felix","Hugo","Sami","Mateo","Yusuf","Alex","Jordan","Kai",
 ];
 const LAST = [
   "Nguyen","Okafor","Silva","Kaur","Weber","Rossi","Haddad","Lindqvist","Oyelaran","Bianchi","Novak","Sharma","Costa",
@@ -136,10 +146,13 @@ for (const hub of HUBS) {
     const gen = pick(GENERATIONS);
     const age = between(gen.range[0], gen.range[1]);
     const tilt = hub.tilt ?? {};
+    const figure = figureRand() < 0.5 ? "girl" : "boy";
 
     personas.push({
       id: id++,
-      name: `${pick(FIRST)} ${pick(LAST)}`,
+      // One draw from the main stream, as the single name list took before.
+      name: `${pick(figure === "girl" ? GIRL_FIRST : BOY_FIRST)} ${pick(LAST)}`,
+      figure,
       title: pick(INDUSTRIES[industry]),
       hubId: hub.id,
       // Placed on a sunflower spiral around the hub rather than jittered

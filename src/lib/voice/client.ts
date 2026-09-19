@@ -194,6 +194,25 @@ function captureWithRecognition(onPartial?: (t: string) => void): Recorder {
  */
 export type VoiceProfile = { voiceId: string; pitch: number; rate: number };
 
+/** Bumped by stopSpeaking(). A line whose synthesis was still in flight when
+ *  it changed is dropped instead of starting to play after the stop. */
+let epoch = 0;
+let playing: { audio: HTMLAudioElement; done: () => void } | null = null;
+
+/**
+ * Silence whatever is speaking now, from either tier. Cancelling browser speech
+ * alone left an ElevenLabs clip playing to its end — over the next page, if the
+ * founder navigated away mid-sentence.
+ */
+export function stopSpeaking(): void {
+  epoch++;
+  if (playing) {
+    playing.audio.pause();
+    playing.done();
+  }
+  if (typeof window !== "undefined") window.speechSynthesis?.cancel();
+}
+
 /** Speaks a line. Falls back to browser speech if ElevenLabs is unavailable,
  *  and resolves either way so nothing ever stalls waiting on audio. */
 export async function speak(
@@ -204,6 +223,7 @@ export async function speak(
   if (tier === "text" || !text) return;
 
   const profile = typeof speaker === "string" ? undefined : speaker;
+  const mine = epoch;
 
   if (tier === "elevenlabs") {
     try {
@@ -215,8 +235,10 @@ export async function speak(
         ),
       });
       if (res.ok) {
-        const url = URL.createObjectURL(await res.blob());
-        await playUrl(url);
+        const blob = await res.blob();
+        if (mine !== epoch) return;
+        const url = URL.createObjectURL(blob);
+        await playUrl(url, longestSay(text, 1));
         URL.revokeObjectURL(url);
         return;
       }
@@ -224,15 +246,38 @@ export async function speak(
       // fall through to browser speech
     }
   }
+  if (mine !== epoch) return;
   await speakInBrowser(text, speaker);
 }
 
-function playUrl(url: string): Promise<void> {
+/**
+ * The longest a line can reasonably take to say, at a slow 110 words a minute
+ * plus a margin. Playback end events are not guaranteed — Chrome's synthesis
+ * drops `onend` when no voice is loaded and cuts long utterances off silently —
+ * and a screen that waits for the voice before its next line would otherwise
+ * wait forever, mid-demo.
+ */
+function longestSay(text: string, rate: number): number {
+  const words = text.trim().split(/\s+/).length;
+  return 2500 + (words / (110 * Math.max(0.5, rate))) * 60_000;
+}
+
+function playUrl(url: string, limitMs: number): Promise<void> {
   return new Promise((resolve) => {
     const audio = new Audio(url);
-    audio.onended = () => resolve();
-    audio.onerror = () => resolve();
-    void audio.play().catch(() => resolve());
+    const watchdog = setTimeout(() => {
+      audio.pause();
+      done();
+    }, limitMs);
+    const done = () => {
+      clearTimeout(watchdog);
+      if (playing?.audio === audio) playing = null;
+      resolve();
+    };
+    playing = { audio, done };
+    audio.onended = done;
+    audio.onerror = done;
+    void audio.play().catch(done);
   });
 }
 
@@ -254,8 +299,14 @@ function speakInBrowser(text: string, speaker: SeatId | VoiceProfile): Promise<v
         : { pitch: speaker.pitch, rate: speaker.rate };
     u.pitch = tuning.pitch;
     u.rate = tuning.rate;
-    u.onend = () => resolve();
-    u.onerror = () => resolve();
+    const watchdog = setTimeout(() => {
+      window.speechSynthesis.cancel();
+      resolve();
+    }, longestSay(text, tuning.rate));
+    u.onend = u.onerror = () => {
+      clearTimeout(watchdog);
+      resolve();
+    };
     window.speechSynthesis.speak(u);
   });
 }

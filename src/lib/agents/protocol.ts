@@ -108,7 +108,14 @@ const VERDICT_SCHEMA = {
   properties: {
     stance: { type: "number", description: "-1 hard no to +1 strong yes" },
     confidence: { type: "number", description: "0 to 1" },
-    position: { type: "string", description: "One line, headline length" },
+    position: {
+      type: "string",
+      // This is the line the room hears — it is spoken aloud and shown as the
+      // transcript. "Headline length" produced headlines, which read as a
+      // machine; this asks for a person.
+      description:
+        "What you would actually say out loud to the room: one or two natural sentences, first person, plain words and contractions, about this specific product. No jargon, no headline style.",
+    },
     reasoning: { type: "string" },
     evidence: { type: "array", items: { type: "string" } },
     whatWouldChangeMyMind: { type: "string" },
