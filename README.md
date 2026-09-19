@@ -5,8 +5,8 @@ which problem you are actually solving, whether a market wants it, and whether
 an investor would fund it — in that order, because that is the order the answers
 matter in.
 
-**Part 1 — the market.** You describe what you built. Three hundred simulated
-professionals are asked not "do you like this?" but "which of these problems do
+**Part 1 — the market.** You describe what you built. Over three hundred simulated professionals across twenty world hubs
+are asked not "do you like this?" but "which of these problems do
 you actually have?" The answer is frequently not the one you pitched. A council
 of five agents then argues about whether the problem is worth solving in a
 specific city, and the run produces a Problem Validation Score.
