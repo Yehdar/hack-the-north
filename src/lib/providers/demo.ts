@@ -129,6 +129,47 @@ const TASKS = {
   ],
 };
 
+
+// --- live meeting ----------------------------------------------------------
+
+const MODERATOR_ROTATION: Seat[] = ["principal", "skeptic", "gp"];
+let turnCounter = 0;
+
+const SPOKEN: Record<Seat, { line: string; objectionText: string }[]> = {
+  gp: [
+    {
+      line: "Stop there. You keep describing what it does. Tell me why a team buys it this quarter rather than next year.",
+      objectionText: "No why-now established",
+    },
+    {
+      line: "If this works, what does it look like at a hundred million in revenue? I cannot see the shape of that from here.",
+      objectionText: "Cannot see the path to a fund-returning outcome",
+    },
+  ],
+  principal: [
+    {
+      line: "You said teams would pay. Who has? Name one company and what they paid.",
+      objectionText: "No paying customer named",
+    },
+    {
+      line: "The buyer you described does not control that budget. Who actually signs?",
+      objectionText: "Named buyer does not hold the budget",
+    },
+  ],
+  skeptic: [
+    {
+      line: "We have seen this shape before. Coverage dashboards promised the same thing and became a number teams gamed. What stops that here?",
+      objectionText: "Metric is gameable, like the incumbent it replaces",
+    },
+    {
+      line: "You answered a different question than the one you were asked. I will ask it again: what makes this hard to copy?",
+      objectionText: "Dodged the defensibility question",
+    },
+  ],
+  devil: [{ line: "", objectionText: "" }],
+  chair: [{ line: "", objectionText: "" }],
+};
+
 export class DemoProvider implements LLMProvider {
   readonly name = "demo";
 
@@ -168,6 +209,29 @@ export class DemoProvider implements LLMProvider {
                 : "The metric is gameable, so it becomes another number teams optimise.",
           rationale: "Pre-read drafted from the venture file.",
         } as T;
+      case "moderator_decision": {
+        // Speak on most turns, but stay silent on one in four so the room does
+        // not read as heckling.
+        const idx = turnCounter++;
+        const silent = idx % 4 === 3;
+        const who = MODERATOR_ROTATION[idx % MODERATOR_ROTATION.length];
+        return {
+          shouldRespond: !silent,
+          seatId: silent ? "" : who,
+          objectionType: who === "principal" ? "unit-economics" : who === "skeptic" ? "competitor" : "timing",
+          trigger: silent
+            ? "Nothing here needs pressing yet."
+            : "The founder made a claim with nothing behind it.",
+          resolutions: [],
+        } as T;
+      }
+
+      case "seat_response": {
+        const options = SPOKEN[seat];
+        const pick = options[Math.floor(turnCounter / MODERATOR_ROTATION.length) % options.length];
+        return { line: pick.line, isObjection: true, objectionText: pick.objectionText } as T;
+      }
+
       default:
         return {} as T;
     }
