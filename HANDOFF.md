@@ -94,9 +94,19 @@ and a pitch provider"):
 4. **Rehearse `DEMO.md` end to end** with the real model, in a **fresh browser
    profile** (audio autoplay and mic permissions behave differently once
    granted). Every bug so far was found by clicking, not by tests.
-5. **Talk to Yehdar before merging** (see "Needs a human decision").
-6. Only if there is time: bugs #9 and #10 in the table below, then the missing
-   tests.
+5. **Check the OpenAI voices against a real key.** `/api/voice/tts` falls back
+   to OpenAI (`gpt-4o-mini-tts`) when there is no ElevenLabs key. It is written
+   and typed but has never made a real call — if it 400s, everything still
+   degrades to browser speech, so it fails quietly rather than loudly.
+6. **Talk to Yehdar before merging**, and answer the three questions under
+   "Needs a human decision" — one of them (the narrator's default) is one word
+   from Shafia.
+7. **`shafia` is behind `master`.** Merge `master` into it before working there
+   again, or work on `master` directly, as `jaineel-changes` now does.
+8. Then, in rough order of what a demo would notice: bug #17 (Part 1 forgets a
+   finished run when you navigate back to it), the chair never adjudicating
+   (#9), and turning `npm run walkthrough` into a committed Playwright test
+   with assertions rather than a script you read the output of.
 
 ---
 
