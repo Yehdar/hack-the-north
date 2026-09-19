@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { Objection, SeatId, VentureFile } from "@/lib/types";
+import type { Objection, SeatId } from "@/lib/types";
+import { useVenture } from "@/lib/store";
 import {
   detectTier,
   speak,
@@ -29,7 +30,10 @@ const STATUS_STYLE: Record<Objection["status"], string> = {
 export default function Meeting() {
   const [tier, setTier] = useState<VoiceTier | null>(null);
   const [seats, setSeats] = useState<SeatInfo[]>([]);
-  const [vf, setVf] = useState<VentureFile | null>(null);
+  // Shared with the globe page, so the committee is grilling the founder about
+  // the idea they actually entered rather than the built-in mock.
+  const vf = useVenture((v) => v.ventureFile);
+  const setVf = useVenture((v) => v.replace);
   const [recording, setRecording] = useState(false);
   const [thinking, setThinking] = useState(false);
   const [speaking, setSpeaking] = useState<SeatId | null>(null);
@@ -113,8 +117,8 @@ export default function Meeting() {
             <h1 className="text-2xl font-semibold tracking-tight text-white">
               Investment Committee — live
             </h1>
-            <p className="mt-1 text-sm text-slate-400">
-              Pitch out loud. They will interrupt.
+            <p className="mt-1 max-w-xl text-sm text-slate-400">
+              {vf ? `\u201C${vf.solution}\u201D` : "Pitch out loud. They will interrupt."}
               <span className="ml-2 rounded bg-slate-800 px-2 py-0.5 font-mono text-xs">
                 voice: {tier ?? "…"}
               </span>
@@ -124,6 +128,13 @@ export default function Meeting() {
             ← deliberation
           </a>
         </header>
+
+        {!vf && (
+          <p className="mt-4 border border-amber-700/50 bg-amber-950/20 p-3 font-mono text-xs text-amber-300">
+            No idea entered yet. <a href="/" className="underline">Start on the globe</a> so the
+            committee has a venture file to read before you pitch.
+          </p>
+        )}
 
         {tier === "browser" && (
           <p className="mt-4 rounded-md border border-slate-800 bg-slate-900/40 p-3 text-xs text-slate-400">
@@ -202,7 +213,7 @@ export default function Meeting() {
             <div className="mt-4 flex flex-wrap items-center gap-3">
               <button
                 onClick={pressToTalk}
-                disabled={thinking || tier === "text" || !tier}
+                disabled={thinking || tier === "text" || !tier || !vf}
                 className={`rounded-md px-5 py-2.5 text-sm font-medium transition disabled:cursor-not-allowed disabled:bg-slate-800 disabled:text-slate-500 ${
                   recording
                     ? "bg-red-600 text-white hover:bg-red-500"
@@ -230,7 +241,7 @@ export default function Meeting() {
                 />
                 <button
                   type="submit"
-                  disabled={thinking || !typed.trim()}
+                  disabled={thinking || !typed.trim() || !vf}
                   className="rounded-md border border-slate-700 px-4 py-2.5 text-sm text-slate-300 transition hover:bg-slate-800 disabled:opacity-40"
                 >
                   Send

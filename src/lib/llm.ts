@@ -1,6 +1,7 @@
 import OpenAI from "openai";
 import Anthropic from "@anthropic-ai/sdk";
 import { DemoProvider } from "@/lib/providers/demo";
+import { RecordingProvider, ReplayProvider } from "@/lib/providers/fixtures";
 
 // ============================================================================
 // LLM PROVIDER SEAM — shared, frozen after the 1.5h sync.
@@ -173,6 +174,18 @@ export function getLLM(): LLMProvider {
  * anyone who clones it, with nothing configured.
  */
 function selectProvider(): LLMProvider {
+  // Replay wins over everything: on stage we want the recorded run, not a live
+  // call that can hang on venue wifi.
+  if (process.env.DEMO_MODE === "1") return new ReplayProvider(new DemoProvider());
+
+  const base = selectBase();
+
+  // Recording wraps whatever was selected, including the demo provider, so the
+  // record path can be exercised before any key exists.
+  return process.env.RECORD_FIXTURES === "1" ? new RecordingProvider(base) : base;
+}
+
+function selectBase(): LLMProvider {
   const forced = process.env.LLM_PROVIDER;
   const openaiKey = process.env.OPENAI_API_KEY;
   const anthropicKey = process.env.ANTHROPIC_API_KEY;

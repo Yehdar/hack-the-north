@@ -22,7 +22,18 @@ cp .env.example .env.local   # works with no keys — falls back to mocks
 npm run dev
 ```
 
-Then open http://localhost:3000 and press **Convene the committee**.
+Then open http://localhost:3000.
+
+## The flow
+
+1. **`/`** — enter what you built. The globe convenes the committee: the chair
+   assigns diligence questions by lane, seats form positions blind, then
+   challenge each other directly and may change their minds. Click any agent
+   dot to see who challenged it and whether it moved.
+2. **`/meeting`** — pitch out loud. Partners interrupt, and everything you
+   dodge is logged against you.
+3. **`/report`** — the diligence report. Re-weight any seat and the verdict
+   recomputes instantly; no model is called.
 
 **No API keys are required.** With no key set, the app uses a demo provider
 that returns realistic, differentiated agent output — so you can watch a full
@@ -37,6 +48,22 @@ npm test         # vitest
 npm run typecheck
 npm run build
 ```
+
+## Demo mode
+
+Venue wifi failing during a three-minute demo is not hypothetical.
+
+```bash
+RECORD_FIXTURES=1 npm run dev   # do one full run for real
+DEMO_MODE=1 npm run dev         # replay it, network off
+```
+
+Replay is keyed on a hash of each exact prompt, so a replayed run is the same
+deliberation rather than an approximation. An unrecorded prompt degrades to the
+demo provider instead of throwing in front of an audience.
+
+`fixtures/llm.json` currently holds a run recorded from the demo provider, which
+proves the path works. **Re-record it against a real model before the demo.**
 
 ## Track split
 
