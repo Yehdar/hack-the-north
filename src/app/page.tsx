@@ -29,7 +29,7 @@ import { streamPost } from "@/lib/sse";
 import { hubById } from "@/data/globePoints";
 import { FIRMS } from "@/data/firms";
 import type { AgentVerdict, PVSBreakdown, ProblemStatement } from "@/lib/types";
-import type { CrowdReaction, CrowdVerdict } from "@/lib/discovery/types";
+import type { Attention, CrowdReaction, CrowdVerdict } from "@/lib/discovery/types";
 import type { CrowdSignals } from "@/lib/discovery/signals";
 
 // ============================================================================
@@ -176,6 +176,8 @@ export default function Discover() {
   const [showReveal, setShowReveal] = useState(false);
   const [focus, setFocus] = useState<number | null>(null);
   const [onlyEngaged, setOnlyEngaged] = useState(false);
+  /** Click a light to see only those people. Null shows everyone. */
+  const [stanceFilter, setStanceFilter] = useState<Attention | null>(null);
   const asideRef = useRef<HTMLElement>(null);
 
   // ---- the refine loop
@@ -1319,24 +1321,36 @@ export default function Discover() {
                 <div className="mt-2 divide-y divide-edge">
                   <LightRow
                     signal="go"
-                    title="Really wanted it"
+                    title="Supports"
                     count={verdict ? verdict.attention.full : live.full}
                     total={personas.length}
-                    note="Stopped what they were doing to look"
+                    note="Has the problem and wants it solved"
+                    onClick={() =>
+                      setStanceFilter((f) => (f === "full" ? null : "full"))
+                    }
+                    selected={stanceFilter === null ? undefined : stanceFilter === "full"}
                   />
                   <LightRow
                     signal="caution"
-                    title="Mildly interested"
+                    title="Unsure"
                     count={verdict ? verdict.attention.partial : live.partial}
                     total={personas.length}
-                    note="Could take it or leave it"
+                    note="Sees it, not convinced enough to act"
+                    onClick={() =>
+                      setStanceFilter((f) => (f === "partial" ? null : "partial"))
+                    }
+                    selected={stanceFilter === null ? undefined : stanceFilter === "partial"}
                   />
                   <LightRow
                     signal="stop"
-                    title="Walked past it"
+                    title="Rejected"
                     count={verdict ? verdict.attention.ignore : live.ignore}
                     total={personas.length}
                     note="Not a problem they think about"
+                    onClick={() =>
+                      setStanceFilter((f) => (f === "ignore" ? null : "ignore"))
+                    }
+                    selected={stanceFilter === null ? undefined : stanceFilter === "ignore"}
                   />
                 </div>
                 {verdict && (
@@ -1442,11 +1456,30 @@ export default function Discover() {
               </>
             )}
 
-            <p className="label">What they said</p>
+            <div className="flex items-baseline justify-between gap-2">
+              <p className="label">
+                {stanceFilter === "full"
+                  ? "Supports"
+                  : stanceFilter === "partial"
+                    ? "Unsure"
+                    : stanceFilter === "ignore"
+                      ? "Rejected"
+                      : "What they said"}
+              </p>
+              {stanceFilter && (
+                <button
+                  onClick={() => setStanceFilter(null)}
+                  className="label underline-offset-2 hover:text-ink hover:underline"
+                >
+                  show everyone
+                </button>
+              )}
+            </div>
             <div className="mt-3 space-y-2">
               {answered ? (
                 [...reactions.values()]
                   .filter((r) => r.reason)
+                  .filter((r) => !stanceFilter || r.attention === stanceFilter)
                   .slice(-40)
                   .reverse()
                   .map((r) => {

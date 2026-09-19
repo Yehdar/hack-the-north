@@ -82,43 +82,73 @@ export function LightStack({ signal }: { signal: Signal }) {
   );
 }
 
-/** Share of a whole, as a light plus its count. Replaces the bar charts. */
+/**
+ * Share of a whole, as a light plus its count.
+ *
+ * Clickable when `onClick` is given: a founder reading "36 walked past it"
+ * immediately wants to know who, and making the number the filter is cheaper
+ * than a separate control that says the same thing.
+ */
 export function LightRow({
   signal,
   title,
   count,
   total,
   note,
+  onClick,
+  selected,
 }: {
   signal: Signal;
   title: string;
   count: number;
   total: number;
   note?: string;
+  onClick?: () => void;
+  selected?: boolean;
 }) {
   const pct = total > 0 ? Math.round((count / total) * 100) : 0;
+  const color = TONE[signal].color;
 
-  return (
-    <div className="flex items-start gap-2.5 py-1.5">
+  const body = (
+    <>
       <span
-        className="mt-1 inline-block h-2.5 w-2.5 shrink-0 rounded-full"
+        className="mt-1 inline-block h-2.5 w-2.5 shrink-0 rounded-full transition-all"
         style={{
-          background: TONE[signal].color,
-          boxShadow: `0 0 9px -1px ${TONE[signal].color}`,
+          background: color,
+          boxShadow: `0 0 9px -1px ${color}`,
+          opacity: selected === false ? 0.35 : 1,
         }}
       />
-      <div className="min-w-0 flex-1">
-        <div className="flex items-baseline justify-between gap-2">
+      <span className="min-w-0 flex-1">
+        <span className="flex items-baseline justify-between gap-2">
           <span className="text-[12px] text-ink">{title}</span>
-          <span className="num shrink-0 text-[12px]" style={{ color: TONE[signal].color }}>
+          <span className="num shrink-0 text-[12px]" style={{ color }}>
             {count}
             <span className="ml-1 text-[10px] text-muted">of {total}</span>
           </span>
-        </div>
-        <p className="mt-0.5 text-[10px] leading-snug text-muted">
+        </span>
+        <span className="mt-0.5 block text-[10px] leading-snug text-muted">
           {note ?? `${pct}%`}
-        </p>
-      </div>
-    </div>
+        </span>
+      </span>
+    </>
+  );
+
+  if (!onClick) {
+    return <div className="flex items-start gap-2.5 py-1.5">{body}</div>;
+  }
+
+  return (
+    <button
+      onClick={onClick}
+      aria-pressed={selected}
+      className="flex w-full items-start gap-2.5 rounded-[3px] px-1.5 py-1.5 text-left transition hover:bg-surface-2"
+      style={{
+        background: selected ? "color-mix(in srgb, var(--surface-2) 90%, transparent)" : undefined,
+        boxShadow: selected ? `inset 2px 0 0 0 ${color}` : undefined,
+      }}
+    >
+      {body}
+    </button>
   );
 }

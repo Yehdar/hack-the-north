@@ -87,22 +87,22 @@ const ARC_FADE_MS = 500;
 const RIPPLE_MS = 1100;
 
 /**
- * Sentiment as temperature: cold blue through to signal amber.
+ * Dots carry the same red / amber / green the side panel uses.
  *
- * Deliberately not red-to-green. Red/green reads as pass/fail, which is the
- * wrong frame for "how much heat is in this market", and it is the one ramp
- * that disappears for red-green colourblind viewers.
+ * They used to be a blue-to-amber temperature ramp, which meant the globe and
+ * the panel were describing the same people in two different languages. One
+ * language, and it is the one everybody already reads without a legend.
  */
 function stanceColor(stance?: number): string {
-  if (stance === undefined) return "#6b6477";
+  if (stance === undefined) return "#4a5468";
 
   const t = Math.max(0, Math.min(1, (stance + 1) / 2));
-  const cold = [0x3b, 0x82, 0xf6];
-  const mid = [0x84, 0x94, 0xb4];
-  const hot = [0xff, 0xb0, 0x20];
+  const stop = [0xe5, 0x53, 0x4b];
+  const caution = [0xd9, 0xa4, 0x41];
+  const go = [0x3f, 0xb9, 0x50];
 
   const [from, to, local] =
-    t < 0.5 ? [cold, mid, t * 2] : [mid, hot, (t - 0.5) * 2];
+    t < 0.5 ? [stop, caution, t * 2] : [caution, go, (t - 0.5) * 2];
 
   const channel = (i: number) =>
     Math.round(from[i] + (to[i] - from[i]) * local)

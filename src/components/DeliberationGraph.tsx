@@ -1,5 +1,7 @@
 "use client";
 
+import { AgentFace, moodOf } from "@/components/AgentFace";
+
 // ============================================================================
 // THE DELIBERATION, DRAWN.
 //
@@ -169,16 +171,36 @@ export function DeliberationGraph({
                   <animate attributeName="stroke-opacity" values="0.7;0.1;0.7" dur="1.1s" repeatCount="indefinite" />
                 </circle>
               )}
-              <circle
-                cx={p.x}
-                cy={p.y}
-                r={r}
-                fill={stanceFill(v?.stance)}
-                stroke={conceded?.has(s.id) ? "var(--positive)" : "var(--border-bright)"}
-                strokeWidth={conceded?.has(s.id) ? 2 : 1}
+              {/* A face rather than a labelled circle. A circle with a number
+                  in it does not look like it is arguing — you have to read the
+                  graph to know anything is happening. A face is the one shape
+                  people parse without trying, and everything it does here is
+                  bound to real state: the mouth moves only while this agent is
+                  actually speaking, the brows follow its stance, and it looks
+                  toward whoever it just addressed. */}
+              <foreignObject
+                x={p.x - r}
+                y={p.y - r}
+                width={r * 2}
+                height={r * 2}
+                style={{ overflow: "visible" }}
               >
-                <title>{`${s.role} · ${Math.round(s.weight * 100)}% of the vote${v ? ` · stance ${v.stance.toFixed(2)}` : ""}`}</title>
-              </circle>
+                <AgentFace
+                  mood={moodOf(v?.stance)}
+                  speaking={speaking}
+                  thinking={Boolean(active?.has(s.id)) && !v}
+                  conceded={Boolean(conceded?.has(s.id))}
+                  gaze={
+                    // Look at the agent just addressed, so the graph reads as a
+                    // conversation rather than a set of portraits.
+                    speaking && latest && latest.to !== "room"
+                      ? Math.sign((pos.get(latest.to)?.x ?? p.x) - p.x)
+                      : 0
+                  }
+                  size={r * 2}
+                />
+              </foreignObject>
+              <title>{`${s.role} · ${Math.round(s.weight * 100)}% of the vote${v ? ` · stance ${v.stance.toFixed(2)}` : ""}`}</title>
               <text
                 x={p.x}
                 y={labelBelow ? p.y + r + 12 : p.y - r - 6}
@@ -190,12 +212,18 @@ export function DeliberationGraph({
               {v && (
                 <text
                   x={p.x}
-                  y={p.y + 3}
+                  y={labelBelow ? p.y + r + 22 : p.y - r - 16}
                   textAnchor="middle"
-                  className="fill-[var(--ground)] font-mono text-[8px] font-semibold"
+                  className="font-mono text-[8px]"
+                  fill={
+                    v.stance > 0.2
+                      ? "var(--go)"
+                      : v.stance < -0.2
+                        ? "var(--stop)"
+                        : "var(--caution)"
+                  }
                 >
-                  {v.stance > 0 ? "+" : ""}
-                  {v.stance.toFixed(1)}
+                  {v.stance > 0.2 ? "supports" : v.stance < -0.2 ? "rejects" : "unsure"}
                 </text>
               )}
             </g>
