@@ -9,7 +9,7 @@ import { Wordmark } from "@/components/Logo";
 //
 // The single thing that turns a pile of panels into a walkthrough. Anyone who
 // walks up mid-demo can see where they are, what has already happened, and
-// what is coming — without anyone narrating it.
+// what is coming. Without anyone narrating it.
 //
 // Each stage carries a one-line "what this is for", because a progress bar
 // that only shows position teaches nothing. The rail explains the product while
@@ -91,27 +91,31 @@ export function StageRail({
                       style={{ background: s === "done" ? "var(--accent)" : "var(--border)" }}
                     />
                   )}
+                  {/* Numbered, not ticked. A tick says "finished" but not
+                      "finished what, out of how many". And the step counter it
+                      replaces used to duplicate this in the middle of the
+                      screen. The number stays visible in every state so the
+                      rail reads as a list of steps at a glance. */}
                   <span
-                    className="relative z-10 mt-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full border text-[8px]"
+                    className="relative z-10 mt-0.5 flex h-[18px] w-[18px] items-center justify-center rounded-full border font-mono text-[10px] font-semibold tabular-nums"
                     style={{
-                      borderColor:
-                        s === "todo" ? "var(--border)" : "var(--accent)",
-                      background:
+                      borderColor: s === "todo" ? "var(--border)" : "var(--accent)",
+                      background: s === "done" ? "var(--accent)" : "var(--ground)",
+                      color:
                         s === "done"
-                          ? "var(--accent)"
+                          ? "var(--ground)"
                           : s === "active"
-                            ? "transparent"
-                            : "var(--ground)",
-                      color: "var(--ground)",
+                            ? "var(--accent)"
+                            : "var(--faint)",
                     }}
                   >
-                    {s === "done" && "✓"}
+                    {i + 1}
                     {s === "active" && (
                       <motion.span
-                        className="h-1.5 w-1.5 rounded-full"
-                        style={{ background: "var(--accent)" }}
-                        animate={{ opacity: [1, 0.25, 1] }}
-                        transition={{ duration: 1.4, repeat: Infinity }}
+                        className="absolute inset-0 rounded-full border"
+                        style={{ borderColor: "var(--accent)" }}
+                        animate={{ opacity: [1, 0.2, 1], scale: [1, 1.25, 1] }}
+                        transition={{ duration: 1.6, repeat: Infinity }}
                       />
                     )}
                   </span>

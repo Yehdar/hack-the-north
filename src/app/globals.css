@@ -258,11 +258,34 @@ body {
   to { opacity: 1; filter: blur(0); transform: translateY(0); }
 }
 
+/* The person on the call, talking: the mouth moves, the head nods a little,
+   and everyone blinks now and then whether talking or not. */
+@keyframes figure-talk {
+  0%, 100% { transform: scaleY(0.25); }
+  20% { transform: scaleY(1); }
+  35% { transform: scaleY(0.45); }
+  55% { transform: scaleY(0.9); }
+  75% { transform: scaleY(0.3); }
+}
+@keyframes figure-nod {
+  0%, 100% { transform: rotate(0deg) translateY(0); }
+  25% { transform: rotate(-3deg) translateY(-0.4px); }
+  60% { transform: rotate(2.5deg) translateY(0.3px); }
+}
+@keyframes figure-blink {
+  0%, 94%, 100% { transform: scaleY(1); }
+  97% { transform: scaleY(0.1); }
+}
+.figure-talk { transform-box: fill-box; transform-origin: center; animation: figure-talk 0.42s ease-in-out infinite; }
+.figure-nod { transform-box: view-box; transform-origin: 20px 27px; animation: figure-nod 1.6s ease-in-out infinite; }
+.figure-blink { transform-box: fill-box; transform-origin: center; animation: figure-blink 4.2s linear infinite; }
+
 @media (prefers-reduced-motion: reduce) {
   .strike { animation-duration: 1ms; animation-delay: 0ms; }
   .blur-word { animation-duration: 1ms; animation-delay: 0ms !important; }
   .beam::before, .flow { animation: none; }
   .narrate { animation: none; }
+  .figure-talk, .figure-nod, .figure-blink { animation: none; }
 }
 
 /* The door between the two parts. Two leaves meet on a hairline seam. */

@@ -2,7 +2,7 @@ import { getLLM } from "@/lib/llm";
 import type { ProblemStatement } from "@/lib/types";
 
 // ============================================================================
-// PROBLEM SPLIT — beat ② of Part 1.
+// PROBLEM SPLIT. Beat ② of Part 1.
 //
 // The founder describes a SOLUTION. This enumerates the distinct problems it
 // could be solving, and the ordering carries meaning:
@@ -48,7 +48,7 @@ Rules that matter:
 
 - The FIRST problem you return must be the one this founder plainly believes
   they are solving. Read it off their own framing, uncritically.
-- Every problem after that must be GENUINELY DIFFERENT — a different person
+- Every problem after that must be GENUINELY DIFFERENT. A different person
   feeling a different pain, not the same problem reworded at a different
   altitude. If you cannot find a different one, return fewer.
 - The most valuable entry is usually an adjacent problem that is more acute

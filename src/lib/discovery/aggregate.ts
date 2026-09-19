@@ -5,7 +5,7 @@ import type { Attention, CrowdReaction, CrowdVerdict } from "./types";
 // and the discovery screen aggregates whatever arrived when a stream stalls.
 
 /**
- * What the crowd concluded. Pure — no model call, so this recomputes instantly
+ * What the crowd concluded. Pure. No model call, so this recomputes instantly
  * when the founder edits a problem or filters the crowd.
  */
 export function aggregate(

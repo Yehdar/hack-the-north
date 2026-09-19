@@ -1,7 +1,7 @@
 import type { HubId } from "@/lib/types";
 
 // ============================================================================
-// DISCOVERY TYPES — Part 1.
+// DISCOVERY TYPES, Part 1.
 //
 // The crowd is what gives the globe density and the market its spread. These
 // personas are procedurally generated and committed, not authored by hand and
@@ -24,7 +24,7 @@ export type Industry =
   | "government";
 
 /** How a person is drawn on the globe. Chosen explicitly when the library is
- *  generated — never inferred from a name. */
+ *  generated. Never inferred from a name. */
 export type FigureKind = "girl" | "boy";
 
 export type Persona = {
@@ -72,7 +72,7 @@ export type CrowdReaction = {
   /**
    * THE differentiator. The usual approach asks a crowd "do you like this?"
    * and averages the answer. We ask "which of these problems do you actually
-   * have?" — so the aggregate can tell a founder they pitched problem A while
+   * have?". So the aggregate can tell a founder they pitched problem A while
    * the market that responded has problem C.
    *
    * null means: none of these are my problem.
@@ -93,7 +93,7 @@ export type CrowdVerdict = {
   marketProblemId: string | null;
   /** What the founder led with. */
   pitchedProblemId: string | null;
-  /** True when those differ — the reveal. */
+  /** True when those differ, the reveal. */
   mismatch: boolean;
   attention: Record<Attention, number>;
   meanSentiment: number;

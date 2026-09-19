@@ -7,7 +7,7 @@ import { motion } from "framer-motion";
 // AGENT FACES.
 //
 // The council graph was labelled circles with a number in them. Circles do not
-// look like they are arguing — you have to read the graph to know anything is
+// look like they are arguing. You have to read the graph to know anything is
 // happening. A face does the work for free: it is the one shape people parse
 // without trying.
 //
@@ -103,7 +103,7 @@ export function AgentFace({
       {/* a soft sheen, top left, so the head reads as round rather than flat */}
       <ellipse cx="17" cy="14.5" rx="7" ry="4.2" fill="#fff" opacity="0.07" transform="rotate(-28 17 14.5)" />
 
-      {/* cheeks — warmer the more this agent likes what it hears */}
+      {/* cheeks. Warmer the more this agent likes what it hears */}
       {[13.2, 34.8].map((cx) => (
         <motion.circle
           key={cx}
@@ -115,7 +115,7 @@ export function AgentFace({
         />
       ))}
 
-      {/* eyes — big and round, blink on a loop, pupils track the gaze */}
+      {/* eyes. Big and round, blink on a loop, pupils track the gaze */}
       <motion.g
         animate={{ x: look * 0.8 }}
         transition={{ type: "spring", stiffness: 180, damping: 18 }}
@@ -162,7 +162,7 @@ export function AgentFace({
         />
       ))}
 
-      {/* mouth — an open, moving shape only while actually speaking, and
+      {/* mouth. An open, moving shape only while actually speaking, and
           thinking dots in its place while a turn is still in flight */}
       {speaking ? (
         <motion.ellipse
@@ -199,7 +199,7 @@ export function AgentFace({
         />
       )}
 
-      {/* a small nod when an agent concedes — the moment worth noticing */}
+      {/* a small nod when an agent concedes. The moment worth noticing */}
       {conceded && (
         <motion.circle
           cx="38" cy="11" r="4.5"

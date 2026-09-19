@@ -4,6 +4,8 @@ import { analyseSignals } from "@/lib/discovery/signals";
 import { inferIndustries, selectByIds, selectRelevant } from "@/data/personas";
 import { getLLM } from "@/lib/llm";
 import type { ProblemStatement, VentureFile } from "@/lib/types";
+import { readPitch } from "@/lib/providers/pitch";
+import type { Persona } from "@/lib/discovery/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -75,17 +77,22 @@ export async function POST(req: Request) {
 
         // ---- ③ deploy ---------------------------------------------------
         send({ type: "phase", phase: "deploy", label: "Deploying the crowd" });
+        const { consumer } = readPitch(solution);
         const hits =
           personaIds.length > 0
-            ? selectByIds(solution, personaIds)
-            : selectRelevant(solution, { limit: crowdSize });
+            ? selectByIds(solution, personaIds, consumer)
+            : selectRelevant(solution, { limit: crowdSize, consumer });
         send({
           type: "deploy",
+          consumer,
           personas: hits.map((h) => ({
             id: h.persona.id,
             name: h.persona.name,
             figure: h.persona.figure,
             title: h.persona.title,
+            // Asked as themselves, so shown as themselves: "31–36 · gardening,
+            // board games" rather than a job title that has nothing to do with it.
+            label: consumer ? personLabel(h.persona) : h.persona.title,
             hubId: h.persona.hubId,
             lat: h.persona.location.lat,
             lon: h.persona.location.lon,
@@ -100,7 +107,8 @@ export async function POST(req: Request) {
           solution,
           problems,
           hits.map((h) => h.persona),
-          (progress) => send({ type: "reactions", ...progress })
+          (progress) => send({ type: "reactions", ...progress }),
+          consumer
         );
 
         // ---- ⑤ the reveal -----------------------------------------------
@@ -126,4 +134,11 @@ export async function POST(req: Request) {
       Connection: "keep-alive",
     },
   });
+}
+
+/** A person rather than a job: "31–36 · gardening, board games". */
+function personLabel(p: Persona): string {
+  const age = p.demographics.ageRange.replace("-", "–");
+  const into = p.interests.slice(0, 2).map((i) => i.toLowerCase()).join(", ");
+  return into ? `${age} · ${into}` : age;
 }

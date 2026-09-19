@@ -3,8 +3,8 @@
 //
 // The demo provider used to answer every idea with the same dev-tools script:
 // pitch a feeder for cats and the market "actually" had a problem with risky
-// code paths. This reads the founder's own words — what the thing is, who it is
-// for, which market it sits in — so everything the demo says afterwards is at
+// code paths. This reads the founder's own words. What the thing is, who it is
+// for, which market it sits in, so everything the demo says afterwards is at
 // least about the idea on the table.
 //
 // It is still no substitute for a model. With OPENAI_API_KEY or
@@ -105,14 +105,22 @@ export function readPitch(raw: string): Pitch {
   const thing = head.split(/\s+/).slice(0, 7).join(" ").toLowerCase() || "this";
   const short = thing.split(/\s+for\s+/)[0].split(/\s+/).slice(0, 4).join(" ");
 
-  const scores = DOMAIN_ORDER.map((d) => [d, (solution.match(new RegExp(DOMAIN_WORDS[d], "gi")) ?? []).length] as const);
+  // Who it is for: "for cats" → cat owners, "for student housing" → students.
+  const forWhom = solution.match(/\bfor\s+([a-z][a-z\s-]{1,40}?)(?=\s+(?:that|which|who|so|because|and|with|to|in|on|at|by)\b|[.,!?;]|$)/i)?.[1];
+
+  // What the thing is and who it is for outweigh what it happens to mention: a
+  // fridge for corner shops that "keeps milk and medicine cold" is a shop
+  // product, not a health one.
+  const count = (text: string | undefined, d: Exclude<Domain, "general">) =>
+    text ? (text.match(new RegExp(DOMAIN_WORDS[d], "gi")) ?? []).length : 0;
+  const scores = DOMAIN_ORDER.map(
+    (d) => [d, count(solution, d) + 2 * count(thing, d) + 3 * count(forWhom, d)] as const
+  );
   const best = scores.reduce((a, b) => (b[1] > a[1] ? b : a), ["general", 0] as readonly [Domain, number]);
   const domain: Domain = best[1] > 0 ? best[0] : "general";
 
-  // Who it is for: "for cats" → cat owners, "for student housing" → students.
   let audience = DEFAULT_AUDIENCE[domain];
   let animal: string | undefined;
-  const forWhom = solution.match(/\bfor\s+([a-z][a-z\s-]{1,40}?)(?=\s+(?:that|which|who|so|because|and|with|to|in|on|at|by)\b|[.,!?;]|$)/i)?.[1];
   const inText = (forWhom ?? solution).toLowerCase();
   const animalWord = Object.keys(ANIMALS).find((a) => new RegExp(`\\b${a}\\b`).test(inText));
   if (domain === "pets" && animalWord) {
@@ -251,7 +259,7 @@ export const MARKETS: Record<Domain, Market> = {
 // ---------------------------------------------------------------------------
 // The candidate problems: the founder's framing, and three things the market
 // might actually be feeling instead. Each carries the words the crowd model
-// reads to decide who has it — "budget" for the people who can pay, "can't
+// reads to decide who has it, "budget" for the people who can pay, "can't
 // tell" for the people who need proof, "skip" for the people who just avoid it.
 
 export type ProblemDraft = {
@@ -275,44 +283,44 @@ export function marketProblems(p: Pitch): ProblemDraft[] {
       {
         statement: `Owners who are out for long or unpredictable days can't keep their ${pet}'s routine on track, so meals and care slip exactly when nobody's home.`,
         whoHasIt: `Working ${a} who already hold the budget for sitters, walkers and gadgets.`,
-        severity: 79, frequency: "Every week — worst on long workdays and trips",
+        severity: 79, frequency: "Every week. Worst on long workdays and trips",
         currentWorkaround: "A neighbour, a pricey sitter, or hoping for the best.",
-        willingnessToPay: "Yes — they already pay a sitter, and this competes with that spend.",
+        willingnessToPay: "Yes. They already pay a sitter, and this competes with that spend.",
         confidence: 0.72,
       },
       {
-        statement: `They can't tell how much their ${pet} is actually eating or whether anything has changed, so health problems get noticed late — usually at the vet.`,
+        statement: `They can't tell how much their ${pet} is actually eating or whether anything has changed, so health problems get noticed late. Usually at the vet.`,
         whoHasIt: `Owners of older or sick ${plural(pet)} who have to report back to a vet.`,
         severity: 64, frequency: "Every few months, and badly when it matters",
         currentWorkaround: "Eyeballing the bowl and guessing.",
-        willingnessToPay: "Maybe — if the vet recommends it.",
+        willingnessToPay: "Maybe. If the vet recommends it.",
         confidence: 0.6,
       },
       {
         statement: `Feeding takes thirty seconds, so most owners never think of it as a problem and skip the gadget entirely.`,
         whoHasIt: `${cap(a)} who are home most of the day.`,
         severity: 30, frequency: "Twice a day", currentWorkaround: "They just do it.",
-        willingnessToPay: "No — it doesn't feel broken.", confidence: 0.86,
+        willingnessToPay: "No, it doesn't feel broken.", confidence: 0.86,
       },
     ],
     software: [
       {
-        statement: "When something breaks, nobody can say which part was the risky one — so the team keeps tidying the safe corners and the dangerous bits stay untouched.",
-        whoHasIt: "Team leads who get the blame but do not do the work themselves.",
+        statement: "The team fixes the easy parts first because those are obvious. The parts most likely to break get left alone, and nobody knows which those are until something goes down.",
+        whoHasIt: "Team leads who get blamed when it breaks but do not write the code themselves.",
         severity: 81, frequency: "Every planning meeting, and badly after anything goes wrong",
-        currentWorkaround: "One person happens to know, and a to-do from the last post-mortem that quietly expired.",
-        willingnessToPay: "Yes — this comes out of a budget they will fight for.", confidence: 0.74,
+        currentWorkaround: "One person happens to remember, plus a to-do from the last post-mortem that everyone forgot.",
+        willingnessToPay: "Yes. This comes out of a budget they will fight for.", confidence: 0.74,
       },
       {
-        statement: "They cannot prove to their boss or an auditor that the work was done properly, so they end up arguing about it again every few months.",
+        statement: "When someone asks whether the work was done properly, there is no way to show it. So the same argument happens again every few months.",
         whoHasIt: "Directors who have to report upwards, especially anywhere regulated.",
         severity: 66, frequency: "Every quarter", currentWorkaround: "A spreadsheet somebody rebuilds from scratch each time.",
-        willingnessToPay: "Probably — compliance money exists, but buying takes months.", confidence: 0.61,
+        willingnessToPay: "Probably. Compliance money exists, but buying takes months.", confidence: 0.61,
       },
       {
-        statement: "It is boring, so people quietly skip it.", whoHasIt: "The people actually doing the work.",
+        statement: "It is dull work, so people quietly skip it and nobody notices until later.", whoHasIt: "The people actually doing the work.",
         severity: 35, frequency: "Daily", currentWorkaround: "They do not do it.",
-        willingnessToPay: "No — nobody pays out of their own pocket to be less bored.", confidence: 0.88,
+        willingnessToPay: "No. Nobody pays out of their own pocket to be less bored.", confidence: 0.88,
       },
     ],
     health: [
@@ -326,7 +334,7 @@ export function marketProblems(p: Pitch): ProblemDraft[] {
         statement: "They can't tell whether what they're doing is working, so every appointment starts from guesswork.",
         whoHasIt: "People who have to report progress back to a clinician.",
         severity: 63, frequency: "Every appointment", currentWorkaround: "Memory, and a notes app.",
-        willingnessToPay: "Maybe — if a clinician asks for it.", confidence: 0.6,
+        willingnessToPay: "Maybe. If a clinician asks for it.", confidence: 0.6,
       },
       {
         statement: "Logging it is tedious, so people skip it after the first week.",
@@ -341,7 +349,7 @@ export function marketProblems(p: Pitch): ProblemDraft[] {
             statement: "Bills, subscriptions and uneven income never line up, so money runs short a few days before payday and the fees pile up.",
             whoHasIt: "People who run the household budget on unpredictable income.",
             severity: 80, frequency: "Every month", currentWorkaround: "Juggling due dates and hoping.",
-            willingnessToPay: "Yes — if it costs less than the fees it saves.", confidence: 0.71,
+            willingnessToPay: "Yes. If it costs less than the fees it saves.", confidence: 0.71,
           },
           {
             statement: "They can't tell where last month's money actually went, so every plan starts from a guess.",
@@ -360,18 +368,18 @@ export function marketProblems(p: Pitch): ProblemDraft[] {
             statement: "Month-end close takes days because the numbers live in systems that don't agree, and the finance lead gets the blame when it's late.",
             whoHasIt: "Finance managers who own the close and the budget for tools.",
             severity: 82, frequency: "Every month-end", currentWorkaround: "Spreadsheets and late nights.",
-            willingnessToPay: "Yes — they pay for tools that save the team days.", confidence: 0.74,
+            willingnessToPay: "Yes. They pay for tools that save the team days.", confidence: 0.74,
           },
           {
             statement: "They can't prove to an auditor how a number was reached, so the same questions come back every quarter.",
             whoHasIt: "Controllers and directors who report upward.",
             severity: 66, frequency: "Every quarter", currentWorkaround: "A binder of screenshots.",
-            willingnessToPay: "Probably — audit budgets exist, but buying is slow.", confidence: 0.61,
+            willingnessToPay: "Probably. Audit budgets exist, but buying is slow.", confidence: 0.61,
           },
           {
             statement: "Reconciling by hand is tedious, so it gets skipped until quarter end.",
             whoHasIt: "The accountants doing the work.", severity: 36, frequency: "Daily",
-            currentWorkaround: "They batch it and suffer.", willingnessToPay: "No — they'd ask their manager.", confidence: 0.85,
+            currentWorkaround: "They batch it and suffer.", willingnessToPay: "No, they'd ask their manager.", confidence: 0.85,
           },
         ],
     food: [
@@ -397,32 +405,32 @@ export function marketProblems(p: Pitch): ProblemDraft[] {
         statement: "Students fall behind quietly and nobody notices until the exam, when it's too late to catch up.",
         whoHasIt: "Parents and schools who hold the budget for extra help.",
         severity: 79, frequency: "Every term", currentWorkaround: "Last-minute tutoring.",
-        willingnessToPay: "Yes — parents already pay for tutors.", confidence: 0.7,
+        willingnessToPay: "Yes. Parents already pay for tutors.", confidence: 0.7,
       },
       {
         statement: "Teachers can't tell who actually understood the lesson, so they re-teach the whole class to reach the few who didn't.",
         whoHasIt: "Teachers who have to report progress upward.",
         severity: 64, frequency: "Every week", currentWorkaround: "Quick quizzes they don't have time to mark.",
-        willingnessToPay: "Maybe — through the school, slowly.", confidence: 0.6,
+        willingnessToPay: "Maybe. Through the school, slowly.", confidence: 0.6,
       },
       {
         statement: "Revision is tedious, so students skip it until the night before.",
         whoHasIt: "The students themselves.", severity: 40, frequency: "Every exam season",
-        currentWorkaround: "Cramming.", willingnessToPay: "No — and they're not the ones paying.", confidence: 0.86,
+        currentWorkaround: "Cramming.", willingnessToPay: "No, and they're not the ones paying.", confidence: 0.86,
       },
     ],
     home: [
       {
-        statement: "Shared homes run on unspoken rules, so bills, chores and repairs land on whoever cares most — and they end up paying for it.",
+        statement: "Shared homes run on unspoken rules, so bills, chores and repairs land on whoever cares most. And they end up paying for it.",
         whoHasIt: "The one housemate or landlord who ends up holding the budget and the blame.",
         severity: 72, frequency: "Every month", currentWorkaround: "Group chats and resentment.",
-        willingnessToPay: "Some — landlords pay; housemates split small costs.", confidence: 0.66,
+        willingnessToPay: "Some. Landlords pay; housemates split small costs.", confidence: 0.66,
       },
       {
         statement: "Landlords and tenants can't tell who broke something or whether it was used properly, so every move-out becomes an argument about the deposit.",
         whoHasIt: "Landlords and letting agents who answer to the owners.",
         severity: 61, frequency: "Every tenancy", currentWorkaround: "Photos on move-in, if anyone remembers.",
-        willingnessToPay: "Maybe — per property.", confidence: 0.6,
+        willingnessToPay: "Maybe, per property.", confidence: 0.6,
       },
       {
         statement: "Keeping on top of it is tedious, so people skip it until something breaks.",
@@ -435,18 +443,18 @@ export function marketProblems(p: Pitch): ProblemDraft[] {
         statement: "Energy bills keep rising and households can't see which appliance or habit is driving them, so they cut the wrong things.",
         whoHasIt: "Households and building managers who hold the energy budget.",
         severity: 76, frequency: "Every bill", currentWorkaround: "Turning things off at random.",
-        willingnessToPay: "Yes — if the saving shows up on the bill.", confidence: 0.69,
+        willingnessToPay: "Yes. If the saving shows up on the bill.", confidence: 0.69,
       },
       {
         statement: "They can't prove their footprint actually went down, so green claims get dismissed and incentives go unclaimed.",
         whoHasIt: "Companies that have to report emissions to a standard.",
         severity: 65, frequency: "Every reporting cycle", currentWorkaround: "Estimates from a consultant.",
-        willingnessToPay: "Probably — reporting is becoming mandatory.", confidence: 0.62,
+        willingnessToPay: "Probably. Reporting is becoming mandatory.", confidence: 0.62,
       },
       {
         statement: "Changing habits is tedious, so people skip it once the novelty wears off.",
         whoHasIt: "People who care but are busy.", severity: 34, frequency: "Daily",
-        currentWorkaround: "Good intentions.", willingnessToPay: "No — not a premium.", confidence: 0.85,
+        currentWorkaround: "Good intentions.", willingnessToPay: "No, not a premium.", confidence: 0.85,
       },
     ],
     work: [
@@ -454,7 +462,7 @@ export function marketProblems(p: Pitch): ProblemDraft[] {
         statement: "Managers can't see who is overloaded until someone burns out or quits, and the rehiring comes out of their budget.",
         whoHasIt: "Team leads and managers who own headcount and the budget.",
         severity: 78, frequency: "Every quarter, and badly when someone leaves",
-        currentWorkaround: "One-to-ones and gut feel.", willingnessToPay: "Yes — attrition is expensive.", confidence: 0.7,
+        currentWorkaround: "One-to-ones and gut feel.", willingnessToPay: "Yes, attrition is expensive.", confidence: 0.7,
       },
       {
         statement: "They can't prove to leadership where the team's time actually goes, so every planning cycle turns into an argument.",
@@ -472,7 +480,7 @@ export function marketProblems(p: Pitch): ProblemDraft[] {
         statement: "Small shops run out of what sells and sit on what doesn't, and the owner only finds out when the cash is already gone.",
         whoHasIt: "Owners who manage stock and hold the budget.",
         severity: 77, frequency: "Every week", currentWorkaround: "Instinct and a notebook.",
-        willingnessToPay: "Yes — if it pays for itself in the first month.", confidence: 0.7,
+        willingnessToPay: "Yes. If it pays for itself in the first month.", confidence: 0.7,
       },
       {
         statement: "They can't tell which supplier or promotion actually drove a sale, so money goes to whoever shouts loudest.",
@@ -482,20 +490,20 @@ export function marketProblems(p: Pitch): ProblemDraft[] {
       {
         statement: "Counting stock by hand is tedious, so it gets skipped until the shelves are empty.",
         whoHasIt: "Staff on the shop floor.", severity: 36, frequency: "Daily",
-        currentWorkaround: "They skip it.", willingnessToPay: "No — it's the owner's call.", confidence: 0.85,
+        currentWorkaround: "They skip it.", willingnessToPay: "No, it's the owner's call.", confidence: 0.85,
       },
     ],
     travel: [
       {
-        statement: "Plans fall apart at the last minute — delays, cancellations, lost bookings — and the traveller pays for the rescue out of their own pocket.",
+        statement: "Plans fall apart at the last minute. Delays, cancellations, lost bookings, and the traveller pays for the rescue out of their own pocket.",
         whoHasIt: "Frequent travellers and the managers who hold the travel budget.",
         severity: 75, frequency: "Every few trips", currentWorkaround: "Hours on hold and a credit card.",
-        willingnessToPay: "Yes — companies already pay for travel management.", confidence: 0.68,
+        willingnessToPay: "Yes. Companies already pay for travel management.", confidence: 0.68,
       },
       {
         statement: "They can't prove what was spent or why, so expense claims bounce back and forth for weeks.",
         whoHasIt: "People who have to report spending to a finance team.", severity: 58, frequency: "After every trip",
-        currentWorkaround: "Photos of receipts.", willingnessToPay: "Maybe — through their company.", confidence: 0.6,
+        currentWorkaround: "Photos of receipts.", willingnessToPay: "Maybe, through their company.", confidence: 0.6,
       },
       {
         statement: "Comparing options is tedious, so people skip it and book the first thing they see.",
@@ -508,7 +516,7 @@ export function marketProblems(p: Pitch): ProblemDraft[] {
         statement: `${cap(a)} lose time and money to this every week, and the person who pays for the workaround isn't the one who suffers it.`,
         whoHasIt: "The people who hold the budget for fixing it.",
         severity: 72, frequency: "Every week", currentWorkaround: "Something cobbled together that half works.",
-        willingnessToPay: "Yes — if it replaces what they already spend.", confidence: 0.65,
+        willingnessToPay: "Yes. If it replaces what they already spend.", confidence: 0.65,
       },
       {
         statement: "They can't tell whether today's workaround is actually working, so they keep paying for it out of habit.",

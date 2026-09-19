@@ -5,7 +5,7 @@ import { SEATS, buildSeatSystemPrompt } from "./seats";
 import { getActiveFirm } from "@/data/firm";
 
 // ============================================================================
-// PRE-READ — Track B owns this file.
+// PRE-READ, Track B owns this file.
 //
 // Each seat privately reads the venture file before the mic opens and drafts
 // its opening position. Two reasons this exists:

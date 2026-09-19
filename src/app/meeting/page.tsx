@@ -50,13 +50,17 @@ export default function Meeting() {
   const feed = useRef<HTMLDivElement>(null);
 
   // Each seat privately drafts its lean, the two questions it needs answered,
-  // and what would sink the deal — before the founder says a word. Built and
+  // and what would sink the deal. Before the founder says a word. Built and
   // tested from the start, but nothing ever called it, so the partners opened
   // cold despite having supposedly read the file.
   const [preReads, setPreReads] = useState<SeatPreRead[]>([]);
-  const [preparing, setPreparing] = useState(false);
+  // Which firm + file the partners last finished preparing for. Derived rather
+  // than set at the top of the effect, so a new file reads as "preparing" at once.
+  const prepKey = vf ? `${firmId}:${vf.id}:${vf.chosenProblem?.id ?? ""}` : null;
+  const [preparedKey, setPreparedKey] = useState<string | null>(null);
+  const preparing = prepKey !== null && preparedKey !== prepKey;
 
-  // What the mic is hearing, live. You review it and press send — the room
+  // What the mic is hearing, live. You review it and press send. The room
   // never hears something you did not choose to say.
   const [heard, setHeard] = useState("");
 
@@ -74,7 +78,7 @@ export default function Meeting() {
   useEffect(() => {
     if (!vf) return;
     let cancelled = false;
-    setPreparing(true);
+    const key = prepKey;
 
     void fetch("/api/vc/preread", {
       method: "POST",
@@ -86,13 +90,13 @@ export default function Meeting() {
         if (!cancelled) setPreReads(j.preReads ?? []);
       })
       .catch(() => {})
-      .finally(() => !cancelled && setPreparing(false));
+      .finally(() => !cancelled && setPreparedKey(key));
 
     return () => {
       cancelled = true;
     };
     // Deliberately keyed on the firm and the venture file's identity, not its
-    // contents — the transcript mutates it on every turn and re-preparing
+    // contents. The transcript mutates it on every turn and re-preparing
     // mid-meeting would discard what the partners already decided.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [firmId, vf?.id, vf?.chosenProblem?.id]);
@@ -141,7 +145,7 @@ export default function Meeting() {
       const text = await recorder.current?.stop().catch(() => "");
       recorder.current = null;
       setHeard("");
-      // Sends straight away. A pitch is a conversation — stopping to press a
+      // Sends straight away. A pitch is a conversation. Stopping to press a
       // button after every sentence is not how you talk to a partner, and the
       // pause breaks the back-and-forth the room is meant to have.
       const merged = [typed, text].filter(Boolean).join(" ").trim();
@@ -157,7 +161,7 @@ export default function Meeting() {
       recorder.current = await startCapture(tier, setHeard);
       setRecording(true);
     } catch {
-      setError("Microphone unavailable — type instead.");
+      setError("Microphone unavailable, type instead.");
     }
   }, [tier, recording, typed, sendTurn]);
 
@@ -166,7 +170,7 @@ export default function Meeting() {
   const firm = FIRMS[firmId] ?? FIRMS.bessemer;
 
   // A founder facing a silent room does not know what to say first. These
-  // fill the box — never send — so the words stay theirs.
+  // fill the box. Never send, so the words stay theirs.
   const openObjection = objections.find((o) => o.status === "open");
   const openers = [
     vf?.chosenProblem && {
@@ -213,7 +217,7 @@ export default function Meeting() {
 
         {tier === "browser" && (
           <p className="mt-4 border border-edge bg-surface/40 p-3 text-xs text-muted">
-            No ELEVENLABS_API_KEY set — using browser speech. The seats are
+            No ELEVENLABS_API_KEY set, using browser speech. The seats are
             distinguishable by pitch but not by character. Add the key to hear them properly.
           </p>
         )}
@@ -352,12 +356,12 @@ export default function Meeting() {
                     </span>
                     <p className="min-h-[1.2em] flex-1 text-sm leading-relaxed text-ink">
                       {heard || (
-                        <span className="text-muted">Listening — start talking.</span>
+                        <span className="text-muted">Listening, start talking.</span>
                       )}
                     </p>
                   </div>
                   <p className="label mt-1.5">
-                    stop when you are done — it goes to the room straight away
+                    stop when you are done. It goes to the room straight away
                   </p>
                 </motion.div>
               )}

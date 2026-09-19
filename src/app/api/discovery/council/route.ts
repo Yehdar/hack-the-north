@@ -72,6 +72,7 @@ export async function POST(req: Request) {
           adversary: CONTRARIAN,
           context: hubContext(body.hubId, hubName, body.problem, body.crowd),
           buildSystemPrompt: (a) => buildHubSystemPrompt(a, hubName),
+          room: `the ${hubName} hub council`,
           onEvent: send,
         });
 

@@ -2,7 +2,7 @@ import { PERSONAS } from "@/data/personas";
 import type { CrowdReaction, Persona } from "./types";
 
 // ============================================================================
-// WHAT THE CROWD IS ACTUALLY TELLING YOU — pure, no model call.
+// WHAT THE CROWD IS ACTUALLY TELLING YOU. Pure, no model call.
 //
 // A list of positive and negative quotes is easy and nearly useless: a founder
 // reads the nice ones and discounts the rest. What is actually actionable is
@@ -10,7 +10,7 @@ import type { CrowdReaction, Persona } from "./types";
 // engaged from the people who did not.
 //
 // "Your enthusiasts have a mean budget authority of 2.9 against 4.5 overall"
-// tells a founder something they can act on — their fans cannot buy. No amount
+// tells a founder something they can act on. Their fans cannot buy. No amount
 // of reading quotes surfaces that.
 // ============================================================================
 
@@ -86,7 +86,7 @@ export function analyseSignals(reactions: CrowdReaction[]): CrowdSignals {
       engagedMean: +engagedMean.toFixed(1),
       ignoredMean: +ignoredMean.toFixed(1),
       delta: +delta.toFixed(2),
-      reading: `The people who engaged ${phrase} — ${engagedMean.toFixed(1)} against ${ignoredMean.toFixed(1)} for everyone else.`,
+      reading: `The people who engaged ${phrase}, ${engagedMean.toFixed(1)} against ${ignoredMean.toFixed(1)} for everyone else.`,
     };
   })
     // Half a point of separation on a 1-10 scale is the floor for saying
@@ -131,7 +131,7 @@ function warn(
     all.reduce((s, x) => s + x.p.psychographics.budgetAuthority, 0) / all.length;
 
   if (engagedAuthority < overallAuthority - 0.8) {
-    return `Your enthusiasts cannot buy. The people who engaged score ${engagedAuthority.toFixed(1)} on budget authority against ${overallAuthority.toFixed(1)} across the crowd — you are winning users and will have to sell to someone you have not spoken to.`;
+    return `Your enthusiasts cannot buy. The people who engaged score ${engagedAuthority.toFixed(1)} on budget authority against ${overallAuthority.toFixed(1)} across the crowd. You are winning users and will have to sell to someone you have not spoken to.`;
   }
 
   const payers = engaged.filter((x) => x.r.wouldPay).length / engaged.length;

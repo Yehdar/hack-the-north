@@ -6,7 +6,7 @@ import { useVenture } from "@/lib/store";
 import type { ProblemStatement } from "@/lib/types";
 
 // The founder's own words are the only required input. Everything else —
-// problems, hub findings, the pitch, the verdict — accretes onto this.
+// problems, hub findings, the pitch, the verdict, accretes onto this.
 
 const EXAMPLES = [
   "An AI tool that plugs into your repo and writes unit tests for untested code.",
@@ -61,7 +61,7 @@ export function Intake({ onDone, onCancel, cta = "Take it to the committee", ref
         {refine ? (
           <>
             <p className="mt-2 text-xs leading-relaxed text-muted">
-              Same product, pointed at the problem the market actually has. Edit it — it
+              Same product, pointed at the problem the market actually has. Edit it. It
               is your pitch. The same {refine.crowd} people will hear it against the same{" "}
               {refine.problems} problems, so the only thing that changes between the two
               runs is how you framed it.
@@ -76,7 +76,7 @@ export function Intake({ onDone, onCancel, cta = "Take it to the committee", ref
         ) : (
           <p className="mt-3 max-w-xl text-sm leading-relaxed text-muted">
             Describe the solution, not the problem. Working out which problem it
-            actually solves is this system&apos;s job — and it is often not the one
+            actually solves is this system&apos;s job. And it is often not the one
             you think.
           </p>
         )}

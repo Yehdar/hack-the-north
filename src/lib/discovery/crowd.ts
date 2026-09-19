@@ -4,16 +4,16 @@ import type { Persona } from "./types";
 import type { Attention, CrowdReaction } from "./types";
 
 // ============================================================================
-// THE CROWD — beats ③ and ④ of Part 1.
+// THE CROWD. Beats ③ and ④ of Part 1.
 //
 // Batched, not one call per persona. 300 individual calls is minutes of latency
 // and a rate-limit fight; 15 batched calls of 20 stream back over roughly
-// twenty seconds, which is the pacing this beat actually wants — fast enough
+// twenty seconds, which is the pacing this beat actually wants. Fast enough
 // to feel alive, slow enough to watch happen.
 //
 // The question each persona answers is the whole point. Asking a crowd "do you
 // like this?" and averaging the sentiment produces a number. Asking "WHICH of
-// these problems do you actually have?" produces a finding — the market that
+// these problems do you actually have?" produces a finding. The market that
 // responded may have a different problem from the one the founder pitched. An
 // architecture that only averages sentiment cannot surface that at all.
 // ============================================================================
@@ -61,7 +61,7 @@ What the scores mean, and you must honour them:
 The critical question is NOT whether they like the product. It is WHICH of the
 listed problems each person actually has. Someone can be enthusiastic about a
 product while having a completely different problem from the one it was built
-for — that is a real and common outcome, and it is the most useful thing you
+for. That is a real and common outcome, and it is the most useful thing you
 can surface. Set problemId to the problem they genuinely have, which is often
 not the first one listed. Leave it empty when none of them is their problem;
 a person with none of these problems is a finding, not a failure.
@@ -85,7 +85,9 @@ export async function runCrowd(
   solution: string,
   problems: ProblemStatement[],
   personas: Persona[],
-  onBatch?: (p: CrowdProgress) => void
+  onBatch?: (p: CrowdProgress) => void,
+  /** Bought by people for themselves: answer as a private person. */
+  consumer = false
 ): Promise<CrowdReaction[]> {
   const batches: Persona[][] = [];
   for (let i = 0; i < personas.length; i += BATCH_SIZE) {
@@ -104,7 +106,7 @@ export async function runCrowd(
       if (index >= batches.length) return;
 
       const batch = batches[index];
-      const reactions = await reactBatch(solution, problems, batch).catch(() =>
+      const reactions = await reactBatch(solution, problems, batch, consumer).catch(() =>
         batch.map(neutral)
       );
 
@@ -121,7 +123,8 @@ export async function runCrowd(
 async function reactBatch(
   solution: string,
   problems: ProblemStatement[],
-  batch: Persona[]
+  batch: Persona[],
+  consumer: boolean
 ): Promise<CrowdReaction[]> {
   const problemList = problems
     .map((p) => `  ${p.id}: "${p.statement}" (felt by ${p.whoHasIt})`)
@@ -130,7 +133,7 @@ async function reactBatch(
   const people = batch
     .map((p) => {
       const g = p.psychographics;
-      return `  id ${p.id} — ${p.title}, ${p.professional.seniority}, ${p.professional.industry}, ${p.professional.companySize} people, ${p.location.city}. tech ${g.techAdoption} risk ${g.riskTolerance} price ${g.priceSensitivity} budget ${g.budgetAuthority} pain ${g.painTolerance} brand ${g.brandLoyalty} influence ${g.influenceScore}`;
+      return `  id ${p.id} \u2014 ${p.title}, ${p.professional.seniority}, ${p.professional.industry}, ${p.professional.companySize} people, ${p.location.city}. tech ${g.techAdoption} risk ${g.riskTolerance} price ${g.priceSensitivity} budget ${g.budgetAuthority} pain ${g.painTolerance} brand ${g.brandLoyalty} influence ${g.influenceScore}`;
     })
     .join("\n");
 
@@ -144,7 +147,11 @@ ${problemList}
 
 PEOPLE:
 ${people}
-
+${
+  consumer
+    ? "\nThis is bought by people for themselves or their household. Answer as each person in their private life: their job is who they are, not why they would buy it.\n"
+    : ""
+}
 Return one reaction per person, using their id.`,
     schema: { name: "crowd_reactions", schema: SCHEMA as unknown as Record<string, unknown> },
     temperature: 0.9,
@@ -192,8 +199,8 @@ function neutral(persona: Persona): CrowdReaction {
 
 // --------------------------------------------------------------------------- aggregate
 
-// Lives in its own module so the browser can run it too — over the answers that
-// did arrive, when a stream stalls — without pulling in the provider seam.
+// Lives in its own module so the browser can run it too. Over the answers that
+// did arrive, when a stream stalls, without pulling in the provider seam.
 export { aggregate } from "./aggregate";
 
 function clamp(n: number, lo: number, hi: number) {

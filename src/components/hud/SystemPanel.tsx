@@ -27,7 +27,7 @@ type Check = {
 export function SystemPanel() {
   const [info, setInfo] = useState<SystemInfo | null>(null);
   const [open, setOpen] = useState(false);
-  // One tiny call per tier against the live model, on demand — the way to
+  // One tiny call per tier against the live model, on demand. The way to
   // find out a key or a model name is wrong before the audience does.
   const [check, setCheck] = useState<Check | "running" | null>(null);
 

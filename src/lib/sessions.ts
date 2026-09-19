@@ -4,12 +4,13 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { CrowdVerdict } from "@/lib/discovery/types";
 import type { CrowdSignals } from "@/lib/discovery/signals";
+import type { Minutes } from "@/lib/minutes";
 
 // ============================================================================
 // SAVED RUNS.
 //
 // A founder does not run this once. They run it, learn the market has a
-// different problem, rewrite the idea, and run it again — and the comparison
+// different problem, rewrite the idea, and run it again. And the comparison
 // between those two runs is worth more than either one alone.
 //
 // Stored as summaries rather than whole runs: reactions from three hundred
@@ -43,8 +44,10 @@ export type SessionSummary = {
   decision?: "invest" | "conditional" | "pass";
   score?: number;
   killShot?: string;
+  /** The chair's record of the meeting, rewritten after the pitch. */
+  minutes?: Minutes;
 
-  /** Set when this run followed another — the refine loop. */
+  /** Set when this run followed another, the refine loop. */
   parentId?: string;
 };
 
@@ -54,7 +57,7 @@ type State = {
 
   /** Starts a new saved run. `parentId` links a re-run to what it came from. */
   begin: (solution: string, parentId?: string) => string;
-  /** Merges into a run — the active one unless `id` names another. A stream
+  /** Merges into a run. The active one unless `id` names another. A stream
    *  that outlives a navigation must write to the run it started, not to
    *  whichever run is active by the time it finishes. */
   record: (patch: Partial<SessionSummary>, id?: string) => void;
@@ -113,7 +116,7 @@ export const useSessions = create<State>()(
 );
 
 /**
- * Lands a Part 2 result on the saved run it belongs to — the active run, and
+ * Lands a Part 2 result on the saved run it belongs to. The active run, and
  * only when that run is the idea actually being pitched. Otherwise a committee
  * convened on some other idea would overwrite a run it has nothing to do with.
  */
@@ -149,7 +152,7 @@ export function summariseCrowd(
 
 /**
  * What changed between a run and the one it came from. Only the fields a
- * founder would actually check — a full diff is noise.
+ * founder would actually check. A full diff is noise.
  */
 export type SessionDelta = {
   field: string;

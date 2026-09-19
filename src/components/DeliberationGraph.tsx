@@ -50,7 +50,7 @@ export function DeliberationGraph({
   messages: Message[];
   active?: Set<string>;
   conceded?: Set<string>;
-  /** The message being read aloud right now — null between lines, undefined
+  /** The message being read aloud right now. Null between lines, undefined
    *  when the room is not being read aloud. The voice runs behind the
    *  transcript, so the face that moves and the caption under the table
    *  follow what you can hear, not the newest line to arrive. */
@@ -59,7 +59,7 @@ export function DeliberationGraph({
   height?: number;
 }) {
   // Drawn at the width it actually has, so a wider panel spreads the table
-  // out instead of blowing the same 300px drawing up — text stays its size.
+  // out instead of blowing the same 300px drawing up. Text stays its size.
   const box = useRef<HTMLDivElement>(null);
   const [measured, setMeasured] = useState(300);
   useEffect(() => {
@@ -93,6 +93,17 @@ export function DeliberationGraph({
     })
   );
 
+  // Labels above a face need room above the drawing: the lead partner sits at
+  // the top with the biggest face, and its name and stance were drawn off the
+  // edge. Grow the canvas upwards by whatever the highest label needs.
+  const pad = Math.max(
+    0,
+    ...voting.map((s) => {
+      const p = pos.get(s.id)!;
+      return p.y < cy - 1 ? radius(s) + 22 - p.y : 0;
+    })
+  );
+
   const directed = messages.filter((m) => m.to !== "room" && pos.has(m.from) && pos.has(m.to));
   const latest =
     voiced === undefined
@@ -109,7 +120,7 @@ export function DeliberationGraph({
   return (
     <div ref={box}>
       <svg
-        viewBox={`0 0 ${W} ${H}`}
+        viewBox={`0 ${-pad} ${W} ${H + pad}`}
         className="w-full"
         role="img"
         aria-label="Who challenged whom in this deliberation"
@@ -205,7 +216,7 @@ export function DeliberationGraph({
                 </circle>
               )}
               {/* A face rather than a labelled circle. A circle with a number
-                  in it does not look like it is arguing — you have to read the
+                  in it does not look like it is arguing. You have to read the
                   graph to know anything is happening. A face is the one shape
                   people parse without trying, and everything it does here is
                   bound to real state: the mouth moves only while this agent is

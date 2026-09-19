@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { getPersona } from "@/data/personas";
-import { askPersona, voiceProfile, type PersonaTurn } from "@/lib/discovery/personaChat";
+import { askPersona, CALL_CONNECTED, voiceProfile, type PersonaTurn } from "@/lib/discovery/personaChat";
 import type { ProblemStatement } from "@/lib/types";
 import type { CrowdReaction } from "@/lib/discovery/types";
+import { readPitch } from "@/lib/providers/pitch";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -10,7 +11,9 @@ export const dynamic = "force-dynamic";
 type ChatRequest = {
   personaId: number;
   solution: string;
-  question: string;
+  question?: string;
+  /** The call just connected: say hello instead of answering a question. */
+  greet?: boolean;
   problems?: ProblemStatement[];
   reaction?: CrowdReaction;
   history?: PersonaTurn[];
@@ -20,9 +23,10 @@ type ChatRequest = {
 export async function POST(req: Request) {
   const body = (await req.json().catch(() => null)) as ChatRequest | null;
 
-  if (!body?.personaId || !body?.question?.trim()) {
+  const question = body?.greet ? CALL_CONNECTED : body?.question?.trim();
+  if (!body?.personaId || !question) {
     return NextResponse.json(
-      { error: "personaId and question are required" },
+      { error: "personaId and a question (or greet) are required" },
       { status: 400 }
     );
   }
@@ -39,7 +43,8 @@ export async function POST(req: Request) {
       body.solution ?? "",
       body.problems ?? [],
       body.history ?? [],
-      body.question
+      question,
+      readPitch(body.solution ?? "").consumer
     );
 
     return NextResponse.json({

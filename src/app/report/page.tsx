@@ -1,23 +1,25 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo } from "react";
 import Link from "next/link";
 import { useVenture } from "@/lib/store";
 import { recordVerdict } from "@/lib/sessions";
-import { assess, explainVerdict } from "@/lib/advice";
+import { assess } from "@/lib/advice";
+import { Meter } from "@/components/Progress";
+import { pvsReason } from "@/lib/pvs";
+import { writeMinutes } from "@/lib/minutes";
+import { Minutes } from "@/components/Minutes";
 import { PartTwoNav } from "@/components/PartTwoNav";
 import { Wordmark } from "@/components/Logo";
 import { hubById } from "@/data/globePoints";
 import {
   buildVerdict,
-  countUnanswered,
   detectDissents,
-  normalizeWeights,
   type WeightMap,
 } from "@/lib/verdict";
 
 // ============================================================================
-// THE REPORT — B5. Track B owns this page.
+// THE REPORT, B5. Track B owns this page.
 //
 // Everything here is computed from cached agent output. Moving a weight slider
 // re-runs pure functions and never calls a model, which is the point: the
@@ -28,15 +30,17 @@ export default function Report() {
   const vf = useVenture((v) => v.ventureFile);
   const deliberation = useVenture((v) => v.deliberation);
   const crowd = useVenture((v) => v.crowd);
-  const [overrides, setOverrides] = useState<WeightMap>({});
 
+  // The room's own weighting. There is no override any more. A founder
+  // cannot tell what re-weighting a partner is supposed to mean, so the slider
+  // was a control that invited a question it could not answer.
   const weights: WeightMap = useMemo(() => {
     const base: WeightMap = {};
     for (const r of deliberation?.roster ?? []) {
-      if (r.weight > 0) base[r.id] = overrides[r.id] ?? r.weight;
+      if (r.weight > 0) base[r.id] = r.weight;
     }
     return base;
-  }, [deliberation, overrides]);
+  }, [deliberation]);
 
   const verdict = useMemo(() => {
     if (!deliberation || !vf) return null;
@@ -51,18 +55,43 @@ export default function Report() {
     );
   }, [deliberation, vf, weights]);
 
-  const dirty = Object.keys(overrides).length > 0;
+  // The chair's minutes, rewritten now the founder has pitched: what was
+  // answered, what is still open, and what that means for next steps. Always
+  // from the room's own weighting, never a what-if from the sliders.
+  const minutes = useMemo(() => {
+    if (!vf || !deliberation) return null;
+    const own = buildVerdict(
+      deliberation.verdicts,
+      Object.fromEntries(deliberation.roster.filter((r) => r.weight > 0).map((r) => [r.id, r.weight])),
+      vf.objections,
+      deliberation.verdicts
+        .filter((v) => v.stance < 0.2 && v.whatWouldChangeMyMind)
+        .map((v) => v.whatWouldChangeMyMind),
+      "You have paying design partners where the budget holder signed."
+    );
+    return writeMinutes({
+      firm: deliberation.firm || "The committee",
+      snapshot: deliberation,
+      verdict: own,
+      problem: vf.chosenProblem?.statement,
+      objections: vf.objections,
+      pitchTurns: vf.pitchTranscript.filter((t) => t.speaker === "founder").length,
+      now: vf.pitchTranscript[vf.pitchTranscript.length - 1]?.at,
+    });
+  }, [vf, deliberation]);
 
-  // The run's saved verdict is the room's own weighting after the meeting —
-  // never a what-if from the sliders.
+  // Saved for the dashboard. Still computed, because the dashboard compares
+  // runs and needs something comparable. It is just no longer shown to the
+  // founder as a grade.
   useEffect(() => {
-    if (!vf || !verdict || dirty) return;
+    if (!vf || !verdict) return;
     recordVerdict(vf.solution, {
       decision: verdict.decision,
       score: verdict.score,
       killShot: verdict.killShot,
+      ...(minutes ? { minutes } : {}),
     });
-  }, [vf, verdict, dirty]);
+  }, [vf, verdict, minutes]);
 
   if (!vf || !deliberation || !verdict) {
     return (
@@ -77,10 +106,7 @@ export default function Report() {
       </main>
     );
   }
-
-  const normalized = normalizeWeights(weights);
   const dissents = detectDissents(deliberation.verdicts, verdict.score);
-  const unanswered = countUnanswered(vf.objections);
   const roleOf = (id: string) => deliberation.roster.find((r) => r.id === id)?.role ?? id;
 
   return (
@@ -106,7 +132,7 @@ export default function Report() {
               </p>
               <dl className="mt-4 grid grid-cols-2 gap-3 font-mono text-xs text-muted">
                 <Fact k="Who has it" v={vf.chosenProblem.whoHasIt} />
-                <Fact k="Severity" v={`${vf.chosenProblem.severity}/100`} />
+                <Fact k="Severity, as described" v={`${vf.chosenProblem.severity}/100`} />
                 <Fact k="Workaround today" v={vf.chosenProblem.currentWorkaround} />
                 <Fact k="Willingness to pay" v={vf.chosenProblem.willingnessToPay} />
               </dl>
@@ -133,8 +159,12 @@ export default function Report() {
                 threshold {vf.pvs.threshold} · {vf.pvs.passed ? "cleared" : "not cleared"}
               </span>
             </div>
+            <p className="mt-2 text-sm text-muted">
+              {vf.pvs.passed ? "Its weak spot: " : "Mostly because "}
+              {pvsReason(vf.pvs)}.
+            </p>
             <div className="mt-4 space-y-2">
-              <Bar label="Problem severity" value={vf.pvs.problemSeverity} />
+              <Bar label="Severity, weighted by who'd pay" value={vf.pvs.problemSeverity} />
               <Bar label="Market gap" value={vf.pvs.marketGap} />
               <Bar label="Hub fit" value={vf.pvs.hubFit} />
               <Bar label="Evidence strength" value={vf.pvs.evidenceStrength} />
@@ -162,21 +192,13 @@ export default function Report() {
         )}
 
         {/* 4. The panel ---------------------------------------------------- */}
-        <Section n="04" title="The panel">
-          <p className="mb-4 font-mono text-xs text-faint">
-            Re-weight any seat. The verdict recomputes instantly — no model is called.
-            {dirty && (
-              <button
-                onClick={() => setOverrides({})}
-                className="ml-3 underline hover:text-ink"
-              >
-                reset
-              </button>
-            )}
+        <Section n="04" title="What each partner said">
+          <p className="mb-4 text-sm leading-relaxed text-muted">
+            Their own words. Where they disagreed with each other is worth more
+            than where they agreed.
           </p>
 
           {deliberation.verdicts.map((v) => {
-            const w = weights[v.agentId] ?? 0;
             const isDissent = dissents.includes(v.agentId);
 
             return (
@@ -184,34 +206,41 @@ export default function Report() {
                 key={v.agentId}
                 className={`mb-3 p-3 ${isDissent ? "glow-accent" : "border border-edge"}`}
               >
-                <div className="flex items-baseline justify-between">
-                  <span className="font-mono text-sm">{roleOf(v.agentId)}</span>
-                  <span className="font-mono text-xs text-muted">
-                    stance {v.stance.toFixed(2)} · conf {v.confidence.toFixed(2)} ·{" "}
-                    {(normalized[v.agentId] * 100 || 0).toFixed(0)}% of the vote
+                {/* A word, not a coordinate. "stance 0.14 · conf 0.65" is the
+                    shape of the maths, and nobody reading a report needs it.
+                    The weight sliders went with it. A founder cannot tell what
+                    re-weighting a partner is supposed to mean. */}
+                <div className="flex items-baseline justify-between gap-3">
+                  <span className="text-sm text-ink">{roleOf(v.agentId)}</span>
+                  <span
+                    className="shrink-0 text-xs"
+                    style={{
+                      color:
+                        v.stance > 0.2
+                          ? "var(--go)"
+                          : v.stance < -0.2
+                            ? "var(--stop)"
+                            : "var(--caution)",
+                    }}
+                  >
+                    {v.stance > 0.2 ? "backed it" : v.stance < -0.2 ? "against it" : "undecided"}
                   </span>
                 </div>
 
-                <p className="mt-2 text-xs leading-relaxed text-ink/85">{v.position}</p>
+                <p className="mt-2 text-sm leading-relaxed text-ink/85">
+                  &ldquo;{v.position}&rdquo;
+                </p>
 
-                {w > 0 && (
-                  <input
-                    type="range"
-                    min={0}
-                    max={1}
-                    step={0.01}
-                    value={w}
-                    onChange={(e) =>
-                      setOverrides((o) => ({ ...o, [v.agentId]: Number(e.target.value) }))
-                    }
-                    aria-label={`Weight for ${roleOf(v.agentId)}`}
-                    className="mt-3 w-full accent-[var(--accent)]"
-                  />
+                {v.whatWouldChangeMyMind && (
+                  <p className="mt-2 border-t border-edge pt-2 text-xs leading-relaxed text-muted">
+                    <span className="label mr-2">would change their mind</span>
+                    {v.whatWouldChangeMyMind}
+                  </p>
                 )}
 
                 {isDissent && (
                   <p className="label mt-2" style={{ color: "var(--accent)" }}>
-                    dissent — not averaged away
+                    disagreed with the rest of the room
                   </p>
                 )}
               </div>
@@ -219,52 +248,15 @@ export default function Report() {
           })}
         </Section>
 
-        {/* 5. Verdict ------------------------------------------------------ */}
-        <Section n="05" title="Verdict">
-          <p
-            className={`font-mono text-4xl uppercase ${
-              verdict.decision === "invest"
-                ? "text-positive"
-                : verdict.decision === "pass"
-                  ? "text-negative"
-                  : "text-ink"
-            }`}
-          >
-            {verdict.decision === "pass"
-              ? "Pass"
-              : verdict.decision === "conditional"
-                ? "Conditional"
-                : "Invest"}
-          </p>
-          <p className="mt-1 font-mono text-xs text-faint">
-            score {verdict.score.toFixed(3)}
-            {unanswered > 0 && ` · ${unanswered} unanswered objection${unanswered === 1 ? "" : "s"} cost ${(unanswered * 0.08).toFixed(2)}`}
-          </p>
-
-          {verdict.killShot && (
-            <div className="mt-4 border border-negative/50 bg-negative/10 p-3">
-              <p className="label text-negative">The kill shot</p>
-              <p className="mt-1 text-sm text-ink/85">{verdict.killShot}</p>
-            </div>
-          )}
-
-          {/* Why, in the committee's own words, and what reopens it. A verdict
-              that says "conditional" and stops has told the founder nothing. */}
-          {(() => {
-            const e = explainVerdict(verdict, vf.objections, deliberation.roster);
-            return (
-              <div className="mt-5 border-t border-edge pt-4">
-                <p className="label">Why</p>
-                <p className="mt-1 text-sm leading-relaxed text-ink/85">{e.because}</p>
-                <p className="label mt-4">What reopens it</p>
-                <p className="mt-1 text-sm leading-relaxed text-ink">{e.toReopen}</p>
-              </div>
-            );
-          })()}
-        </Section>
+        {/* The verdict section is gone on purpose.
+            A pass/fail bar turns this into a game you either win or lose, and
+            the reviewer was right that it is the wrong frame. The useful thing
+            is what to change, not a grade out of ten. What the room concluded
+            still reaches the founder, but as words in "What each partner said"
+            and as actions in "What to fix". */}
 
         {/* 6. What to fix -------------------------------------------------- */}
-        <Section n="06" title="What to fix">
+        <Section n="05" title="What to fix, and what to do next">
           {(() => {
             // Graded from this run's numbers rather than restated from the
             // problem statement. "The people accountable cannot tell which part
@@ -273,12 +265,12 @@ export default function Report() {
             if (!crowd) {
               return (
                 <p className="text-sm text-muted">
-                  Run the market first — the grade is computed from what the crowd
+                  Run the market first. The grade is computed from what the crowd
                   actually said, not from the problem statement.
                 </p>
               );
             }
-            const a = assess(crowd.verdict, crowd.signals, vf.pvs, deliberation.verdicts);
+            const a = assess(crowd.verdict, crowd.signals, vf.pvs, deliberation.verdicts, roleOf);
 
             const TONE: Record<string, { label: string; color: string }> = {
               fail: { label: "Do not proceed", color: "var(--negative)" },
@@ -342,28 +334,15 @@ export default function Report() {
         </Section>
 
         {/* 7. How the room behaved ---------------------------------------- */}
-        <Section n="07" title="How the room behaved">
-          <dl className="grid grid-cols-2 gap-2 font-mono text-xs text-muted sm:grid-cols-4">
-            <Fact k="Challenges" v={String(deliberation.metrics.challenges)} />
-            <Fact k="Rebuttals" v={String(deliberation.metrics.rebuttals)} />
-            <Fact k="Concessions" v={String(deliberation.metrics.concessions)} />
-            <Fact
-              k="σ by round"
-              v={deliberation.metrics.varianceByRound.map((x) => x.toFixed(2)).join(" → ")}
-            />
-          </dl>
-          {deliberation.metrics.mindChanges.length > 0 && (
-            <div className="mt-4 border border-positive/40 bg-positive/5 p-3">
-              <p className="label text-positive">Conclusions no single agent started with</p>
-              {deliberation.metrics.mindChanges.map((c) => (
-                <p key={c.agentId} className="num mt-1 text-xs text-ink/75">
-                  {roleOf(c.agentId)} {c.from.toFixed(2)} → {c.to.toFixed(2)}
-                  {c.conceded && <span className="ml-1 text-positive">conceded</span>}
-                </p>
-              ))}
-            </div>
-          )}
-        </Section>
+        {/* "How the room behaved" removed: challenges, rebuttals and σ by
+            round are how WE know the deliberation worked, not something a
+            founder can act on, and nobody could tell how they were computed. */}
+
+        {minutes && (
+          <Section n="06" title="Minutes of the meeting">
+            <Minutes minutes={minutes} size="md" />
+          </Section>
+        )}
 
         <p className="mt-12 border-t border-edge pt-4 font-mono text-[10px] text-faint">
           AI simulation. Not affiliated with, endorsed by, or representing this firm.
@@ -397,14 +376,6 @@ function Fact({ k, v }: { k: string; v: string }) {
 
 function Bar({ label, value }: { label: string; value: number }) {
   return (
-    <div>
-      <div className="flex justify-between font-mono text-[11px] text-muted">
-        <span>{label}</span>
-        <span>{value}</span>
-      </div>
-      <div className="mt-1 h-1.5 bg-edge">
-        <div className="h-full bg-muted" style={{ width: `${value}%` }} />
-      </div>
-    </div>
+    <Meter label={label} value={value} />
   );
 }

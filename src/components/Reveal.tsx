@@ -9,7 +9,7 @@ import type { CrowdVerdict } from "@/lib/discovery/types";
 import type { SessionDelta } from "@/lib/sessions";
 
 // ============================================================================
-// THE REVEAL — the whole demo.
+// THE REVEAL, the whole demo.
 //
 // First run: you pitched A, the market has C. From here the founder can take
 // the market's problem forward, or rewrite the pitch around it and ask the

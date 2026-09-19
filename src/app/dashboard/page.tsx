@@ -8,19 +8,20 @@ import { SessionDiff } from "@/components/SessionDiff";
 import { diffSessions, useSessions, type SessionSummary } from "@/lib/sessions";
 import { useVenture } from "@/lib/store";
 import { hubById } from "@/data/globePoints";
+import { Minutes } from "@/components/Minutes";
 
 // ============================================================================
 // SAVED RUNS.
 //
 // A founder does not run this once. They run it, learn the market has a
-// different problem, rewrite, and run it again — and the comparison between
+// different problem, rewrite, and run it again. And the comparison between
 // the two runs is worth more than either one alone. This is where that
 // comparison lives.
 // ============================================================================
 
 const subscribeNothing = () => () => {};
 
-/** False while hydrating, true after — so a returning founder never sees a
+/** False while hydrating, true after. So a returning founder never sees a
  *  flash of "no runs yet" before their saved runs load. */
 function useHydrated() {
   return useSyncExternalStore(subscribeNothing, () => true, () => false);
@@ -238,6 +239,18 @@ function RunCard({
             <p className="mt-3 border-l-2 border-negative/60 pl-2 text-[11px] leading-relaxed text-ink/75">
               {run.killShot}
             </p>
+          )}
+
+          {/* The chair's record of the meeting, kept with the run it decided. */}
+          {run.minutes && (
+            <details className="mt-3 border-t border-edge pt-3">
+              <summary className="label cursor-pointer select-none hover:text-ink">
+                Minutes of the meeting{run.minutes.pitch ? " · after the pitch" : ""}
+              </summary>
+              <div className="mt-3">
+                <Minutes minutes={run.minutes} />
+              </div>
+            </details>
           )}
 
           {parent && (

@@ -45,10 +45,16 @@ export type RetrievalHit = {
 /** Industries the idea touches, strongest first. */
 export function inferIndustries(idea: string): { industry: Industry; hits: number }[] {
   const text = idea.toLowerCase();
+  // Who it is for outweighs what it mentions: a solar fridge "for small corner
+  // shops" is bought by shops, not by the energy industry its words touch.
+  const forWhom =
+    text.match(/\bfor\s+(.{1,60}?)(?=\s+(?:that|which|who|in|on|at|to|so|because|and|with|by)\b|[.,!?;]|$)/)?.[1] ?? "";
   return (Object.keys(INDUSTRY_HINTS) as Industry[])
     .map((industry) => ({
       industry,
-      hits: INDUSTRY_HINTS[industry].filter((k) => text.includes(k)).length,
+      hits:
+        INDUSTRY_HINTS[industry].filter((k) => text.includes(k)).length +
+        3 * INDUSTRY_HINTS[industry].filter((k) => forWhom.includes(k)).length,
     }))
     .filter((r) => r.hits > 0)
     .sort((a, b) => b.hits - a.hits);
@@ -63,10 +69,17 @@ export function inferIndustries(idea: string): { industry: Industry; hits: numbe
  */
 export function selectRelevant(
   idea: string,
-  opts: { limit?: number; hubId?: HubId } = {}
+  opts: {
+    limit?: number;
+    hubId?: HubId;
+    /** Bought by people for themselves. Everyone is a possible customer, so
+     *  the industry they work in says nothing — a cat feeder matched on
+     *  "machine" was asked of a room of factory automation leads. */
+    consumer?: boolean;
+  } = {}
 ): RetrievalHit[] {
   const limit = opts.limit ?? 120;
-  const industries = inferIndustries(idea);
+  const industries = opts.consumer ? [] : inferIndustries(idea);
   const top = new Map(industries.slice(0, 3).map((r, i) => [r.industry, 3 - i]));
   const novel = /\bai\b|agent|autonomous|llm|generative|novel|first/.test(idea.toLowerCase());
 
@@ -82,10 +95,18 @@ export function selectRelevant(
       why.push(`works in ${persona.professional.industry}`);
     }
 
-    // Can they sign?
-    const authority = persona.psychographics.budgetAuthority;
-    score += authority * 0.6;
-    if (authority >= 7) why.push("holds budget");
+    if (opts.consumer) {
+      // Nobody signs for a household purchase; what matters is whether they
+      // spend on things like this at all.
+      const spends = 10 - persona.psychographics.priceSensitivity;
+      score += spends * 0.6;
+      if (spends >= 7) why.push("spends on things like this");
+    } else {
+      // Can they sign?
+      const authority = persona.psychographics.budgetAuthority;
+      score += authority * 0.6;
+      if (authority >= 7) why.push("holds budget");
+    }
 
     // Low pain tolerance means they actually feel problems rather than
     // absorbing them silently — the people worth asking.
@@ -144,9 +165,9 @@ export function selectRelevant(
  * shows the rewritten pitch to exactly the same people, so any difference
  * between the two runs is the pitch and not a different sample.
  */
-export function selectByIds(idea: string, ids: number[]): RetrievalHit[] {
+export function selectByIds(idea: string, ids: number[], consumer = false): RetrievalHit[] {
   const explained = new Map(
-    selectRelevant(idea, { limit: PERSONAS.length }).map((h) => [h.persona.id, h])
+    selectRelevant(idea, { limit: PERSONAS.length, consumer }).map((h) => [h.persona.id, h])
   );
   return ids.flatMap((id) => explained.get(id) ?? []);
 }

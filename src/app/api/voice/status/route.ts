@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { isVoiceConfigured, listVoices } from "@/lib/voice/elevenlabs";
+import { isOpenAITtsConfigured } from "@/lib/voice/openaiTts";
 import { SEATS } from "@/lib/agents/vc/seats";
 
 export const runtime = "nodejs";
@@ -18,7 +19,14 @@ export async function GET() {
   }));
 
   if (!isVoiceConfigured()) {
-    return NextResponse.json({ tier: "browser", configured: false, seats });
+    // No ElevenLabs: the microphone stays on browser recognition, but playback
+    // can still use OpenAI's voices when there is an OpenAI key.
+    return NextResponse.json({
+      tier: "browser",
+      configured: false,
+      tts: isOpenAITtsConfigured() ? "openai" : null,
+      seats,
+    });
   }
 
   try {
@@ -27,6 +35,7 @@ export async function GET() {
     return NextResponse.json({
       tier: "elevenlabs",
       configured: true,
+      tts: "elevenlabs",
       seats: seats.map((s) => ({
         ...s,
         valid: s.voiceId ? available.has(s.voiceId) : false,
@@ -40,6 +49,7 @@ export async function GET() {
     return NextResponse.json({
       tier: "elevenlabs",
       configured: true,
+      tts: "elevenlabs",
       unverified: true,
       note:
         "This key cannot list voices, so seat voice ids could not be verified. " +

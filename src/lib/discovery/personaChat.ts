@@ -6,7 +6,7 @@ import type { ProblemStatement } from "@/lib/types";
 // TALK TO ONE PERSON.
 //
 // The crowd gives you a number. This gives you the follow-up question, which is
-// where the actual insight lives — a founder learns more from three minutes
+// where the actual insight lives. A founder learns more from three minutes
 // with one sceptic than from a hundred sentiment scores.
 //
 // The persona is held to what they already said. If they ignored the product in
@@ -16,6 +16,10 @@ import type { ProblemStatement } from "@/lib/types";
 // ============================================================================
 
 export type PersonaTurn = { speaker: "founder" | "persona"; text: string };
+
+/** Sent in place of a question when the call first connects: they pick up and
+ *  say hello, the way anyone answers a call they agreed to take. */
+export const CALL_CONNECTED = "(The call just connected.)";
 
 export type PersonaReply = {
   line: string;
@@ -40,8 +44,8 @@ const SCHEMA = {
  *
  * Disposition shapes the delivery: a sceptical laggard is slower and flatter
  * than a high-influence executive. The voice itself follows the figure the
- * persona is drawn as on the globe — an explicit attribute of the persona,
- * never a guess from their name — so the person you clicked sounds like the
+ * persona is drawn as on the globe. An explicit attribute of the persona,
+ * never a guess from their name, so the person you clicked sounds like the
  * person you see.
  */
 export function voiceProfile(p: Persona): { pitch: number; rate: number; voiceId: string } {
@@ -69,7 +73,9 @@ export async function askPersona(
   solution: string,
   problems: ProblemStatement[],
   history: PersonaTurn[],
-  question: string
+  question: string,
+  /** Something they would buy for themselves or their household. */
+  consumer = false
 ): Promise<PersonaReply> {
   const g = persona.psychographics;
   const theirProblem = problems.find((p) => p.id === reaction?.problemId);
@@ -77,19 +83,23 @@ export async function askPersona(
   const system = `You are ${persona.name}, a ${persona.title} in ${persona.location.city}. ${persona.professional.seniority} level, ${persona.professional.yearsExperience} years in ${persona.professional.industry}, at a company of ${persona.professional.companySize} people.
 
 How you are wired, scored 1-10. Honour these; they are not decoration:
-  new tools        ${g.techAdoption}${g.techAdoption >= 8 ? " — you try things early" : g.techAdoption <= 3 ? " — you wait for proof from someone you trust" : ""}
+  new tools        ${g.techAdoption}${g.techAdoption >= 8 ? ". You try things early" : g.techAdoption <= 3 ? ". You wait for proof from someone you trust" : ""}
   risk             ${g.riskTolerance}
-  price            ${g.priceSensitivity}${g.priceSensitivity >= 8 ? " — cost is the first thing you think about" : ""}
-  budget authority ${g.budgetAuthority}${g.budgetAuthority >= 7 ? " — you can sign for this" : g.budgetAuthority <= 3 ? " — you cannot buy anything; you can only advocate" : ""}
-  pain tolerance   ${g.painTolerance}${g.painTolerance >= 8 ? " — you absorb friction and rarely complain" : g.painTolerance <= 3 ? " — you feel every paper cut" : ""}
-  brand loyalty    ${g.brandLoyalty}${g.brandLoyalty >= 7 ? " — you trust incumbents" : ""}
+  price            ${g.priceSensitivity}${g.priceSensitivity >= 8 ? ". Cost is the first thing you think about" : ""}
+  budget authority ${g.budgetAuthority}${g.budgetAuthority >= 7 ? ". You can sign for this" : g.budgetAuthority <= 3 ? ". You cannot buy anything; you can only advocate" : ""}
+  pain tolerance   ${g.painTolerance}${g.painTolerance >= 8 ? ". You absorb friction and rarely complain" : g.painTolerance <= 3 ? ". You feel every paper cut" : ""}
+  brand loyalty    ${g.brandLoyalty}${g.brandLoyalty >= 7 ? ", you trust incumbents" : ""}
 
-A founder is asking you about their product. You are on a call with them.
+A founder is asking you about their product. You are on a call with them.${
+  consumer
+    ? "\nIt is something people buy for themselves or their household, so answer as a private person. Your job is who you are, not why you would buy it."
+    : ""
+}
 
 ${
   reaction
     ? `You have already seen this product and your reaction was: ${reaction.attention} attention, sentiment ${reaction.sentiment.toFixed(2)}, ${reaction.wouldPay ? "you would pay" : "you would NOT pay"}. You said: "${reaction.reason}"
-${theirProblem ? `The problem you actually have is: "${theirProblem.statement}"` : "None of their candidate problems is your problem."}
+${theirProblem ? `The problem you actually have is: "${theirProblem.statement}"\nWhat you do about it today: "${theirProblem.currentWorkaround}"` : "None of their candidate problems is your problem."}
 
 That is your established position. Hold it. You may be persuaded by a genuinely good argument, but not by enthusiasm, and not by being asked nicely.`
     : "You have not seen this product before."
@@ -108,9 +118,14 @@ Rules:
           .join("\n")}`
       : "";
 
+  const greeting = question === CALL_CONNECTED;
   const raw = await getLLM().completeJSON<Partial<PersonaReply>>({
     system,
-    user: `THE PRODUCT: "${solution}"${transcript}
+    user: greeting
+      ? `THE PRODUCT: "${solution}"
+
+The call just connected. Pick up the way you would answer a call you agreed to take: say hello and your name, in one or two short natural sentences, in character. Don't give your opinion of the product yet, they haven't asked anything.`
+      : `THE PRODUCT: "${solution}"${transcript}
 
 THE FOUNDER ASKS: "${question}"
 

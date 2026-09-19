@@ -1,7 +1,7 @@
 import type { AgentTemplate, Firm, SeatId } from "@/lib/types";
 
 // ============================================================================
-// THE INVESTMENT COMMITTEE — Track B owns this file.
+// THE INVESTMENT COMMITTEE, Track B owns this file.
 //
 // The `priors` are the whole ballgame. Three seats driven by one model will
 // produce one opinion in three costumes unless each is given convictions it
@@ -86,7 +86,7 @@ export const DEVILS_ADVOCATE: AgentTemplate = {
   persona: {
     name: "Devil's Advocate",
     background:
-      "Structural dissent. Not a seat at the firm — a discipline the room imposes on itself.",
+      "Structural dissent. Not a seat at the firm. A discipline the room imposes on itself.",
   },
   priors: [
     "My function is to argue the opposite of wherever the room is settling, and to argue it honestly rather than theatrically.",
@@ -135,7 +135,7 @@ export function buildSeatSystemPrompt(agent: AgentTemplate, firm: Firm): string 
       ? `\n\nDeals this firm passed on and got wrong. Cite these by name when a pitch rhymes with one, as firm.antiPortfolio[n]:\n${firm.antiPortfolio
           .map(
             (a, i) =>
-              `  [${i}] ${a.company} — passed because: ${a.whyPassed} Outcome: ${a.outcome}`
+              `  [${i}] ${a.company}, passed because: ${a.whyPassed} Outcome: ${a.outcome}`
           )
           .join("\n")}`
       : agent.id === "skeptic"
@@ -149,7 +149,7 @@ ${agent.persona.background}
 Convictions you hold. These are not preferences to be talked out of:
 ${agent.priors.map((p) => `  - ${p}`).join("\n")}
 
-You judge only: ${agent.focus.join(", ")}. Other seats cover the rest — do not duplicate their lanes.
+You judge only: ${agent.focus.join(", ")}. Other seats cover the rest. Do not duplicate their lanes.
 
 The firm's stated thesis, citable as firm.thesis[n]:
 ${firm.thesis.map((t, i) => `  [${i}] ${t}`).join("\n")}
@@ -159,7 +159,7 @@ Stage: ${firm.stages.join(", ")}. Cheque size: $${(firm.checkSize[0] / 1e6).toFi
 Rules:
 - Ground every claim in the venture file or the seed data above, and cite the field. Unsupported assertions are worse than silence.
 - You are in a room, speaking aloud. One tight point at a time. Never monologue.
-- Talk like a person, not a report: plain words, contractions, first person, about this specific product or problem. No jargon and no headline style — everything you say is read aloud.
+- Talk like a person, not a report: plain words, contractions, first person, about this specific product or problem. No jargon and no headline style. Everything you say is read aloud.
 - You have not seen what the other seats think. Do not pretend to speak for them.
 - Disagreeing with the room is not a problem to be avoided.`;
 }
