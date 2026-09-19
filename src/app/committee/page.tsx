@@ -18,6 +18,8 @@ import { Hint } from "@/components/Hint";
 import { HUB_POINTS, hubById, seatPointsAt } from "@/data/globePoints";
 import { FIRMS } from "@/data/firms";
 import { useVenture, type DeliberationSnapshot } from "@/lib/store";
+import { SpeechQueue } from "@/lib/voice/agentVoices";
+import { detectTier, speak, unlockAudio, type VoiceTier } from "@/lib/voice/client";
 import { recordVerdict } from "@/lib/sessions";
 import { streamPost } from "@/lib/sse";
 import type { ICVerdict } from "@/lib/types";
@@ -78,12 +80,24 @@ export default function Committee() {
   const [round, setRound] = useState(0);
   const [step, setStep] = useState("Idle");
   const [decision, setDecision] = useState<ICVerdict | null>(null);
+
+  // Hearing the room argue is what makes the multi-agent claim land without
+  // being explained. Off by default: audio that starts on its own is hostile.
+  const [audio, setAudio] = useState(false);
+  const [tier, setTier] = useState<VoiceTier | null>(null);
+  const [nowSpeaking, setNowSpeaking] = useState<string | null>(null);
+  const queue = useRef<SpeechQueue | null>(null);
   const [mindChanges, setMindChanges] = useState<DeliberationSnapshot["metrics"]["mindChanges"]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const ventureFile = useVenture((v) => v.ventureFile);
   const replaceVenture = useVenture((v) => v.replace);
   const resetVenture = useVenture((v) => v.reset);
   const setDeliberation = useVenture((v) => v.setDeliberation);
+
+  useEffect(() => {
+    void detectTier().then(setTier);
+    return () => queue.current?.stop();
+  }, []);
   const firmId = useVenture((v) => v.firmId);
   const sidebar = useRef<HTMLDivElement>(null);
 
@@ -116,6 +130,14 @@ export default function Committee() {
 
     setRunning(true);
     setMessages([]); setFeed([]); setStances({}); setDecision(null);
+
+    queue.current?.stop();
+    queue.current = audio
+      ? new SpeechQueue(
+          (text, voice) => speak(text, voice, tier ?? "browser"),
+          (agentId) => setNowSpeaking(agentId)
+        )
+      : null;
     setMindChanges([]); setRound(0); setStep("Convening"); setSelected(null);
 
     // What the start event establishes is needed again at the end of the same
@@ -148,6 +170,9 @@ export default function Committee() {
           setFeed((f) =>
             [{ id: m.id, agent: m.from, message: m.text, kind: m.kind }, ...f].slice(0, 5)
           );
+          // Queued, not spoken immediately — deliberation streams faster than
+          // speech, so without a queue three partners talk over each other.
+          queue.current?.push(m.id, m.from, m.text);
           break;
         }
 
@@ -204,7 +229,7 @@ export default function Committee() {
       setStep("Failed");
       setRunning(false);
     });
-  }, [replaceVenture, setDeliberation, firmId]);
+  }, [replaceVenture, setDeliberation, firmId, audio, tier]);
 
   const seatDots = Object.values(seats);
   const dots: GlobeDot[] = [
@@ -446,6 +471,34 @@ export default function Committee() {
                   {running ? "Deliberating…" : "Convene the committee"}
                 </button>
               )}
+              {/* Audio is opt-in and the toggle sits next to the run button,
+                  because a page that starts talking on its own is hostile. */}
+              <button
+                onClick={() => {
+                  unlockAudio();
+                  setAudio((v) => {
+                    if (v) queue.current?.stop();
+                    return !v;
+                  });
+                }}
+                title={
+                  audio
+                    ? "The room is speaking aloud"
+                    : "Hear the partners argue out loud"
+                }
+                className={`px-3 py-2 font-mono text-[11px] uppercase tracking-[0.14em] transition ${
+                  audio ? "text-accent" : "text-faint hover:text-ink"
+                }`}
+              >
+                {audio ? "🔊 hearing them" : "🔈 hear them"}
+              </button>
+
+              {nowSpeaking && (
+                <span className="label animate-pulse px-1" style={{ color: "var(--accent)" }}>
+                  {nowSpeaking} speaking
+                </span>
+              )}
+
               {provider && <span className="label px-2">{provider}</span>}
             </div>
           </div>

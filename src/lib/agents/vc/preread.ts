@@ -52,10 +52,11 @@ const PRE_READ_SCHEMA = {
 /** One seat's private read. Exported for targeted retries. */
 export async function preReadSeat(
   seatId: SeatId,
-  vf: VentureFile
+  vf: VentureFile,
+  firmId?: string
 ): Promise<SeatPreRead> {
   const seat = SEATS[seatId];
-  const firm = getActiveFirm();
+  const firm = getActiveFirm(firmId);
   const llm = getLLM();
 
   const raw = await llm.completeJSON<Omit<SeatPreRead, "seatId">>({
@@ -83,9 +84,12 @@ Stay strictly in your lane (${seat.focus.join(", ")}). Other seats cover the res
  * must not empty the room, so a failed seat degrades to a neutral placeholder
  * and the meeting still runs.
  */
-export async function preReadAll(vf: VentureFile): Promise<SeatPreRead[]> {
+export async function preReadAll(
+  vf: VentureFile,
+  firmId?: string
+): Promise<SeatPreRead[]> {
   const ids = Object.keys(SEATS) as SeatId[];
-  const results = await Promise.allSettled(ids.map((id) => preReadSeat(id, vf)));
+  const results = await Promise.allSettled(ids.map((id) => preReadSeat(id, vf, firmId)));
 
   return results.map((r, i) =>
     r.status === "fulfilled" ? r.value : fallback(ids[i])

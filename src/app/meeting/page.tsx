@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import type { Objection, SeatId } from "@/lib/types";
 import { useVenture } from "@/lib/store";
+import type { SeatPreRead } from "@/lib/agents/vc/preread";
 import { PartTwoNav } from "@/components/PartTwoNav";
 import { Wordmark } from "@/components/Logo";
 import { FIRMS } from "@/data/firms";
@@ -47,6 +48,13 @@ export default function Meeting() {
   const recorder = useRef<Recorder | null>(null);
   const feed = useRef<HTMLDivElement>(null);
 
+  // Each seat privately drafts its lean, the two questions it needs answered,
+  // and what would sink the deal — before the founder says a word. Built and
+  // tested from the start, but nothing ever called it, so the partners opened
+  // cold despite having supposedly read the file.
+  const [preReads, setPreReads] = useState<SeatPreRead[]>([]);
+  const [preparing, setPreparing] = useState(false);
+
   useEffect(() => {
     void (async () => {
       setTier(await detectTier());
@@ -55,6 +63,34 @@ export default function Meeting() {
       setSeats(json.seats ?? []);
     })();
   }, []);
+
+  // Runs while the founder is still reading the room, so the meeting opens on
+  // real questions rather than a spinner.
+  useEffect(() => {
+    if (!vf) return;
+    let cancelled = false;
+    setPreparing(true);
+
+    void fetch("/api/vc/preread", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ventureFile: vf, firmId }),
+    })
+      .then((r) => r.json())
+      .then((j) => {
+        if (!cancelled) setPreReads(j.preReads ?? []);
+      })
+      .catch(() => {})
+      .finally(() => !cancelled && setPreparing(false));
+
+    return () => {
+      cancelled = true;
+    };
+    // Deliberately keyed on the firm and the venture file's identity, not its
+    // contents — the transcript mutates it on every turn and re-preparing
+    // mid-meeting would discard what the partners already decided.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [firmId, vf?.id, vf?.chosenProblem?.id]);
 
   useEffect(() => {
     feed.current?.scrollTo({ top: feed.current.scrollHeight, behavior: "smooth" });
@@ -70,7 +106,7 @@ export default function Meeting() {
         const res = await fetch("/api/vc/turn", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ segment, ventureFile: vf ?? undefined, firmId }),
+          body: JSON.stringify({ segment, ventureFile: vf ?? undefined, firmId, preReads }),
         });
         const json = await res.json();
         if (!res.ok) throw new Error(json.error ?? "turn failed");
@@ -88,7 +124,7 @@ export default function Meeting() {
         setThinking(false);
       }
     },
-    [vf, tier, firmId, setVf]
+    [vf, tier, firmId, setVf, preReads]
   );
 
   const pressToTalk = useCallback(async () => {
@@ -192,6 +228,48 @@ export default function Meeting() {
                         {SEAT_LABEL[id]}
                       </span>
                     </div>
+                    {/* What this seat decided before you opened your mouth.
+                        Showing it is the difference between "they have read
+                        your file" being a claim and being visible. */}
+                    {(() => {
+                      const pre = preReads.find((p) => p.seatId === id);
+                      if (preparing && !pre) {
+                        return (
+                          <p className="mt-2 animate-pulse text-[10px] text-faint">
+                            reading your file…
+                          </p>
+                        );
+                      }
+                      if (!pre) return null;
+
+                      const lean =
+                        pre.initialLean > 0.15
+                          ? { t: "leaning yes", c: "var(--positive)" }
+                          : pre.initialLean < -0.15
+                            ? { t: "leaning no", c: "var(--negative)" }
+                            : { t: "undecided", c: "var(--muted)" };
+
+                      return (
+                        <>
+                          <p className="num mt-2 text-[10px]" style={{ color: lean.c }}>
+                            {lean.t} before you spoke
+                          </p>
+                          {pre.topQuestions.length > 0 && (
+                            <ul className="mt-1.5 space-y-1">
+                              {pre.topQuestions.slice(0, 2).map((q) => (
+                                <li
+                                  key={q}
+                                  className="text-[10px] leading-relaxed text-muted"
+                                >
+                                  · {q}
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                        </>
+                      );
+                    })()}
+
                     {info?.valid === false && (
                       <p className="mt-1 text-[10px] text-negative">voice id not on account</p>
                     )}

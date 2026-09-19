@@ -16,6 +16,7 @@ export async function GET() {
 export async function POST(req: Request) {
   const body = await req.json().catch(() => null);
   const vf = (body?.ventureFile as VentureFile | undefined) ?? MOCK_VENTURE_FILE;
+  const firmId = body?.firmId as string | undefined;
 
   if (!vf.solution?.trim()) {
     return NextResponse.json(
@@ -23,14 +24,14 @@ export async function POST(req: Request) {
       { status: 400 }
     );
   }
-  return respond(vf);
+  return respond(vf, firmId);
 }
 
-async function respond(vf: VentureFile) {
+async function respond(vf: VentureFile, firmId?: string) {
   const started = Date.now();
   try {
-    const preReads = await preReadAll(vf);
-    const firm = getActiveFirm();
+    const preReads = await preReadAll(vf, firmId);
+    const firm = getActiveFirm(firmId);
 
     return NextResponse.json({
       firm: { id: firm.id, name: firm.name, decisionStyle: firm.decisionStyle },
