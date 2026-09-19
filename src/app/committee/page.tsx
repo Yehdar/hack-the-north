@@ -264,6 +264,13 @@ export default function Committee() {
             finalVerdicts: DeliberationSnapshot["verdicts"];
             messages: DeliberationSnapshot["messages"];
             metrics: DeliberationSnapshot["metrics"];
+            rulings?: {
+              from: string;
+              to: string;
+              challenge: string;
+              answered: boolean;
+              reason: string;
+            }[];
           };
           const verdict = ev.verdict as ICVerdict;
 
@@ -282,6 +289,7 @@ export default function Committee() {
             snapshot,
             verdict,
             problem: vf.chosenProblem?.statement,
+            rulings: result.rulings,
           });
           setMinutes(written);
           setMindChanges(result.metrics.mindChanges);

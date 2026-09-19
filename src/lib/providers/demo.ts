@@ -97,6 +97,34 @@ export class DemoProvider implements LLMProvider {
           resolutions: [],
         } as T;
       }
+      case "chair_rulings": {
+        // Rules from the shape of the exchange rather than its meaning, which
+        // is all this can honestly do: a reply that exists and concedes counts,
+        // a one-line brush-off does not.
+        const ids = [...req.user.matchAll(/\[(m\d+)\]/g)].map((m) => m[1]);
+        const replied = [...req.user.matchAll(/\[(m\d+)\][\s\S]*?(No reply was given\.|replied: "([^"]*)")/g)];
+        return {
+          rulings: ids.map((id) => {
+            const hit = replied.find((r) => r[1] === id);
+            const reply = hit?.[3] ?? "";
+            const none = !reply;
+            const conceded = /fair|granted|you are right|i will grant|conceded/i.test(reply);
+            const short = reply.split(/\s+/).length < 9;
+            return {
+              challengeId: id,
+              answered: !none && (conceded || !short),
+              reason: none
+                ? "Never addressed."
+                : conceded
+                  ? "Conceded honestly, which settles it."
+                  : short
+                    ? "Restated a position rather than answering."
+                    : "Met with a specific response.",
+            };
+          }),
+        } as T;
+      }
+
       case "seat_response":
         return seatResponse(seat, req.user) as T;
       default:

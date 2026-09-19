@@ -222,6 +222,41 @@ export default function Discover() {
   const [councilRound, setCouncilRound] = useState(0);
   const [pvs, setPvs] = useState<PVSBreakdown | null>(null);
 
+  // ---- come back to a finished run and find it still here -----------------
+  //
+  // Going to the committee and pressing back used to show "Nobody asked yet"
+  // over an empty globe, while the dashboard listed the same run as complete.
+  // The run was in the store the whole time; this screen's copy of it was not.
+  //
+  // Restores once, only when this screen has nothing and the store has a
+  // finished run — so it can never stamp on a run in progress.
+  const restored = useRef(false);
+  useEffect(() => {
+    if (restored.current) return;
+
+    const { ventureFile: vf, crowd, deployed } = useVenture.getState();
+    if (!vf || !crowd?.verdict || !deployed?.length) return;
+    if (personasRef.current.length > 0 || segment !== "idle") return;
+
+    restored.current = true;
+
+    const people = deployed as unknown as DeployedPersona[];
+    personasRef.current = people;
+    setPersonas(people);
+    setProblems(vf.extractedProblems ?? []);
+    setReactions(new Map(crowd.verdict.reactions.map((r) => [r.personaId, r])));
+    setVerdict(crowd.verdict);
+    setSignals(crowd.signals);
+    setHubRanking(rankFromCrowd(crowd.verdict, people));
+    if (vf.pvs) setPvs(vf.pvs);
+
+    // Land on the last beat the run actually reached rather than replaying it.
+    setSegment(vf.pvs ? "deliberated" : "heard");
+    // Everything already happened; do not narrate or speak it again.
+    auto.current = false;
+    narrated.current = "restored";
+  }, [segment]);
+
   // ---- hearing the council. Off by default, like the committee's: a page
   // that starts talking on its own is hostile.
   const [hear, setHear] = useState(false);
@@ -498,6 +533,9 @@ export default function Discover() {
           moved();
           personasRef.current = crowd;
           setPersonas(crowd);
+          // Survives navigating away. The crowd verdict has reactions but no
+          // coordinates, so without this the globe comes back empty.
+          useVenture.getState().setDeployed(crowd);
           setProgress({ done: 0, total: crowd.length });
           nextAt.current = now + (quick || auto.current ? 500 : PACE.deploy);
         } else if (auto.current) {

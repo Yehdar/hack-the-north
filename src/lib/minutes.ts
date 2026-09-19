@@ -25,6 +25,9 @@ export type Minutes = {
   present: { role: string; note: string }[];
   views: { role: string; lean: Lean; view: string; moved?: string }[];
   disagreements: string[];
+  /** Challenges the chair ruled were never met. The most useful line in a set
+   *  of minutes: a hole the room found that nobody filled. */
+  unanswered: { from: string; to: string; challenge: string; reason: string }[];
   decision: { decision: ICVerdict["decision"]; score: number; line: string };
   conditions: string[];
   nextSteps: string[];
@@ -66,6 +69,7 @@ export function writeMinutes(input: {
   problem?: string;
   objections?: Objection[];
   pitchTurns?: number;
+  rulings?: { from: string; to: string; challenge: string; answered: boolean; reason: string }[];
   now?: number;
 }): Minutes {
   const { snapshot, verdict } = input;
@@ -141,6 +145,14 @@ export function writeMinutes(input: {
     present,
     views,
     disagreements: disagreements.slice(0, 6),
+    unanswered: (input.rulings ?? [])
+      .filter((r) => !r.answered)
+      .map((r) => ({
+        from: roleOf(r.from),
+        to: roleOf(r.to),
+        challenge: r.challenge,
+        reason: r.reason,
+      })),
     decision: {
       decision: verdict.decision,
       score: verdict.score,

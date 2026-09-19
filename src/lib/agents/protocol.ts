@@ -63,9 +63,22 @@ export type MindChange = {
   conceded: boolean;
 };
 
+/** The chair's ruling on one challenge, after the rebuttal round. */
+export type Ruling = {
+  /** id of the round-2 challenge message. */
+  challengeId: string;
+  from: AgentId;
+  to: AgentId;
+  challenge: string;
+  answered: boolean;
+  /** Why it stands or falls, in the chair's words. */
+  reason: string;
+};
+
 export type DeliberationResult = {
   tasks: DiligenceTask[];
   messages: AgentMessage[];
+  rulings: Ruling[];
   rounds: RoundRecord[];
   finalVerdicts: AgentVerdict[];
   metrics: {
@@ -73,6 +86,10 @@ export type DeliberationResult = {
     challenges: number;
     rebuttals: number;
     concessions: number;
+    /** Challenges the chair ruled were never actually answered. The number a
+     *  founder should care about most — an unanswered challenge is a hole the
+     *  room found and nobody filled. */
+    unanswered: number;
     mindChanges: MindChange[];
     /** Positive = the room converged. Negative = deliberation pulled it apart,
      *  which is a legitimate and more interesting outcome. */
@@ -85,7 +102,8 @@ export type DeliberationEvent =
   | { type: "task"; task: DiligenceTask }
   | { type: "message"; message: AgentMessage }
   | { type: "verdict"; verdict: AgentVerdict; round: number }
-  | { type: "round"; record: RoundRecord };
+  | { type: "round"; record: RoundRecord }
+  | { type: "rulings"; rulings: Ruling[] };
 
 export type DeliberateOptions = {
   agents: AgentTemplate[];
@@ -164,6 +182,25 @@ const CHALLENGES_SCHEMA = {
   required: ["challenges"],
 } as const;
 
+const RULINGS_SCHEMA = {
+  type: "object",
+  properties: {
+    rulings: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          challengeId: { type: "string" },
+          answered: { type: "boolean" },
+          reason: { type: "string", description: "One clause. Why it stands or falls." },
+        },
+        required: ["challengeId", "answered", "reason"],
+      },
+    },
+  },
+  required: ["rulings"],
+} as const;
+
 const REBUTTAL_SCHEMA = {
   type: "object",
   properties: {
@@ -185,6 +222,7 @@ export async function deliberate(
   const emit = opts.onEvent ?? (() => {});
 
   const messages: AgentMessage[] = [];
+  const rulings: Ruling[] = [];
   const rounds: RoundRecord[] = [];
   let seq = 0;
   const nextId = () => `m${++seq}`;
@@ -267,6 +305,44 @@ export async function deliberate(
     );
     rounds.push(record(3, "post-rebuttal", verdicts));
     emit({ type: "round", record: rounds[rounds.length - 1] });
+
+    // ---- The chair rules --------------------------------------------------
+    //
+    // Until now the chair routed the work and wrote it up but never said
+    // whether a challenge had actually been met. That left the most useful
+    // judgement in the room unmade: a challenge nobody answered is a hole, and
+    // it should cost something. It rules on the exchanges only — it still holds
+    // no view of its own on the venture.
+    if (challenges.length > 0) {
+      const answeredBy = new Map<string, AgentMessage>();
+      for (const m of messages) {
+        if (m.inReplyTo) answeredBy.set(m.inReplyTo, m);
+      }
+
+      const verdictOn = await adjudicate(challenges, answeredBy, opts, llm).catch(
+        () => [] as { challengeId: string; answered: boolean; reason: string }[]
+      );
+
+      const byId = new Map(verdictOn.map((r) => [r.challengeId, r]));
+
+      for (const c of challenges) {
+        const ruled = byId.get(c.id);
+        // No reply at all is unanswered, whatever the chair says.
+        const replied = answeredBy.has(c.id);
+        const answered = replied && (ruled?.answered ?? false);
+
+        rulings.push({
+          challengeId: c.id,
+          from: c.from,
+          to: c.to,
+          challenge: c.text,
+          answered,
+          reason: ruled?.reason ?? (replied ? "Answered." : "Never addressed."),
+        });
+      }
+
+      emit({ type: "rulings", rulings });
+    }
   }
 
   // ---- Round 4: adversarial --------------------------------------------
@@ -304,6 +380,7 @@ export async function deliberate(
   return {
     tasks,
     messages,
+    rulings,
     rounds,
     finalVerdicts: verdicts,
     metrics: {
@@ -311,6 +388,7 @@ export async function deliberate(
       challenges: messages.filter((m) => m.kind === "challenge").length,
       rebuttals: messages.filter((m) => m.kind === "rebuttal").length,
       concessions: messages.filter((m) => m.kind === "concession").length,
+      unanswered: rulings.filter((r) => !r.answered).length,
       mindChanges,
       convergence: first.variance - last.variance,
       durationMs: Date.now() - started,
@@ -474,6 +552,49 @@ set conceded accordingly.`,
     maxTokens: 500,
     tier: "deep",
   });
+}
+
+/**
+ * The chair reads each challenge with whatever reply it drew and says whether
+ * the reply actually met it. Deliberately strict: restating a position, or
+ * answering a different question, is not an answer.
+ */
+async function adjudicate(
+  challenges: AgentMessage[],
+  answeredBy: Map<string, AgentMessage>,
+  opts: DeliberateOptions,
+  llm: LLMProvider
+) {
+  const exchanges = challenges
+    .map((c) => {
+      const reply = answeredBy.get(c.id);
+      return `  [${c.id}] ${c.from} asked ${c.to}: "${c.text}"
+    ${reply ? `${c.to} replied: "${reply.text}"` : "No reply was given."}`;
+    })
+    .join("\n\n");
+
+  const res = await llm.completeJSON<{
+    rulings: { challengeId: string; answered: boolean; reason: string }[];
+  }>({
+    system: `You chair a committee. You hold no view on the venture and never express one.
+
+Your only job here is to rule on whether each challenge was actually answered.
+
+Be strict. A reply that restates the original position, changes the subject, or
+concedes the point without addressing it is NOT an answer. Conceding honestly IS
+an answer — the challenger was right and the room now knows it.`,
+    user: `THE EXCHANGES:
+
+${exchanges}
+
+Rule on each by its id.`,
+    schema: { name: "chair_rulings", schema: RULINGS_SCHEMA as unknown as Record<string, unknown> },
+    temperature: 0.2,
+    maxTokens: 600,
+    tier: "fast",
+  });
+
+  return res.rulings ?? [];
 }
 
 // --------------------------------------------------------------------------- helpers

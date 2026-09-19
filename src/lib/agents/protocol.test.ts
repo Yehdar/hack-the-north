@@ -78,6 +78,16 @@ class ScriptedProvider implements LLMProvider {
         return { challenges: scripted[who] ?? [] } as T;
       }
 
+      case "chair_rulings": {
+        // alpha conceded, so that challenge is met; gamma brushed its one off.
+        return {
+          rulings: [
+            { challengeId: "m4", answered: true, reason: "Conceded honestly." },
+            { challengeId: "m5", answered: false, reason: "Restated a position." },
+          ],
+        } as T;
+      }
+
       case "rebuttal": {
         // Alpha is genuinely moved. Gamma holds its conviction under pressure.
         const conceded = who === "alpha";
@@ -189,7 +199,9 @@ describe("deliberation protocol", () => {
       llm: new ScriptedProvider(),
       onEvent: (e) => seen.push(e.type),
     });
-    expect(new Set(seen)).toEqual(new Set(["task", "message", "verdict", "round"]));
+    expect(new Set(seen)).toEqual(
+      new Set(["task", "message", "verdict", "round", "rulings"])
+    );
   });
 });
 
@@ -258,5 +270,50 @@ describe("transcript", () => {
     console.log(lines.join("\n"));
 
     expect(r.messages.length).toBeGreaterThan(5);
+  });
+});
+
+describe("the chair rules on challenges", () => {
+  it("marks a challenge unanswered when nobody replied to it", async () => {
+    // beta is challenged by nobody and replies to nobody, so only the two
+    // directed challenges can be ruled on at all.
+    const r = await deliberate({ ...OPTS, llm: new ScriptedProvider() });
+
+    expect(r.rulings.length).toBe(2);
+    for (const ruling of r.rulings) {
+      expect(ruling.challenge.length).toBeGreaterThan(0);
+      expect(ruling.reason.length).toBeGreaterThan(0);
+      expect(ruling.from).not.toBe(ruling.to);
+    }
+  });
+
+  it("counts what was never answered, because that is the number that costs", async () => {
+    const r = await deliberate({ ...OPTS, llm: new ScriptedProvider() });
+    expect(r.metrics.unanswered).toBe(
+      r.rulings.filter((x) => !x.answered).length
+    );
+  });
+
+  it("rules a challenge unanswered when no reply exists, whatever the chair says", async () => {
+    // A provider that claims everything was answered must not override the
+    // plain fact that a challenge drew no reply at all.
+    class Generous extends ScriptedProvider {
+      override async completeJSON<T>(req: LLMRequest): Promise<T> {
+        if (req.schema?.name === "chair_rulings") {
+          return {
+            rulings: [
+              { challengeId: "m4", answered: true, reason: "fine" },
+              { challengeId: "m5", answered: true, reason: "fine" },
+            ],
+          } as T;
+        }
+        return super.completeJSON<T>(req);
+      }
+    }
+
+    const r = await deliberate({ ...OPTS, llm: new Generous() });
+    // gamma never rebutted alpha's challenge in the script, so it stands.
+    const unreplied = r.rulings.filter((x) => x.reason === "Never addressed.");
+    for (const u of unreplied) expect(u.answered).toBe(false);
   });
 });
