@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import type { Objection, SeatId } from "@/lib/types";
+import { AnimatePresence, motion } from "framer-motion";
 import { useVenture } from "@/lib/store";
 import type { SeatPreRead } from "@/lib/agents/vc/preread";
 import { PartTwoNav } from "@/components/PartTwoNav";
@@ -54,6 +55,10 @@ export default function Meeting() {
   // cold despite having supposedly read the file.
   const [preReads, setPreReads] = useState<SeatPreRead[]>([]);
   const [preparing, setPreparing] = useState(false);
+
+  // What the mic is hearing, live. You review it and press send — the room
+  // never hears something you did not choose to say.
+  const [heard, setHeard] = useState("");
 
   useEffect(() => {
     void (async () => {
@@ -135,17 +140,21 @@ export default function Meeting() {
       setRecording(false);
       const text = await recorder.current?.stop().catch(() => "");
       recorder.current = null;
-      if (text) await sendTurn(text);
+      setHeard("");
+      // Lands in the box rather than sending. Dictation that fires the instant
+      // you stop talking punishes a stumble, and in a pitch you stumble.
+      if (text) setTyped((prev) => (prev ? `${prev} ${text}` : text));
       return;
     }
 
     try {
-      recorder.current = await startCapture(tier);
+      setHeard("");
+      recorder.current = await startCapture(tier, setHeard);
       setRecording(true);
     } catch {
       setError("Microphone unavailable — type instead.");
     }
-  }, [tier, recording, sendTurn]);
+  }, [tier, recording]);
 
   const objections = vf?.objections ?? [];
   const unanswered = objections.filter((o) => o.status !== "answered").length;
@@ -311,15 +320,53 @@ export default function Meeting() {
             </div>
 
             {/* controls */}
+            {/* What the mic is hearing, while it hears it. */}
+            <AnimatePresence>
+              {recording && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="mt-4 overflow-hidden"
+                >
+                  <div className="glow-accent flex items-start gap-3 p-3">
+                    <span className="mt-1 flex shrink-0 gap-[3px]">
+                      {[0, 1, 2, 3].map((i) => (
+                        <motion.span
+                          key={i}
+                          className="w-[3px] rounded-full"
+                          style={{ background: "var(--accent)" }}
+                          animate={{ height: [4, 14, 4] }}
+                          transition={{
+                            duration: 0.8,
+                            repeat: Infinity,
+                            delay: i * 0.12,
+                          }}
+                        />
+                      ))}
+                    </span>
+                    <p className="min-h-[1.2em] flex-1 text-sm leading-relaxed text-ink">
+                      {heard || (
+                        <span className="text-muted">Listening — start talking.</span>
+                      )}
+                    </p>
+                  </div>
+                  <p className="label mt-1.5">
+                    press stop to put it in the box · nothing is sent until you send it
+                  </p>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
             <div className="mt-4 flex flex-wrap items-center gap-3">
               <button
                 onClick={pressToTalk}
                 disabled={thinking || tier === "text" || !tier || !vf}
-                className={`px-5 py-2.5 font-mono text-[11px] uppercase tracking-[0.14em] transition hover:brightness-110 disabled:cursor-not-allowed disabled:bg-surface-2 disabled:text-muted ${
+                className={`shrink-0 px-5 py-2.5 font-mono text-[11px] uppercase tracking-[0.14em] transition hover:brightness-110 disabled:cursor-not-allowed disabled:bg-surface-2 disabled:text-muted ${
                   recording ? "bg-negative text-ink" : "bg-accent text-ground"
                 }`}
               >
-                {recording ? "■ Stop and send" : "● Hold the floor"}
+                {recording ? "■ Stop · review it" : "● Hold the floor"}
               </button>
 
               <form
@@ -335,7 +382,7 @@ export default function Meeting() {
                 <input
                   value={typed}
                   onChange={(e) => setTyped(e.target.value)}
-                  placeholder="…or type your pitch"
+                  placeholder={recording ? "listening…" : "type, or hold the floor and talk"}
                   className="min-w-0 flex-1 border border-edge bg-surface px-3 py-2.5 text-sm text-ink placeholder:text-faint focus:border-edge-bright focus:outline-none"
                 />
                 <button

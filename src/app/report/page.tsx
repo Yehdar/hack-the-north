@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useVenture } from "@/lib/store";
 import { recordVerdict } from "@/lib/sessions";
+import { assess, explainVerdict } from "@/lib/advice";
 import { PartTwoNav } from "@/components/PartTwoNav";
 import { Wordmark } from "@/components/Logo";
 import { hubById } from "@/data/globePoints";
@@ -26,6 +27,7 @@ import {
 export default function Report() {
   const vf = useVenture((v) => v.ventureFile);
   const deliberation = useVenture((v) => v.deliberation);
+  const crowd = useVenture((v) => v.crowd);
   const [overrides, setOverrides] = useState<WeightMap>({});
 
   const weights: WeightMap = useMemo(() => {
@@ -228,7 +230,11 @@ export default function Report() {
                   : "text-ink"
             }`}
           >
-            {verdict.decision}
+            {verdict.decision === "pass"
+              ? "Pass"
+              : verdict.decision === "conditional"
+                ? "Conditional"
+                : "Invest"}
           </p>
           <p className="mt-1 font-mono text-xs text-faint">
             score {verdict.score.toFixed(3)}
@@ -242,26 +248,97 @@ export default function Report() {
             </div>
           )}
 
-          <p className="mt-4 font-mono text-xs text-muted">
-            Come back when: <span className="text-ink/85">{verdict.comeBackWhen}</span>
-          </p>
+          {/* Why, in the committee's own words, and what reopens it. A verdict
+              that says "conditional" and stops has told the founder nothing. */}
+          {(() => {
+            const e = explainVerdict(verdict, vf.objections, deliberation.roster);
+            return (
+              <div className="mt-5 border-t border-edge pt-4">
+                <p className="label">Why</p>
+                <p className="mt-1 text-sm leading-relaxed text-ink/85">{e.because}</p>
+                <p className="label mt-4">What reopens it</p>
+                <p className="mt-1 text-sm leading-relaxed text-ink">{e.toReopen}</p>
+              </div>
+            );
+          })()}
         </Section>
 
         {/* 6. What to fix -------------------------------------------------- */}
         <Section n="06" title="What to fix">
-          <ol className="space-y-3">
-            {deliberation.verdicts
-              .filter((v) => v.whatWouldChangeMyMind)
-              .sort((a, b) => a.stance - b.stance)
-              .map((v) => (
-                <li key={v.agentId} className="border-l-2 border-edge-bright pl-3">
-                  <p className="label">raised by {roleOf(v.agentId)}</p>
-                  <p className="mt-1 text-sm leading-relaxed text-ink/85">
-                    {v.whatWouldChangeMyMind}
+          {(() => {
+            // Graded from this run's numbers rather than restated from the
+            // problem statement. "The people accountable cannot tell which part
+            // carries risk" is true of every company in the category and tells
+            // a founder nothing to do on Monday.
+            if (!crowd) {
+              return (
+                <p className="text-sm text-muted">
+                  Run the market first — the grade is computed from what the crowd
+                  actually said, not from the problem statement.
+                </p>
+              );
+            }
+            const a = assess(crowd.verdict, crowd.signals, vf.pvs, deliberation.verdicts);
+
+            const TONE: Record<string, { label: string; color: string }> = {
+              fail: { label: "Do not proceed", color: "var(--negative)" },
+              weak: { label: "Weak", color: "var(--accent)" },
+              promising: { label: "Promising", color: "var(--accent)" },
+              strong: { label: "Strong", color: "var(--positive)" },
+            };
+            const tone = TONE[a.verdict];
+
+            return (
+              <>
+                <div
+                  className="mb-5 border-l-2 pl-4"
+                  style={{ borderColor: tone.color }}
+                >
+                  <p className="label" style={{ color: tone.color }}>
+                    {tone.label}
                   </p>
-                </li>
-              ))}
-          </ol>
+                  <p className="mt-1 text-base leading-relaxed text-ink">
+                    {a.callToAction}
+                  </p>
+                </div>
+
+                <ol className="space-y-4">
+                  {a.findings.map((f, i) => (
+                    <li key={i} className="border border-edge p-3">
+                      <div className="flex items-baseline justify-between gap-3">
+                        <p className="text-sm text-ink">{f.headline}</p>
+                        <span
+                          className="label shrink-0"
+                          style={{
+                            color:
+                              f.severity === "fatal"
+                                ? "var(--negative)"
+                                : f.severity === "serious"
+                                  ? "var(--accent)"
+                                  : "var(--muted)",
+                          }}
+                        >
+                          {f.severity}
+                        </span>
+                      </div>
+                      <p className="mt-2 text-xs leading-relaxed text-muted">
+                        {f.evidence}
+                      </p>
+                      <p className="mt-2 border-t border-edge pt-2 text-xs leading-relaxed text-ink/85">
+                        <span className="label mr-2">do this</span>
+                        {f.action}
+                      </p>
+                    </li>
+                  ))}
+                  {a.findings.length === 0 && (
+                    <li className="text-sm text-muted">
+                      Nothing disqualifying surfaced. {a.nextStep}
+                    </li>
+                  )}
+                </ol>
+              </>
+            );
+          })()}
         </Section>
 
         {/* 7. How the room behaved ---------------------------------------- */}

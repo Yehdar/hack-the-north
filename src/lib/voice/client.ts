@@ -81,26 +81,68 @@ export async function detectTier(): Promise<VoiceTier> {
 
 // --------------------------------------------------------------------------- capture
 
-export type Recorder = { stop: () => Promise<string> };
+export type Recorder = {
+  stop: () => Promise<string>;
+  /** Fires as words are recognised, so the founder can see what the room is
+   *  about to hear before committing to send it. Only the browser tier can do
+   *  this live; ElevenLabs transcribes the whole clip after the fact. */
+  onPartial?: (text: string) => void;
+};
 
 /** Push-to-talk. Resolves with the founder's words when stop() is called. */
-export async function startCapture(tier: VoiceTier): Promise<Recorder> {
-  if (tier === "browser") return captureWithRecognition();
-  return captureWithRecorder();
+export async function startCapture(
+  tier: VoiceTier,
+  onPartial?: (text: string) => void
+): Promise<Recorder> {
+  // Browser recognition streams words as you speak. ElevenLabs cannot — it
+  // takes a finished clip — so there we run recognition ALONGSIDE the recorder
+  // purely to drive the live caption, and still send the clip to Scribe for the
+  // transcript that actually gets used.
+  if (tier === "browser") return captureWithRecognition(onPartial);
+  return captureWithRecorder(onPartial);
 }
 
-async function captureWithRecorder(): Promise<Recorder> {
+async function captureWithRecorder(onPartial?: (t: string) => void): Promise<Recorder> {
   const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
   const chunks: Blob[] = [];
   const rec = new MediaRecorder(stream);
   rec.ondataavailable = (e) => e.data.size > 0 && chunks.push(e.data);
   rec.start();
 
+  // Caption track: free, best-effort, and discarded if the browser has no
+  // recogniser. Scribe still produces the transcript we actually send.
+  let caption: SpeechRecognitionLike | null = null;
+  if (onPartial) {
+    caption = getRecognition();
+    if (caption) {
+      caption.lang = "en-US";
+      caption.interimResults = true;
+      caption.continuous = true;
+      caption.onresult = (e) => {
+        onPartial(
+          Array.from({ length: e.results.length }, (_, i) => e.results[i][0].transcript)
+            .join(" ")
+            .trim()
+        );
+      };
+      try {
+        caption.start();
+      } catch {
+        caption = null;
+      }
+    }
+  }
+
   return {
     stop: () =>
       new Promise<string>((resolve, reject) => {
         rec.onstop = async () => {
           stream.getTracks().forEach((t) => t.stop());
+          try {
+            caption?.stop();
+          } catch {
+            /* already stopped */
+          }
           try {
             const form = new FormData();
             form.append("audio", new Blob(chunks, { type: "audio/webm" }), "segment.webm");
@@ -117,7 +159,7 @@ async function captureWithRecorder(): Promise<Recorder> {
   };
 }
 
-function captureWithRecognition(): Recorder {
+function captureWithRecognition(onPartial?: (t: string) => void): Recorder {
   const recognition = getRecognition();
   if (!recognition) throw new Error("no speech recognition available");
 
@@ -127,6 +169,7 @@ function captureWithRecognition(): Recorder {
   recognition.continuous = true;
   recognition.onresult = (e) => {
     finalText = Array.from({ length: e.results.length }, (_, i) => e.results[i][0].transcript).join(" ");
+    onPartial?.(finalText.trim());
   };
   recognition.start();
 

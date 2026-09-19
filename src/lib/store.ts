@@ -3,6 +3,8 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { AgentVerdict, VentureFile } from "@/lib/types";
+import type { CrowdVerdict } from "@/lib/discovery/types";
+import type { CrowdSignals } from "@/lib/discovery/signals";
 
 /** Track B's deliberation output. Not part of the frozen VentureFile contract —
  *  Track A neither reads nor writes this. */
@@ -46,6 +48,10 @@ type State = {
   ventureFile: VentureFile | null;
   deliberation: DeliberationSnapshot | null;
   setDeliberation: (d: DeliberationSnapshot) => void;
+  /** What the crowd concluded. The report grades the idea from these numbers,
+   *  so advice can cite what was measured rather than restating the problem. */
+  crowd: { verdict: CrowdVerdict; signals: CrowdSignals } | null;
+  setCrowd: (verdict: CrowdVerdict, signals: CrowdSignals) => void;
   /** Which firm's committee you are pitching to. */
   firmId: string;
   setFirmId: (id: string) => void;
@@ -62,6 +68,9 @@ export const useVenture = create<State>()(
     (set, get) => ({
       ventureFile: null,
       deliberation: null,
+      crowd: null,
+
+      setCrowd: (verdict, signals) => set({ crowd: { verdict, signals } }),
       firmId: "bessemer",
 
       setFirmId: (firmId) => set({ firmId, deliberation: null }),
@@ -79,7 +88,7 @@ export const useVenture = create<State>()(
 
       replace: (vf) => set({ ventureFile: vf }),
 
-      reset: () => set({ ventureFile: null, deliberation: null }),
+      reset: () => set({ ventureFile: null, deliberation: null, crowd: null }),
     }),
     {
       name: "vision.session",

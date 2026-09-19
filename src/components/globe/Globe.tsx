@@ -327,7 +327,14 @@ export function Globe({ dots, places, onDotClick, focus, arcs, beacon, className
       opacity: 0.9,
       depthWrite: false,
     });
-    arcMat.resolution.set(el.clientWidth, el.clientHeight);
+    // Line2 does its width maths in screen space, so a zero resolution divides
+    // by zero and every arc renders as a straight ray to infinity — which is
+    // exactly what a globe that has not laid out yet produces at mount. Fall
+    // back to the window until a real size arrives.
+    arcMat.resolution.set(
+      el.clientWidth || window.innerWidth,
+      el.clientHeight || window.innerHeight
+    );
     arcMaterial.current = arcMat;
 
     // ---- raycast ---------------------------------------------------------
@@ -414,7 +421,15 @@ export function Globe({ dots, places, onDotClick, focus, arcs, beacon, className
       }
 
       // Arcs grow from origin to destination, with a bright head in front.
+      //
+      // Resolution is refreshed here rather than only on resize: it is two
+      // number writes per arc per frame, and getting it wrong once turns the
+      // whole fan into rays shooting off the screen.
+      const arcW = el.clientWidth || window.innerWidth;
+      const arcH = el.clientHeight || window.innerHeight;
+
       for (const [id, a] of liveArcs.current) {
+        (a.line.material as LineMaterial).resolution.set(arcW, arcH);
         const k = Math.min(1, Math.max(0, (now - a.born - a.delay) / ARC_GROW_MS));
         const shown = Math.max(1, Math.round(k * a.count));
         (a.line.geometry as LineGeometry).instanceCount = k === 0 ? 0 : shown;
@@ -515,7 +530,7 @@ export function Globe({ dots, places, onDotClick, focus, arcs, beacon, className
     tick();
 
     const onResize = () => {
-      if (!el.clientWidth) return;
+      if (!el.clientWidth || !el.clientHeight) return;
       cam.aspect = el.clientWidth / el.clientHeight;
       cam.updateProjectionMatrix();
       renderer.setSize(el.clientWidth, el.clientHeight);
@@ -654,7 +669,12 @@ export function Globe({ dots, places, onDotClick, focus, arcs, beacon, className
       geometry.setPositions(points.flatMap((p) => [p.x, p.y, p.z]));
       geometry.instanceCount = 0;
 
-      const line = new Line2(geometry, material.clone());
+      const arcMaterialInstance = material.clone();
+      arcMaterialInstance.resolution.set(
+        mount.current?.clientWidth || window.innerWidth,
+        mount.current?.clientHeight || window.innerHeight
+      );
+      const line = new Line2(geometry, arcMaterialInstance);
       line.userData.points = points;
       line.computeLineDistances();
 
