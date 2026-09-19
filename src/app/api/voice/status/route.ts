@@ -34,9 +34,16 @@ export async function GET() {
       accountVoices: voices.slice(0, 40),
     });
   } catch (err) {
+    // A key can be scoped to text_to_speech without voices_read — that is a
+    // perfectly good key for us, since synthesis is all we need. Failing to
+    // LIST voices must not disable speaking, which is what it used to do.
     return NextResponse.json({
-      tier: "browser",
+      tier: "elevenlabs",
       configured: true,
+      unverified: true,
+      note:
+        "This key cannot list voices, so seat voice ids could not be verified. " +
+        "Synthesis is unaffected.",
       error: err instanceof Error ? err.message : "voices lookup failed",
       seats,
     });

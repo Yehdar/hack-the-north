@@ -96,6 +96,36 @@ const INTERESTS = [
  *  must be real or the "who can actually sign" signal is noise. */
 const AUTHORITY_BY_SENIORITY = { IC: -3.5, Senior: -1.5, Lead: 0.5, Director: 2.0, Exec: 3.5 };
 
+
+/**
+ * Position i of n around a hub, on a sunflower spiral.
+ *
+ * Golden angle between successive points, radius growing as sqrt(i) so density
+ * stays even rather than crowding the centre. Longitude is divided by cos(lat)
+ * because degrees of longitude get narrower toward the poles — without that,
+ * Stockholm's crowd looks squashed and Lagos's looks stretched.
+ */
+const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
+
+function spiralOffset(hub, i) {
+  // Big hubs spread wider instead of packing denser.
+  const maxRadius = 3.4 + Math.sqrt(hub.n) * 1.5;
+  const radius = maxRadius * Math.sqrt((i + 0.5) / hub.n);
+  const angle = i * GOLDEN_ANGLE;
+
+  // A touch of noise so it reads as a city rather than a mathematical pattern.
+  const wobble = 0.55;
+  const dLat = radius * Math.sin(angle) + (rand() - 0.5) * wobble;
+  const dLon = radius * Math.cos(angle) + (rand() - 0.5) * wobble;
+
+  const latScale = Math.max(0.35, Math.cos((hub.lat * Math.PI) / 180));
+
+  return {
+    lat: +Math.max(-82, Math.min(82, hub.lat + dLat)).toFixed(3),
+    lon: +(((hub.lon + dLon / latScale + 540) % 360) - 180).toFixed(3),
+  };
+}
+
 const personas = [];
 let id = 1;
 
@@ -112,14 +142,16 @@ for (const hub of HUBS) {
       name: `${pick(FIRST)} ${pick(LAST)}`,
       title: pick(INDUSTRIES[industry]),
       hubId: hub.id,
-      // Scattered around the hub rather than stacked on its exact coordinate.
-      // Without this, sixty San Francisco personas render as one dot and the
-      // globe shows ten points instead of a population.
+      // Placed on a sunflower spiral around the hub rather than jittered
+      // randomly. Random offsets clump — you get dense knots and bare patches,
+      // and at 34 personas in one city that reads as a smear rather than a
+      // population. A golden-angle spiral spreads them evenly by construction,
+      // and the radius grows with headcount so a big hub covers more ground
+      // instead of packing tighter.
       location: {
         city: hub.city,
         country: hub.country,
-        lat: +(hub.lat + (rand() - 0.5) * 5.5).toFixed(3),
-        lon: +(hub.lon + (rand() - 0.5) * 7).toFixed(3),
+        ...spiralOffset(hub, i),
       },
       demographics: { generation: gen.name, ageRange: `${age}-${age + 5}` },
       professional: {

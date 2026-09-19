@@ -33,6 +33,15 @@ type Props = {
   onClose: () => void;
 };
 
+/** Severity as a word first, number second. A bare "sev 67" means nothing to
+ *  someone reading it for the first time. */
+function severityWord(n: number): string {
+  if (n >= 75) return "badly";
+  if (n >= 55) return "enough to act on";
+  if (n >= 35) return "mildly";
+  return "barely";
+}
+
 export function Reveal({
   pitched,
   market,
@@ -104,20 +113,29 @@ export function Reveal({
           className="mt-6 grid grid-cols-3 gap-4 pt-4"
           style={{ borderTop: "1px solid var(--insert-2)" }}
         >
+          {/* Plain words, not field names. "p2 · theirs / 57 / sev 67 · 86%"
+              is readable only to whoever wrote the schema. */}
           {votes.slice(0, 3).map((v, i) => (
             <div key={v.problemId}>
               <p className="label">
-                {v.problemId}
-                {v.problemId === pitched.id && " · pitched"}
-                {v.problemId === market.id && !aligned && (
-                  <span style={{ color: "var(--accent)" }}> · theirs</span>
-                )}
+                {v.problemId === pitched.id
+                  ? "The one you pitched"
+                  : v.problemId === market.id && !aligned
+                    ? "The one they have"
+                    : "Also raised"}
               </p>
-              <p className="mt-0.5 text-2xl">
-                <NumberTicker value={v.votes} delay={aligned ? 300 : 1400 + i * 120} />
+              <p className="mt-0.5 flex items-baseline gap-1.5">
+                <span className="text-2xl">
+                  <NumberTicker value={v.votes} delay={aligned ? 300 : 1400 + i * 120} />
+                </span>
+                <span className="insert-muted text-[11px]">
+                  {v.votes === 1 ? "person" : "people"}
+                </span>
               </p>
-              <p className="num insert-muted text-[10px]">
-                sev {v.meanSeverity.toFixed(0)} · {(v.payRate * 100).toFixed(0)}% would pay
+              <p className="insert-muted mt-1 text-[10px] leading-relaxed">
+                {(v.payRate * 100).toFixed(0)}% of them would pay to fix it
+                <br />
+                hurts {severityWord(v.meanSeverity)} ({v.meanSeverity.toFixed(0)} out of 100)
               </p>
             </div>
           ))}
@@ -140,11 +158,12 @@ export function Reveal({
             onClick={onAccept}
             className="bg-accent px-5 py-2.5 font-mono text-[11px] uppercase tracking-[0.14em] text-ground transition hover:brightness-110"
           >
+            {/* Say what pressing it does, not which field it sets. */}
             {city
               ? aligned
-                ? `Convene the ${city} council`
-                : `Take theirs · convene ${city}`
-              : "Take their problem forward"}
+                ? `Study this problem in ${city}`
+                : `Use their problem, and study it in ${city}`
+              : "Use their problem from here on"}
           </button>
 
           {!aligned && (
@@ -153,7 +172,7 @@ export function Reveal({
               disabled={refining}
               className="border border-insert-ink/25 px-4 py-2.5 font-mono text-[11px] uppercase tracking-[0.14em] transition hover:border-insert-ink/60 disabled:opacity-50"
             >
-              {refining ? "Rewriting…" : "Rewrite around it · ask again"}
+              {refining ? "Rewriting…" : "Re-pitch it their way, ask again"}
             </button>
           )}
 

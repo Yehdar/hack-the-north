@@ -582,10 +582,22 @@ function demoReactions(user: string) {
 
       // Enthusiasm rises with appetite for new things, falls with price
       // sensitivity and loyalty to incumbents.
-      const raw =
-        (p.tech * 0.9 + p.risk * 0.7 - p.price * 0.6 - p.brand * 0.4 + 6) / 14 +
-        addressed * 0.18;
-      const sentiment = Math.max(0.02, Math.min(0.98, raw));
+      //
+      // Through a logistic rather than a clamp. The linear version saturated:
+      // anyone past the top of the range pinned to 0.98, so a hub already
+      // tilted toward high tech adoption and low price sensitivity came back as
+      // thirty people who all felt identically. A sigmoid keeps the ordering
+      // and never flattens the tail.
+      const z =
+        (p.tech - 5.5) * 0.34 +
+        (p.risk - 5.5) * 0.26 -
+        (p.price - 5.5) * 0.24 -
+        (p.brand - 5.5) * 0.18 +
+        // Someone who tolerates friction is harder to excite, whatever else is
+        // true of them.
+        (5.5 - p.pain) * 0.14 +
+        addressed * 0.7;
+      const sentiment = 1 / (1 + Math.exp(-z));
 
       // Real research is mostly indifference. A crowd that is 60% enthusiastic
       // has been flattered, and it teaches a founder nothing.

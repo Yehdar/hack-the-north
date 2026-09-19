@@ -42,6 +42,20 @@ export type GlobeDot = {
   active?: boolean;
 };
 
+/** A named place. Rendered as a label anchored at the city itself, separate
+ *  from the persona dots — attaching a city name to one arbitrary dot in its
+ *  cluster puts the text on top of its neighbours. */
+export type GlobePlace = {
+  id: string;
+  name: string;
+  lat: number;
+  lon: number;
+  /** Bigger places win a label when two would collide. */
+  weight?: number;
+  /** Drawn in the accent when this is the place under discussion. */
+  active?: boolean;
+};
+
 export type GlobeArc = {
   id: string;
   from: LatLon;
@@ -52,6 +66,7 @@ export type GlobeArc = {
 
 type Props = {
   dots: GlobeDot[];
+  places?: GlobePlace[];
   onDotClick?: (id: string) => void;
   /** Rotates this coordinate to face the camera and stops the idle spin.
    *  Without it the committee sits on the far side of the globe and you never
@@ -122,13 +137,16 @@ type LiveArc = {
   dying: number | null;
 };
 
-export function Globe({ dots, onDotClick, focus, arcs, beacon, className }: Props) {
+export function Globe({ dots, places, onDotClick, focus, arcs, beacon, className }: Props) {
   const mount = useRef<HTMLDivElement>(null);
   const overlay = useRef<HTMLDivElement>(null);
 
   const globe = useRef<THREE.Group | null>(null);
   const dotMeshes = useRef<Map<string, THREE.Mesh>>(new Map());
-  const labels = useRef<Map<string, HTMLDivElement>>(new Map());
+  const placeMarks = useRef<Map<string, { el: HTMLDivElement; pos: THREE.Vector3 }>>(
+    new Map()
+  );
+  const placeData = useRef<GlobePlace[]>(places ?? []);
   const seenStance = useRef<Map<string, number | undefined>>(new Map());
   const dotData = useRef<GlobeDot[]>(dots);
   const clickHandler = useRef(onDotClick);
@@ -144,6 +162,7 @@ export function Globe({ dots, onDotClick, focus, arcs, beacon, className }: Prop
   // commit rather than during render.
   useEffect(() => {
     dotData.current = dots;
+    placeData.current = places ?? [];
     clickHandler.current = onDotClick;
     focusTarget.current = focus;
     beaconTarget.current = beacon;
@@ -359,8 +378,18 @@ export function Globe({ dots, onDotClick, focus, arcs, beacon, className }: Prop
       for (const d of dotData.current) {
         const mesh = dotMeshes.current.get(d.id);
         if (!mesh) continue;
-        const base = 0.028 + (d.weight ?? 0.4) * 0.05;
-        mesh.scale.setScalar(d.active ? base * (1.3 + Math.sin(t * 6) * 0.35) : base);
+        // Small enough that a hundred and twenty of them read as a population
+        // rather than a pile. The old size made neighbouring people merge into
+        // one blob, which is the opposite of what a crowd view is for.
+        const base = 0.012 + (d.weight ?? 0.4) * 0.022;
+        // Pulse in brightness, not size — a pulsing radius made dots collide
+        // with their neighbours on every beat.
+        mesh.scale.setScalar(base);
+        if (d.active) {
+          const mat = mesh.material as THREE.MeshBasicMaterial;
+          mat.opacity = 0.45 + Math.sin(t * 5 + mesh.id) * 0.3;
+          mat.transparent = true;
+        }
       }
 
       // Ripples expand and fade.
@@ -408,18 +437,77 @@ export function Globe({ dots, onDotClick, focus, arcs, beacon, className }: Prop
         }
       }
 
-      // Project each dot to screen space for its HTML label, and hide the ones
-      // on the far side of the globe.
+      // ---- place labels ---------------------------------------------------
+      //
+      // Projected to screen space, then laid out greedily: sort by importance,
+      // place each one only if its box clears everything already placed. That
+      // is what stops London, Amsterdam, Paris and Berlin printing on top of
+      // each other when Europe is facing the camera.
       cam.getWorldDirection(camDir);
       const rect = renderer.domElement.getBoundingClientRect();
-      for (const [id, mesh] of dotMeshes.current) {
-        const label = labels.current.get(id);
-        if (!label) continue;
-        mesh.getWorldPosition(tmp);
-        const facing = tmp.clone().normalize().dot(camDir) < -0.15;
+
+      const candidates: {
+        mark: { el: HTMLDivElement; pos: THREE.Vector3 };
+        place: GlobePlace;
+        x: number;
+        y: number;
+        depth: number;
+      }[] = [];
+
+      for (const place of placeData.current) {
+        const mark = placeMarks.current.get(place.id);
+        if (!mark) continue;
+
+        tmp.copy(mark.pos).applyMatrix4(group.matrixWorld);
+        const facing = tmp.clone().normalize().dot(camDir) < -0.12;
+        if (!facing) {
+          mark.el.style.opacity = "0";
+          continue;
+        }
+
+        const depth = tmp.clone().normalize().dot(camDir);
         tmp.project(cam);
-        label.style.opacity = facing ? "1" : "0";
-        label.style.transform = `translate(-50%, -140%) translate(${((tmp.x + 1) / 2) * rect.width}px, ${((-tmp.y + 1) / 2) * rect.height}px)`;
+        candidates.push({
+          mark,
+          place,
+          x: ((tmp.x + 1) / 2) * rect.width,
+          y: ((-tmp.y + 1) / 2) * rect.height,
+          depth,
+        });
+      }
+
+      // Active place first, then the heavier ones, then whatever faces us most
+      // squarely. A label that loses the contest is hidden, not moved — moving
+      // it detaches the name from the city it belongs to.
+      candidates.sort(
+        (a, b) =>
+          Number(b.place.active ?? false) - Number(a.place.active ?? false) ||
+          (b.place.weight ?? 0) - (a.place.weight ?? 0) ||
+          a.depth - b.depth
+      );
+
+      const taken: { x: number; y: number; w: number; h: number }[] = [];
+      for (const c of candidates) {
+        // Measured, not estimated. A character-count guess was ~15% under the
+        // real width once letter-spacing and the plate padding were counted,
+        // which let London and Paris print on top of each other.
+        const w = c.mark.el.offsetWidth || c.place.name.length * 7 + 16;
+        const h = c.mark.el.offsetHeight || 18;
+        const box = { x: c.x - w / 2, y: c.y - 30, w, h };
+
+        const clash = taken.some(
+          (t) =>
+            box.x < t.x + t.w + 6 &&
+            box.x + box.w + 6 > t.x &&
+            box.y < t.y + t.h + 4 &&
+            box.y + box.h + 4 > t.y
+        );
+
+        c.mark.el.style.opacity = clash ? "0" : "1";
+        if (clash) continue;
+
+        taken.push(box);
+        c.mark.el.style.transform = `translate(-50%, 0) translate(${c.x}px, ${c.y - 30}px)`;
       }
 
       renderer.render(sc, cam);
@@ -442,7 +530,7 @@ export function Globe({ dots, onDotClick, focus, arcs, beacon, className }: Prop
     globe.current = group;
     const arcsAtMount = liveArcs.current;
     const meshesAtMount = dotMeshes.current;
-    const labelsAtMount = labels.current;
+    const marksAtMount = placeMarks.current;
     const stancesAtMount = seenStance.current;
 
     return () => {
@@ -458,8 +546,8 @@ export function Globe({ dots, onDotClick, focus, arcs, beacon, className }: Prop
       // keep updating meshes that belong to the one just thrown away.
       arcsAtMount.clear();
       meshesAtMount.clear();
-      for (const label of labelsAtMount.values()) label.remove();
-      labelsAtMount.clear();
+      for (const mark of marksAtMount.values()) mark.el.remove();
+      marksAtMount.clear();
       stancesAtMount.clear();
       renderer.dispose();
       el.removeChild(renderer.domElement);
@@ -479,8 +567,6 @@ export function Globe({ dots, onDotClick, focus, arcs, beacon, className }: Prop
       group.remove(mesh);
       dotMeshes.current.delete(id);
       seenStance.current.delete(id);
-      labels.current.get(id)?.remove();
-      labels.current.delete(id);
     }
 
     for (const d of dots) {
@@ -495,12 +581,6 @@ export function Globe({ dots, onDotClick, focus, arcs, beacon, className }: Prop
         mesh.position.copy(latLonToVector3(d.lat, d.lon, RADIUS * 1.015));
         group.add(mesh);
         dotMeshes.current.set(d.id, mesh);
-
-        const label = document.createElement("div");
-        label.className =
-          "absolute left-0 top-0 whitespace-nowrap font-mono text-[9px] tracking-[0.14em] text-muted/80 transition-opacity duration-200 pointer-events-none";
-        layer.appendChild(label);
-        labels.current.set(d.id, label);
       } else {
         (mesh.material as THREE.MeshBasicMaterial).color = color;
       }
@@ -511,11 +591,48 @@ export function Globe({ dots, onDotClick, focus, arcs, beacon, className }: Prop
         spawnRipple.current(mesh.position.clone(), color);
       }
       seenStance.current.set(d.id, d.stance);
-
-      const label = labels.current.get(d.id);
-      if (label) label.textContent = d.label.toUpperCase();
     }
   }, [dots]);
+
+  // ---- place labels, on change -------------------------------------------
+  useEffect(() => {
+    const layer = overlay.current;
+    if (!layer) return;
+
+    const list = places ?? [];
+    const seen = new Set(list.map((p) => p.id));
+
+    for (const [id, mark] of placeMarks.current) {
+      if (seen.has(id)) continue;
+      mark.el.remove();
+      placeMarks.current.delete(id);
+    }
+
+    for (const place of list) {
+      let mark = placeMarks.current.get(place.id);
+
+      if (!mark) {
+        const el = document.createElement("div");
+        // A dark plate behind the text. Nine-pixel type over a dot matrix is
+        // unreadable without one, and the crowd dots sit directly behind it.
+        el.className =
+          "absolute left-0 top-0 whitespace-nowrap rounded-[2px] px-1.5 py-[3px] font-mono text-[10px] tracking-[0.12em] opacity-0 transition-opacity duration-300 pointer-events-none";
+        el.style.background = "rgba(12, 11, 15, 0.9)";
+        el.style.backdropFilter = "blur(2px)";
+        layer.appendChild(el);
+
+        mark = { el, pos: latLonToVector3(place.lat, place.lon, RADIUS * 1.02) };
+        placeMarks.current.set(place.id, mark);
+      }
+
+      mark.pos.copy(latLonToVector3(place.lat, place.lon, RADIUS * 1.02));
+      mark.el.textContent = place.name.toUpperCase();
+      mark.el.style.color = place.active ? "var(--accent)" : "rgba(232, 228, 238, 0.96)";
+      mark.el.style.border = place.active
+        ? "1px solid color-mix(in srgb, var(--accent) 45%, transparent)"
+        : "1px solid rgba(255,255,255,0.07)";
+    }
+  }, [places]);
 
   // ---- arcs, on change ---------------------------------------------------
   useEffect(() => {

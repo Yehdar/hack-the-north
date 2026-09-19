@@ -3,7 +3,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { Globe, type GlobeArc, type GlobeDot } from "@/components/globe/Globe";
+import {
+  Globe,
+  type GlobeArc,
+  type GlobeDot,
+  type GlobePlace,
+} from "@/components/globe/Globe";
 import { Narrator } from "@/components/Narrator";
 import { Hint } from "@/components/Hint";
 import { DeliberationGraph } from "@/components/DeliberationGraph";
@@ -635,25 +640,42 @@ export default function Discover() {
     ? personas.filter((p) => reactions.get(p.id)?.attention === "full")
     : personas;
 
-  // One label per city, not one per person. 120 dots each carrying their city
-  // name renders "SAN FRANCISCO" sixty times on top of itself.
-  const labelled = new Set<string>();
-
   const dots: GlobeDot[] = visible.map((p) => {
     const r = reactions.get(p.id);
-    const firstOfCity = !labelled.has(p.city);
-    if (firstOfCity) labelled.add(p.city);
-
     return {
       id: `p${p.id}`,
       lat: p.lat,
       lon: p.lon,
-      label: firstOfCity ? p.city : "",
+      // Names live on the place layer, anchored at the city itself. Tagging one
+      // arbitrary dot in a cluster prints the name over its own neighbours.
+      label: "",
       stance: r ? r.sentiment * 2 - 1 : undefined,
       weight: r?.attention === "full" ? 0.8 : r?.attention === "partial" ? 0.45 : 0.2,
       active: listening && !r,
     };
   });
+
+  // One marker per city that actually has someone in it, sized by how many, so
+  // the collision layout keeps the crowded places and drops the sparse ones.
+  const places: GlobePlace[] = (() => {
+    const counts = new Map<string, number>();
+    for (const p of visible) counts.set(p.hubId, (counts.get(p.hubId) ?? 0) + 1);
+
+    return [...counts.entries()]
+      .map(([hubId, n]): GlobePlace | null => {
+        const hub = hubById(hubId);
+        if (!hub) return null;
+        return {
+          id: hubId,
+          name: hub.label,
+          lat: hub.lat,
+          lon: hub.lon,
+          weight: n,
+          active: councilHub === hubId,
+        };
+      })
+      .filter((p): p is GlobePlace => p !== null);
+  })();
 
   const stages = deriveStages(segment, Boolean(ventureFile));
 
@@ -944,6 +966,7 @@ export default function Discover() {
         <div className="relative flex-1">
           <Globe
             dots={dots}
+            places={places}
             onDotClick={(id) => setFocus(Number(id.slice(1)))}
             // Face Hack the North while the idea is split and sent out, so the
             // arcs fan out towards the audience; then the council's city.
@@ -1193,7 +1216,8 @@ export default function Discover() {
                 Where it lands
                 <Hint>
                   Each city&apos;s fit for the market&apos;s problem, from the crowd alone: how
-                  many people there have it, how many would pay, and how badly it hurts. Pick
+                  many people there have this problem, how many would pay to fix it, and
+                  how badly it hurts them. Pick
                   one and five agents argue about it.
                 </Hint>
               </p>
@@ -1222,8 +1246,11 @@ export default function Discover() {
                         }}
                       />
                     </div>
-                    <p className="num mt-1 text-[9px] text-faint">
-                      {h.haveIt}/{h.asked} have it · {h.wouldPay} would pay
+                    {/* Spelled out. "2/4 have it · 1 would pay" reads as a
+                        score line rather than a sentence about people. */}
+                    <p className="mt-1 text-[9px] leading-relaxed text-faint">
+                      {h.haveIt} of the {h.asked} we asked here have this problem
+                      {h.haveIt > 0 && `, ${h.wouldPay} would pay to fix it`}
                     </p>
                   </button>
                 ))}

@@ -105,7 +105,38 @@ export function selectRelevant(
     return { persona, score, why };
   });
 
-  return scored.sort((a, b) => b.score - a.score).slice(0, limit);
+  scored.sort((a, b) => b.score - a.score);
+
+  // Taking the top N by relevance is how you build a yes-machine.
+  //
+  // The score rewards industry match, budget authority, low pain tolerance and
+  // early adoption — so the top of the list is the people most likely to love
+  // it, and a hub already tilted that way returns thirty near-identical
+  // opinions. Measured: San Francisco came back with sentiment between 0.92 and
+  // 0.98, a standard deviation of 0.02. That is not a market, it is a fan club.
+  //
+  // So: most of the crowd is the best match, and a reserved slice is drawn from
+  // people who scored lower — the sceptics, the ones with no budget, the ones
+  // who tolerate friction. A founder needs to hear from them precisely because
+  // the ranking does not favour them.
+  const core = Math.round(limit * 0.7);
+  const picked = scored.slice(0, Math.min(core, scored.length));
+  const rest = scored.slice(picked.length);
+
+  // Evenly spaced through the remainder rather than random, so the mix is
+  // reproducible and spans the whole range instead of clustering just below
+  // the cut.
+  const wanted = Math.min(limit - picked.length, rest.length);
+  if (wanted > 0) {
+    const stride = rest.length / wanted;
+    for (let i = 0; i < wanted; i++) {
+      const hit = rest[Math.floor(i * stride)];
+      hit.why.push("included for contrast");
+      picked.push(hit);
+    }
+  }
+
+  return picked;
 }
 
 /**
