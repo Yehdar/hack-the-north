@@ -28,8 +28,27 @@ export interface LLMProvider {
   completeJSON<T>(req: LLMRequest): Promise<T>;
 }
 
-const DEEP_MODEL = process.env.OPENAI_MODEL ?? "gpt-4o";
-const FAST_MODEL = process.env.OPENAI_FAST_MODEL ?? "gpt-4o-mini";
+// ---------------------------------------------------------------------------
+// MODEL SELECTION — see ARCHITECTURE.md for the full reasoning.
+//
+// DEEP (gpt-5.6-sol): seat reasoning, cross-examination, rebuttal. This is the
+//   hardest thinking in the app — holding a persona under pressure and finding
+//   the non-obvious objection. ~15 calls per deliberation at roughly 2k in /
+//   0.5k out each, so about $0.27 a run. Worth it; persona fidelity is the
+//   product.
+//
+// FAST (gpt-5.6-luna): the Moderator, which runs on EVERY founder speech turn
+//   and must decide in under a second whether a seat interrupts. 20x cheaper
+//   than Sol and built for exactly this high-volume, low-latency shape.
+//
+// Not gpt-6-astra: our calls are small, structured, and numerous. Astra is
+//   built for hard end-to-end agentic work over huge contexts, which is not
+//   the shape of this workload. Set OPENAI_MODEL=gpt-6-astra to upgrade if
+//   seat quality ever looks like the bottleneck.
+// ---------------------------------------------------------------------------
+
+const DEEP_MODEL = process.env.OPENAI_MODEL ?? "gpt-5.6-sol";
+const FAST_MODEL = process.env.OPENAI_FAST_MODEL ?? "gpt-5.6-luna";
 
 class OpenAIProvider implements LLMProvider {
   readonly name = "openai";
