@@ -19,6 +19,12 @@ surfaced rather than averaged away.
 > All partner personas are AI simulations. Not affiliated with, endorsed by, or
 > representing any real firm. Personas are composites, never real individuals.
 
+## Picking this up cold
+
+Read [HANDOFF.md](./HANDOFF.md) — current state, decisions that should not be
+undone, what is next, and the gotchas that will bite. All work is on the
+`jaineel-changes` branch, not `master`.
+
 ## Setup
 
 ```bash
