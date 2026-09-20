@@ -141,6 +141,10 @@ export default function Committee() {
   useEffect(() => {
     pausedRef.current = paused;
   }, [paused]);
+  /** Race through the rest of the meeting. The ref is what the loop reads
+   *  mid-line; the state is only so the button can show it is on. */
+  const fastForwardRef = useRef(false);
+  const [fastForward, setFastForward] = useState(false);
 
   const drain = useCallback(async () => {
     if (draining.current) return;
@@ -155,8 +159,12 @@ export default function Committee() {
       setSubtitle(m.text);
 
       // Long enough to read at a natural pace, with a floor so a short line
-      // does not flash past.
-      const ms = Math.max(1800, Math.min(7000, m.text.split(/\s+/).length * 230));
+      // does not flash past. Fast forward keeps every line on screen, just
+      // for a fraction of the time, so the argument still passes in front of
+      // you rather than jumping straight to the end.
+      const ms = fastForwardRef.current
+        ? Math.max(220, Math.min(700, m.text.split(/\s+/).length * 35))
+        : Math.max(1800, Math.min(7000, m.text.split(/\s+/).length * 230));
       await new Promise((r) => setTimeout(r, ms));
     }
 
@@ -170,7 +178,6 @@ export default function Committee() {
   const abort = useRef<AbortController | null>(null);
   const lastEventAt = useRef(0);
   const [stalled, setStalled] = useState(false);
-  const [mindChanges, setMindChanges] = useState<DeliberationSnapshot["metrics"]["mindChanges"]>([]);
   const [minutes, setMinutes] = useState<MinutesDoc | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   const ventureFile = useVenture((v) => v.ventureFile);
@@ -371,7 +378,9 @@ export default function Committee() {
 
     queue.current?.clear();
     if (audio) ensureQueue();
-    setMindChanges([]); setRound(0); setStep("Taking their seats"); setSelected(null);
+    setRound(0); setStep("Taking their seats"); setSelected(null);
+    fastForwardRef.current = false;
+    setFastForward(false);
 
     // What the start event establishes is needed again at the end of the same
     // stream. State would still hold the previous run's values by then, so it
@@ -422,7 +431,9 @@ export default function Committee() {
           );
           // Queued, not spoken immediately. Deliberation streams faster than
           // speech, so without a queue three partners talk over each other.
-          if (audioRef.current) queue.current?.push(m.id, m.from, m.text);
+          // Fast forward outruns speech entirely, so audio sits out rather
+          // than trailing behind what the table has already moved past.
+          if (audioRef.current && !fastForwardRef.current) queue.current?.push(m.id, m.from, m.text);
           break;
         }
 
@@ -470,7 +481,6 @@ export default function Committee() {
             rulings: result.rulings,
           });
           setMinutes(written);
-          setMindChanges(result.metrics.mindChanges);
           setStep("The committee has decided");
           setActive(new Set());
           setRunning(false);
@@ -568,10 +578,8 @@ export default function Committee() {
 
   const narration = decision
     ? {
-        title: `Verdict · ${decision.decision}`,
-        line: `Score ${decision.score.toFixed(2)}. ${
-          decision.dissents.length > 0 ? "Dissent is kept, not averaged away. " : ""
-        }Now defend it out loud. Every question you dodge costs you at the vote.`,
+        title: "The room has spoken",
+        line: "Whoever is still red or yellow can be moved. Go work the room, not the scoreboard.",
       }
     : running && stalled
       ? {
@@ -665,49 +673,6 @@ export default function Committee() {
                   <p className="label mt-0.5">
                     {hq.label} · {firm.decisionStyle}
                   </p>
-
-                  {ventureFile && (
-                    <div className="panel mt-4 p-3">
-                      <p className="label">The file they read</p>
-                      {problem ? (
-                        <p className="mt-1.5 text-[13px] leading-relaxed text-ink/85">
-                          {problem.statement}
-                        </p>
-                      ) : (
-                        <p className="mt-1.5 text-[13px] leading-relaxed text-muted">
-                          &ldquo;{ventureFile.solution}&rdquo;, no validated problem. The
-                          committee will treat that as a finding.
-                        </p>
-                      )}
-                      <div className="num mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[12px] text-muted">
-                        {pvs && (
-                          <span>
-                            PVS {pvs.total}
-                            <span className={pvs.passed ? "text-positive" : "text-negative"}>
-                              {pvs.passed ? " · cleared" : " · below the bar"}
-                            </span>
-                          </span>
-                        )}
-                        {researchedIn && (
-                          <span>
-                            {hubById(researchedIn.hubId)?.label ?? researchedIn.hubId} fit{" "}
-                            {researchedIn.fitScore}
-                          </span>
-                        )}
-                        {problem &&
-                          ventureFile.extractedProblems[0] &&
-                          ventureFile.extractedProblems[0].id !== problem.id && (
-                            <span>research moved the framing</span>
-                          )}
-                      </div>
-                      <button
-                        onClick={() => resetVenture()}
-                        className="label mt-2 underline-offset-4 hover:text-ink hover:underline"
-                      >
-                        Different idea
-                      </button>
-                    </div>
-                  )}
                 </motion.div>
               )}
             </AnimatePresence>
@@ -754,7 +719,7 @@ export default function Committee() {
                     href="/report"
                     className="beam bg-accent px-5 py-2 font-mono text-[13px] uppercase tracking-[0.14em] text-ground transition hover:brightness-110"
                   >
-                    Read the verdict →
+                    Pitch them →
                   </Link>
                   <button
                     onClick={run}
@@ -833,6 +798,31 @@ export default function Committee() {
                 </button>
               )}
 
+              {/* Race through the rest of the deliberation. Every line still
+                  shows, just for a fraction of the reading time, so you can
+                  outrun a long meeting without missing what was decided.
+                  Tied to nowSpeaking as well as running, the same as pause:
+                  the table replays at reading pace after the API call has
+                  already finished, and a fast provider can leave the room
+                  still visibly mid-argument well after running goes false. */}
+              {(running || nowSpeaking) && (
+                <button
+                  onClick={() => {
+                    const next = !fastForwardRef.current;
+                    fastForwardRef.current = next;
+                    setFastForward(next);
+                    // Nothing left half-said once the table is racing ahead.
+                    if (next) queue.current?.clear();
+                  }}
+                  className={`px-3 py-2 font-mono text-[11px] uppercase tracking-[0.14em] transition ${
+                    fastForward ? "text-accent" : "text-faint hover:text-ink"
+                  }`}
+                  title={fastForward ? "Back to a normal pace" : "Race through the rest of the meeting"}
+                >
+                  {fastForward ? "⏩ fast forwarding" : "⏩ fast forward"}
+                </button>
+              )}
+
               {nowSpeaking && !paused && (
                 <span className="label animate-pulse px-1" style={{ color: "var(--accent)" }}>
                   {roleOf(nowSpeaking)} speaking
@@ -851,6 +841,7 @@ export default function Committee() {
               key={selected}
               seatId={selected}
               role={roleOf(selected)}
+              stance={stances[selected]?.stance}
               opening={stances[selected]?.position}
               turns={chat[selected] ?? []}
               thinking={chatBusy}
@@ -875,6 +866,49 @@ export default function Committee() {
             convened && !selected ? "w-[min(560px,40vw)]" : "w-96"
           }`}
         >
+          {/* What the room is arguing about. Moved from a floating card over
+              the table to the top of this column: it belongs with everything
+              else the founder reads about the meeting, not over the room. */}
+          {ventureFile && (
+            <div className="border-b border-edge p-4">
+              <p className="label">The file they read</p>
+              {problem ? (
+                <p className="mt-1.5 text-[12px] leading-relaxed text-ink/85">{problem.statement}</p>
+              ) : (
+                <p className="mt-1.5 text-[12px] leading-relaxed text-muted">
+                  &ldquo;{ventureFile.solution}&rdquo;, no validated problem. The committee will
+                  treat that as a finding.
+                </p>
+              )}
+              <div className="num mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-muted">
+                {pvs && (
+                  <span>
+                    PVS {pvs.total}
+                    <span className={pvs.passed ? "text-positive" : "text-negative"}>
+                      {pvs.passed ? " · cleared" : " · below the bar"}
+                    </span>
+                  </span>
+                )}
+                {researchedIn && (
+                  <span>
+                    {hubById(researchedIn.hubId)?.label ?? researchedIn.hubId} fit {researchedIn.fitScore}
+                  </span>
+                )}
+                {problem &&
+                  ventureFile.extractedProblems[0] &&
+                  ventureFile.extractedProblems[0].id !== problem.id && (
+                    <span>research moved the framing</span>
+                  )}
+              </div>
+              <button
+                onClick={() => resetVenture()}
+                className="label mt-2 underline-offset-4 hover:text-ink hover:underline"
+              >
+                Different idea
+              </button>
+            </div>
+          )}
+
           {/* Where the room stands, and everything it has said. The graph
               that used to live here drew the same five people the table now
               shows, so it was saying it twice. */}
@@ -897,7 +931,7 @@ export default function Committee() {
           <div ref={sidebar} className="flex-1 overflow-y-auto p-4">
             {minutes && (
               <div className="mb-6 border border-edge bg-surface/60 p-3">
-                <Minutes minutes={minutes} />
+                <Minutes minutes={minutes} hideDecision />
               </div>
             )}
             <p className="label">Transcript</p>
@@ -943,52 +977,11 @@ export default function Committee() {
             )}
           </div>
 
-          {(decision || mindChanges.length > 0) && (
-            <div className="border-t border-edge p-4">
-              {/* Once the minutes exist they carry who moved, in words. */}
-              {mindChanges.length > 0 && !minutes && (
-                <div className="mb-3">
-                  <p className="label text-positive">Minds changed</p>
-                  {mindChanges.map((c) => (
-                    <p key={c.agentId} className="num mt-1 text-[13px] text-muted">
-                      {roleName(c.agentId)} {c.from.toFixed(2)} → {c.to.toFixed(2)}
-                      {c.conceded && <span className="ml-1 text-positive">conceded</span>}
-                    </p>
-                  ))}
-                </div>
-              )}
-              {decision && (
-                <>
-                  <p className="label">Verdict</p>
-                  <p
-                    className={`mt-1 font-mono text-2xl uppercase ${
-                      decision.decision === "invest"
-                        ? "text-positive"
-                        : decision.decision === "pass"
-                          ? "text-negative"
-                          : "text-ink"
-                    }`}
-                  >
-                    {decision.decision}
-                  </p>
-                  <p className="num text-[13px] text-faint">
-                    score {decision.score.toFixed(3)}
-                    {decision.dissents.length > 0 && (
-                      <span className="text-accent"> · dissent: {decision.dissents.join(", ")}</span>
-                    )}
-                  </p>
-                  <div className="mt-2 flex gap-4">
-                    <Link href="/report" className="label transition hover:text-ink">
-                      Pitch them →
-                    </Link>
-                    <Link href="/report" className="label transition hover:text-ink">
-                      Read the report
-                    </Link>
-                  </div>
-                </>
-              )}
-            </div>
-          )}
+          {/* No PASS/CONDITIONAL/score shows anywhere on this page, not even
+              inside the minutes above (hideDecision). This room is a tool for
+              reading where each partner stands, not a gate that hands down a
+              ruling; the pass/fail framing lives only past "Pitch them →",
+              once the founder chooses to go find out. */}
         </aside>
       </div>
     </main>

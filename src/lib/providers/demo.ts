@@ -24,18 +24,26 @@ type Seat =
   | "market" | "founder" | "customer" | "regulatory" | "capital" | "contrarian";
 
 function whoAmI(system: string): Seat {
-  // Investment committee. The seats have been renamed twice; a seat this
-  // cannot place says nothing at all in the room, so every name it has ever
-  // had is still listed here. seats.test.ts fails if a new one is added.
-  if (system.includes("Devil's Advocate") || system.includes("Associate")) return "devil";
+  // Investment committee. The seats have been renamed three times now; a seat
+  // this cannot place says nothing at all in the room, so every title it has
+  // ever had is still listed here. committee.test.ts fails if a new one is
+  // added and this list is not.
+  if (
+    system.includes("Devil's Advocate") ||
+    system.includes("Associate") ||
+    system.includes("Marketing Executive")
+  ) {
+    return "devil";
+  }
   if (
     system.includes("Skeptical Partner") ||
     system.includes("Anti-Portfolio") ||
-    system.includes("Operating Partner")
+    system.includes("Operating Partner") ||
+    system.includes("Tech Executive")
   ) {
     return "skeptic";
   }
-  if (system.includes("Principal")) return "principal";
+  if (system.includes("Principal") || system.includes(" CEO ")) return "principal";
   if (system.includes("Lead Partner") || system.includes("General Partner")) return "gp";
   // Hub council
   if (system.includes("Contrarian")) return "contrarian";

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import * as THREE from "three";
+import { opinionOf, OPINION_TONE } from "@/lib/lean";
 
 // ============================================================================
 // THE BOARDROOM, IN THREE DIMENSIONS.
@@ -646,13 +647,20 @@ export function Boardroom({
       const st = state.current;
 
       // Lean toward whoever is selected, so a conversation feels closer.
+      //
+      // A fixed distance, not fitDistance(): that formula backs the camera up
+      // to fit the whole row, and the row is exactly what a selection isn't
+      // trying to show. Selecting someone narrows the room to make space for
+      // the chat panel, which made fitDistance() grow at the same moment,
+      // so the old shared formula pushed the "zoom in" camera further away
+      // the instant it fired, and the lean read as barely happening at all.
       if (st.selected) {
         const p = people.current.get(st.selected);
         if (p) {
           camTarget.set(
             p.group.position.x * 0.5,
             2.4,
-            p.group.position.z * 0.5 + Math.max(4.2, fitDistance() * 0.62)
+            p.group.position.z * 0.5 + 4.2
           );
           lookTarget.set(p.group.position.x * 0.75, 1.6, p.group.position.z * 0.75);
         }
@@ -727,8 +735,13 @@ export function Boardroom({
           const rect = renderer.domElement.getBoundingClientRect();
           const onScreen = tmp.z < 1;
           plate.style.opacity = onScreen ? (dim ? "0.25" : "1") : "0";
-          plate.style.color = isSpeaking ? "var(--accent)" : "var(--muted)";
-          plate.style.borderColor = isSpeaking ? "var(--accent)" : "var(--border)";
+          // Red, yellow or green: the same conviction the tie carries, read
+          // off the nameplate without having to notice a necktie colour.
+          // Conceding counts as won even if the raw stance has not caught up.
+          const opinion = st.conceded?.has(id) ? "won" : opinionOf(seat?.stance);
+          const tone = OPINION_TONE[opinion].color;
+          plate.style.color = isSpeaking ? "var(--accent)" : tone;
+          plate.style.borderColor = isSpeaking ? "var(--accent)" : tone;
           // Plates further round the table are further away, so they shrink.
           const near = (Math.sin(p.angle) + 1) / 2;
           plate.style.transform = `translate(-50%,-50%) translate(${

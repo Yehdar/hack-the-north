@@ -3,7 +3,7 @@
 import type { Lean, Minutes as MinutesDoc } from "@/lib/minutes";
 
 // ============================================================================
-// THE MINUTES, rendered. The Managing Partner's record of the meeting: shown on
+// THE MINUTES, rendered. The chair's record of the meeting: shown on
 // the committee page once the room decides, on the report after the pitch, and
 // kept with the run on the dashboard.
 // ============================================================================
@@ -20,7 +20,17 @@ const DECISION_COLOR = {
   pass: "var(--stop)",
 } as const;
 
-export function Minutes({ minutes, size = "sm" }: { minutes: MinutesDoc; size?: "sm" | "md" }) {
+export function Minutes({
+  minutes,
+  size = "sm",
+  hideDecision = false,
+}: {
+  minutes: MinutesDoc;
+  size?: "sm" | "md";
+  /** The board room reads as a tool for where each partner stands, not a
+   *  ruling. Report and dashboard still keep the decision; the room doesn't. */
+  hideDecision?: boolean;
+}) {
   const body = size === "md" ? "text-sm" : "text-[14px]";
   const when = new Date(minutes.takenAt).toLocaleString(undefined, {
     month: "short",
@@ -40,17 +50,19 @@ export function Minutes({ minutes, size = "sm" }: { minutes: MinutesDoc; size?: 
         </p>
       )}
 
-      <Part title="Decided">
-        <p>
-          <span
-            className="mr-2 font-mono text-[13px] uppercase tracking-[0.14em]"
-            style={{ color: DECISION_COLOR[minutes.decision.decision] }}
-          >
-            {minutes.decision.decision}
-          </span>
-          {minutes.decision.line}
-        </p>
-      </Part>
+      {!hideDecision && (
+        <Part title="Decided">
+          <p>
+            <span
+              className="mr-2 font-mono text-[13px] uppercase tracking-[0.14em]"
+              style={{ color: DECISION_COLOR[minutes.decision.decision] }}
+            >
+              {minutes.decision.decision}
+            </span>
+            {minutes.decision.line}
+          </p>
+        </Part>
+      )}
 
       <Part title="Where each partner stood">
         <ul className="space-y-2">
