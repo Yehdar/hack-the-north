@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { activeModels, getLLM } from "@/lib/llm";
+import { activeModels, getLLM, parseJSON } from "@/lib/llm";
+import { GeminiProvider } from "@/lib/providers/gemini";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -14,13 +15,16 @@ export const dynamic = "force-dynamic";
  */
 export async function GET() {
   const llm = getLLM();
-  const live = llm.name.startsWith("openai") || llm.name.startsWith("anthropic");
+  const live =
+    llm.name.startsWith("openai") ||
+    llm.name.startsWith("anthropic") ||
+    llm.name.startsWith("gemini");
 
   if (!live) {
     return NextResponse.json({
       provider: llm.name,
       live: false,
-      note: "No live model is configured, so there is nothing to check. Put OPENAI_API_KEY or ANTHROPIC_API_KEY in .env.local and restart the dev server.",
+      note: "No live model is configured, so there is nothing to check. Put GEMINI_API_KEY (free), OPENAI_API_KEY or ANTHROPIC_API_KEY in .env.local and restart the dev server.",
     });
   }
 
@@ -29,6 +33,14 @@ export async function GET() {
     (["deep", "fast"] as const).map(async (tier) => {
       const started = Date.now();
       try {
+        // Gemini absorbs its own failures into the demo provider, which would
+        // report a dead key as healthy. Probe underneath that.
+        if (llm instanceof GeminiProvider) {
+          const raw = await llm.probe(tier);
+          const reply = parseJSON<{ ok?: unknown }>(raw);
+          return { tier, model: models[tier], ok: reply?.ok === true, ms: Date.now() - started, reply };
+        }
+
         const reply = await llm.completeJSON<{ ok?: unknown; word?: unknown }>({
           system: "You are a health check. Reply with exactly the JSON object requested.",
           user: 'Return {"ok": true, "word": "<any one English word>"}.',
