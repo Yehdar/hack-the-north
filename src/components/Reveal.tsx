@@ -3,6 +3,7 @@
 import { motion } from "framer-motion";
 import { SessionDiff } from "@/components/SessionDiff";
 import { BlurWords } from "@/components/BlurWords";
+import { MarketEvidence, type MarketEvidenceProps } from "@/components/MarketEvidence";
 import type { Assessment, NoMarket } from "@/lib/advice";
 import type { ProblemStatement } from "@/lib/types";
 import type { SessionDelta } from "@/lib/sessions";
@@ -29,6 +30,10 @@ type Props = {
   problemCount: number;
   /** What the run means, in words. The numbers below are its evidence. */
   advice?: Assessment | null;
+  /** Everything else Part 1 gathered. Closing the card used to leave this
+   *  behind on the sidebar; it travels with the headline now. Omitted (or
+   *  null) when there is no market problem to show evidence for. */
+  evidence?: MarketEvidenceProps | null;
   refining: boolean;
   onAccept: () => void;
   onRefine: () => void;
@@ -52,6 +57,7 @@ export function Reveal({
   crowd,
   problemCount,
   advice,
+  evidence,
   refining,
   onAccept,
   onRefine,
@@ -69,8 +75,9 @@ export function Reveal({
         initial={{ y: 24, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ delay: 0.15 }}
-        className="insert beam mx-6 w-full max-w-2xl p-8"
+        className={`insert beam mx-6 flex w-full flex-col overflow-hidden ${evidence && market ? "max-w-5xl lg:flex-row" : "max-w-2xl"}`}
       >
+      <div className="min-w-0 flex-1 p-8">
         <p className="label" style={{ color: market ? "var(--accent)" : "var(--stop)" }}>
           {!market
             ? "Nobody we asked has this problem"
@@ -192,6 +199,22 @@ export function Reveal({
             {!market ? "Take it to the committee anyway" : aligned ? "Close" : "Keep my framing"}
           </button>
         </div>
+      </div>
+
+      {/* Everything else Part 1 gathered, so closing this card does not leave
+          the case for the pitch behind on a sidebar the founder is about to
+          walk away from. Its own scroll, like the sidebar it came from: a
+          crowd of reactions must not make the whole card unusable. */}
+      {evidence && market && (
+        <div className="flex w-full shrink-0 flex-col border-t border-insert-2 lg:w-[400px] lg:border-l lg:border-t-0">
+          <p className="label shrink-0 px-4 pt-4" style={{ color: "var(--insert-muted)" }}>
+            The evidence from part one
+          </p>
+          <div className="max-h-[70vh] flex-1 overflow-y-auto">
+            <MarketEvidence {...evidence} />
+          </div>
+        </div>
+      )}
       </motion.div>
     </motion.div>
   );

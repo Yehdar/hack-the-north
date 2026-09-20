@@ -30,6 +30,10 @@ import { streamPost } from "@/lib/sse";
 import type { ICVerdict } from "@/lib/types";
 import { writeMinutes, type Minutes as MinutesDoc } from "@/lib/minutes";
 import { Minutes } from "@/components/Minutes";
+import { MarketEvidence, type MarketEvidenceProps } from "@/components/MarketEvidence";
+import { assess } from "@/lib/advice";
+import { rankFromCrowd } from "@/lib/discovery/rank";
+import type { Attention } from "@/lib/discovery/types";
 
 // ============================================================================
 // PART 2, THE ROOM.
@@ -173,6 +177,13 @@ export default function Committee() {
   const replaceVenture = useVenture((v) => v.replace);
   const resetVenture = useVenture((v) => v.reset);
   const setDeliberation = useVenture((v) => v.setDeliberation);
+  // What Part 1 found. Read once here so the room can show the case for the
+  // pitch beside the case being made against it, rather than asking a founder
+  // to remember a sidebar from a screen they already left.
+  const crowd = useVenture((v) => v.crowd);
+  const deployed = useVenture((v) => v.deployed);
+  const callReport = useVenture((v) => v.callReport);
+  const [evidenceFilter, setEvidenceFilter] = useState<Attention | null>(null);
 
   useEffect(() => {
     void detectTier().then(setTier);
@@ -507,6 +518,53 @@ export default function Committee() {
   const researchedIn = ventureFile ? Object.values(ventureFile.hubFindings)[0] : undefined;
   const conceded = new Set(messages.filter((m) => m.kind === "concession").map((m) => m.from));
   const roleName = (id: string) => roster.find((r) => r.id === id)?.role ?? id;
+
+  // Everything Part 1 gathered, read back from the store it was persisted to
+  // rather than re-run: the crowd already spoke, and asking them again on
+  // this screen would answer a question nobody asked twice.
+  const crowdVerdict = crowd?.verdict ?? null;
+  const evidenceAdvice = crowdVerdict ? assess(crowdVerdict, crowd?.signals ?? null) : null;
+  const evidenceProblems = ventureFile?.extractedProblems ?? [];
+  const evidenceMarketProblem = evidenceProblems.find((p) => p.id === crowdVerdict?.marketProblemId);
+  const evidenceMarketVote = crowdVerdict?.problemVotes.find(
+    (v) => v.problemId === crowdVerdict.marketProblemId
+  );
+  const evidenceHubRanking = crowdVerdict && deployed ? rankFromCrowd(crowdVerdict, deployed) : [];
+  const evidenceReactions =
+    crowdVerdict?.reactions.map((r) => {
+      const p = deployed?.find((x) => x.id === r.personaId);
+      return {
+        personaId: r.personaId,
+        name: p?.name ?? "Someone",
+        title: p?.label ?? p?.title ?? "",
+        attention: r.attention,
+        reason: r.reason,
+        problemId: r.problemId,
+        wouldPay: r.wouldPay,
+      };
+    }) ?? [];
+  const evidenceProps: MarketEvidenceProps = {
+    advice: evidenceAdvice,
+    bet: evidenceMarketProblem ?? problem,
+    asked: crowdVerdict?.reactions.length ?? 0,
+    have: evidenceMarketVote?.votes ?? 0,
+    payRate: evidenceMarketVote?.payRate ?? 0,
+    severity: evidenceMarketVote?.meanSeverity ?? 0,
+    hubRanking: evidenceHubRanking,
+    hubName: (id: string) => hubById(id)?.label ?? id,
+    counts: crowdVerdict?.attention ?? { full: 0, partial: 0, ignore: 0 },
+    total: deployed?.length ?? 0,
+    hasCrowd: Boolean(crowdVerdict),
+    sentimentSpread: crowdVerdict?.sentimentSpread,
+    stanceFilter: evidenceFilter,
+    onFilterChange: setEvidenceFilter,
+    signals: crowd?.signals,
+    callReport,
+    reactions: evidenceReactions,
+    answered: true,
+    // No onSelectReaction: a call panel opening mid-committee-meeting is not
+    // a feature this room has, so the list is read-only here.
+  };
 
   const narration = decision
     ? {
@@ -867,6 +925,22 @@ export default function Committee() {
                 <p className="font-mono text-xs text-faint">Nothing said yet.</p>
               )}
             </div>
+
+            {/* Part 1's case for the pitch, collapsed by default: this column
+                already carries the lean, the log and the transcript, and a
+                founder mid-meeting wants the argument happening now, not a
+                recap of a screen they already left. It is a click away
+                rather than gone, which is the difference from before. */}
+            {crowdVerdict && (
+              <details className="mt-6 border-t border-edge pt-3">
+                <summary className="label cursor-pointer select-none hover:text-ink">
+                  The evidence from part one
+                </summary>
+                <div className="-mx-4 mt-3">
+                  <MarketEvidence {...evidenceProps} />
+                </div>
+              </details>
+            )}
           </div>
 
           {(decision || mindChanges.length > 0) && (

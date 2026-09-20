@@ -20,6 +20,18 @@ export type DeployedSnapshot = {
   why: string[];
 };
 
+/** What one call with a persona turned up. Part 1's own state while the run
+ *  is live; persisted here too so it survives into Part 2, where the founder
+ *  is defending the same evidence to a different audience. */
+export type CallSummary = {
+  personaId: number;
+  name: string;
+  role: string;
+  summary: string;
+  takeaway: string;
+  at: number;
+};
+
 /** Track B's deliberation output. Not part of the frozen VentureFile contract —
  *  Track A neither reads nor writes this. */
 export type DeliberationSnapshot = {
@@ -95,6 +107,10 @@ type State = {
   deployed: DeployedSnapshot[] | null;
   setDeployed: (people: DeployedSnapshot[]) => void;
   setCrowd: (verdict: CrowdVerdict, signals: CrowdSignals | null) => void;
+  /** What calls turned up, so the boardroom can show it beside the rest of
+   *  Part 1's evidence rather than only what the crowd voted. */
+  callReport: CallSummary[];
+  setCallReport: (report: CallSummary[]) => void;
   /** A project started on the dashboard, waiting for the study screen to run
    *  it. The dashboard collects the idea; the run itself only happens on the
    *  screen that can show it. */
@@ -118,9 +134,11 @@ export const useVenture = create<State>()(
       deliberation: null,
       crowd: null,
       deployed: null,
+      callReport: [],
 
       setCrowd: (verdict, signals) => set({ crowd: { verdict, signals } }),
       setDeployed: (deployed) => set({ deployed }),
+      setCallReport: (callReport) => set({ callReport }),
       firmId: "bessemer",
       pending: null,
 
@@ -136,6 +154,7 @@ export const useVenture = create<State>()(
           deliberation: null,
           crowd: null,
           deployed: null,
+          callReport: [],
         }),
 
       update: (patch) => {
@@ -147,7 +166,7 @@ export const useVenture = create<State>()(
       replace: (vf) => set({ ventureFile: vf }),
 
       reset: () =>
-        set({ ventureFile: null, deliberation: null, crowd: null, deployed: null }),
+        set({ ventureFile: null, deliberation: null, crowd: null, deployed: null, callReport: [] }),
     }),
     {
       name: KEY,

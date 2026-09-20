@@ -10,12 +10,9 @@ import {
   type GlobePlace,
 } from "@/components/globe/Globe";
 import { Narrator } from "@/components/Narrator";
-import { Hint } from "@/components/Hint";
 import { AgentBoot, MARKET_STEPS } from "@/components/hud/AgentBoot";
 import { ProcessingPanel } from "@/components/hud/ProcessingPanel";
 import { Intake } from "@/components/Intake";
-import { LightRow } from "@/components/Light";
-import { Meter } from "@/components/Progress";
 import { PersonaCall } from "@/components/PersonaCall";
 import { StageRail, deriveStages, type Segment } from "@/components/StageRail";
 import { Reveal } from "@/components/Reveal";
@@ -31,9 +28,14 @@ import { hubById } from "@/data/globePoints";
 import { FIRMS } from "@/data/firms";
 import type { ProblemStatement } from "@/lib/types";
 import type { Attention, CrowdReaction, CrowdVerdict, FigureKind } from "@/lib/discovery/types";
+import { rankFromCrowd, type HubRank } from "@/lib/discovery/rank";
 import type { CrowdSignals } from "@/lib/discovery/signals";
 import { assess, diagnoseNoMarket } from "@/lib/advice";
-import { Assessment } from "@/components/Assessment";
+import {
+  MarketEvidence,
+  type EvidenceReaction,
+  type MarketEvidenceProps,
+} from "@/components/MarketEvidence";
 import { Bet } from "@/components/Bet";
 import { OtherProblems } from "@/components/OtherProblems";
 import { ProblemPopup } from "@/components/ProblemPopup";
@@ -67,14 +69,6 @@ type DeployedPersona = {
   lon: number;
   city: string;
   why: string[];
-};
-
-type HubRank = {
-  hubId: string;
-  fitScore: number;
-  asked: number;
-  haveIt: number;
-  wouldPay: number;
 };
 
 type Batch = { done: number; total: number; batch: CrowdReaction[] };
@@ -343,6 +337,9 @@ export default function Discover() {
     setDeployReady(false);
     setProblems([]); setPersonas([]); setReactions(new Map());
     setVerdict(null); setSignals(null); setShowReveal(false); setFocus(null); setCallReport([]);
+    // A fresh run should not carry the previous run's calls into the
+    // boardroom, where they would look like evidence for the new pitch.
+    useVenture.getState().setCallReport([]);
     setProgress({ done: 0, total: 0 });
     setHubRanking([]);
     setDelta(null);
@@ -820,6 +817,58 @@ export default function Discover() {
   const live = { full: 0, partial: 0, ignore: 0 };
   for (const r of reactions.values()) live[r.attention]++;
 
+  // Everything the evidence column needs, computed once so the sidebar and
+  // the reveal read the same numbers. reactions is a Map in arrival order;
+  // joined against personas here so MarketEvidence never has to know either
+  // page's own shape for a person.
+  const evidenceReactions: EvidenceReaction[] = useMemo(
+    () =>
+      [...reactions.values()].map((r) => {
+        const p = personas.find((x) => x.id === r.personaId);
+        return {
+          personaId: r.personaId,
+          name: p?.name ?? "Someone",
+          title: p?.label ?? p?.title ?? "",
+          attention: r.attention,
+          reason: r.reason,
+          problemId: r.problemId,
+          wouldPay: r.wouldPay,
+        };
+      }),
+    [reactions, personas]
+  );
+
+  /** Handed to the sidebar and to the reveal's second column alike, so the
+   *  case for the pitch reads the same wherever it is shown. The sidebar adds
+   *  its own onSelectReaction; the reveal leaves the list read-only rather
+   *  than open a call panel on top of a modal that is already on top of the
+   *  globe. */
+  const evidenceProps: MarketEvidenceProps = {
+    advice,
+    bet: marketProblem ?? pitchedProblem,
+    asked: verdict?.reactions.length ?? 0,
+    have: marketVote?.votes ?? 0,
+    payRate: marketVote?.payRate ?? 0,
+    severity: marketVote?.meanSeverity ?? 0,
+    hubRanking,
+    hubName,
+    counts: verdict ? verdict.attention : live,
+    total: personas.length,
+    hasCrowd: Boolean(verdict) || reactions.size > 0,
+    emptyCrowdCopy:
+      personas.length > 0
+        ? `${personas.length} people chosen. Nobody has answered yet.`
+        : "Nobody asked yet.",
+    sentimentSpread: verdict?.sentimentSpread,
+    stanceFilter,
+    onFilterChange: setStanceFilter,
+    signals,
+    callReport,
+    reactions: evidenceReactions,
+    answered,
+    listening,
+  };
+
   // The crowd being sent out: one arc from Hack the North to every city in
   // it, launched in sequence, cleared once everyone has answered.
   const arcsOn = segment === "deploy" || segment === "listen";
@@ -1220,10 +1269,16 @@ export default function Discover() {
                 centre={centreClear.left}
                 queue={ensureSpeech}
                 onSummarise={(entry) =>
-                  setCallReport((r) => [
-                    { ...entry, at: Date.now() },
-                    ...r.filter((e) => e.personaId !== entry.personaId),
-                  ])
+                  setCallReport((r) => {
+                    const next = [
+                      { ...entry, at: Date.now() },
+                      ...r.filter((e) => e.personaId !== entry.personaId),
+                    ];
+                    // Mirrored into the shared store so a call made here is
+                    // still on hand once the founder is in the boardroom.
+                    useVenture.getState().setCallReport(next);
+                    return next;
+                  })
                 }
                 onClose={endCall}
               />
@@ -1317,300 +1372,7 @@ export default function Discover() {
           ref={asideRef}
           className="flex w-96 shrink-0 flex-col overflow-y-auto border-l border-edge bg-surface/40"
         >
-          {/* ---- what it means: the conclusion, before the evidence ---- */}
-          {advice && verdict && (
-            <div className="border-b border-edge p-4">
-              <Assessment
-                advice={advice}
-                bet={marketProblem ?? pitchedProblem}
-                asked={verdict.reactions.length}
-                have={marketVote?.votes ?? 0}
-                payRate={marketVote?.payRate ?? 0}
-                severity={marketVote?.meanSeverity ?? 0}
-              />
-            </div>
-          )}
-
-          {/* ---- where the problem lands ---- */}
-          {hubRanking.length > 0 && (
-            <div className="border-b border-edge p-4">
-              <p className="label">
-                Where it lands
-                <Hint>
-                  Each city&apos;s fit for the market&apos;s problem, from the crowd alone: how
-                  many people there have this problem, how many would pay to fix it, and how
-                  badly it hurts them. The strongest one goes to the committee with you.
-                </Hint>
-              </p>
-              <div className="mt-3 space-y-1">
-                {hubRanking.slice(0, 6).map((h, i) => (
-                  <div
-                    key={h.hubId}
-                    className={`p-2 ${i === 0 ? "glow-accent" : "panel"}`}
-                  >
-                    <Meter
-                      label={hubName(h.hubId)}
-                      value={h.fitScore}
-                      color={i === 0 ? "var(--accent)" : "var(--border-bright)"}
-                    />
-                    {/* Spelled out. "2/4 have it · 1 would pay" reads as a
-                        score line rather than a sentence about people. */}
-                    <p className="mt-1 text-[11px] leading-relaxed text-faint">
-                      {h.haveIt} of the {h.asked} we asked here have this problem
-                      {h.haveIt > 0 && `, ${h.wouldPay} would pay to fix it`}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          <div className="border-b border-edge p-4">
-            <p className="label">
-              The crowd
-              <Hint>
-                Attention is whether they cared at all; sentiment is how warmly. A spread near
-                zero would mean the crowd collapsed into one voice. Which is a bug, not a
-                consensus.
-              </Hint>
-            </p>
-            {verdict || reactions.size > 0 ? (
-              <>
-                {/* Lights, not bars. A bar says how many; a light says whether
-                    that is good news, which is the thing being asked. */}
-                <div className="mt-2 divide-y divide-edge">
-                  <LightRow
-                    signal="go"
-                    title="Supports"
-                    count={verdict ? verdict.attention.full : live.full}
-                    total={personas.length}
-                    note="Has the problem and wants it solved"
-                    onClick={() =>
-                      setStanceFilter((f) => (f === "full" ? null : "full"))
-                    }
-                    selected={stanceFilter === null ? undefined : stanceFilter === "full"}
-                  />
-                  <LightRow
-                    signal="caution"
-                    title="Unsure"
-                    count={verdict ? verdict.attention.partial : live.partial}
-                    total={personas.length}
-                    note="Sees it, not convinced enough to act"
-                    onClick={() =>
-                      setStanceFilter((f) => (f === "partial" ? null : "partial"))
-                    }
-                    selected={stanceFilter === null ? undefined : stanceFilter === "partial"}
-                  />
-                  <LightRow
-                    signal="stop"
-                    title="Rejected"
-                    count={verdict ? verdict.attention.ignore : live.ignore}
-                    total={personas.length}
-                    note="Not a problem they think about"
-                    onClick={() =>
-                      setStanceFilter((f) => (f === "ignore" ? null : "ignore"))
-                    }
-                    selected={stanceFilter === null ? undefined : stanceFilter === "ignore"}
-                  />
-                </div>
-                {verdict && (
-                  <p className="mt-3 border-t border-edge pt-2 text-[12px] leading-relaxed text-muted">
-                    {verdict.sentimentSpread < 0.12
-                      ? "They all felt much the same way, which usually means the crowd was too alike."
-                      : "Opinions were genuinely split, which is what a real market looks like."}
-                  </p>
-                )}
-              </>
-            ) : (
-              <p className="mt-2 text-xs text-faint">
-                {personas.length > 0
-                  ? `${personas.length} people chosen. Nobody has answered yet.`
-                  : "Nobody asked yet."}
-              </p>
-            )}
-          </div>
-
-          {/* ---- who responded, and the one warning worth interrupting for ---- */}
-          {signals && (
-            <div className="border-b border-edge p-4">
-              <p className="label">
-                Who responded
-                <Hint>
-                  Which attributes separate the people who paid full attention from everyone
-                  else. If your fans cannot sign a cheque, it shows up here first.
-                </Hint>
-              </p>
-
-              {signals.warning && (
-                <p className="glow-accent mt-2 p-2.5 text-[13px] leading-relaxed text-ink/90">
-                  {signals.warning}
-                </p>
-              )}
-
-              <div className="mt-3 space-y-1.5">
-                {signals.signals.slice(0, 4).map((sig) => (
-                  <div key={sig.attribute}>
-                    <div className="flex justify-between num text-[12px]">
-                      <span className="text-muted">{sig.attribute}</span>
-                      <span className={sig.delta > 0 ? "text-accent" : "text-cold"}>
-                        {sig.engagedMean} vs {sig.ignoredMean}
-                      </span>
-                    </div>
-                    <p className="mt-0.5 text-[12px] leading-relaxed text-faint">{sig.reading}</p>
-                  </div>
-                ))}
-                {signals.signals.length === 0 && (
-                  <p className="text-[12px] text-faint">
-                    No attribute separates the people who engaged from the people who did not.
-                    That is itself a finding: the response is not concentrated in a segment.
-                  </p>
-                )}
-              </div>
-
-              <div className="mt-4 grid gap-3">
-                <div>
-                  <p className="label text-positive">Strongest yes</p>
-                  {signals.positives.map((q) => (
-                    <p key={q.name} className="mt-1 text-[12px] leading-relaxed text-ink/70">
-                      <span className="text-muted">{q.name}, {q.title}:</span> &ldquo;{q.quote}&rdquo;
-                    </p>
-                  ))}
-                </div>
-                <div>
-                  <p className="label text-negative">Strongest no</p>
-                  {signals.negatives.map((q) => (
-                    <p key={q.name} className="mt-1 text-[12px] leading-relaxed text-ink/70">
-                      <span className="text-muted">{q.name}, {q.title}:</span> &ldquo;{q.quote}&rdquo;
-                    </p>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* ---- what the calls turned up ---- */}
-          <div className="border-b border-edge p-4">
-            <div className="flex items-baseline justify-between gap-2">
-              <p className="label">
-                Report
-                <Hint>
-                  What came out of the calls you made. Talk to anyone in the crowd, then
-                  summarise the conversation and it is kept here with the run.
-                </Hint>
-              </p>
-              {callReport.length > 0 && (
-                <span className="num text-[12px] text-faint">
-                  {callReport.length} {callReport.length === 1 ? "call" : "calls"}
-                </span>
-              )}
-            </div>
-            {callReport.length === 0 ? (
-              <p className="mt-2 text-xs leading-relaxed text-faint">
-                Call someone from the crowd and summarise it, and the notes land here.
-              </p>
-            ) : (
-              <div className="mt-3 max-h-64 space-y-3 overflow-y-auto pr-1">
-                {callReport.map((entry) => (
-                  <div key={entry.personaId} className="border-l-2 border-edge pl-3">
-                    <p className="text-[13px] text-ink">
-                      {entry.name} <span className="text-muted">· {entry.role}</span>
-                    </p>
-                    <p className="mt-1 text-[13px] leading-relaxed text-ink/80">{entry.summary}</p>
-                    {entry.takeaway && (
-                      <p className="mt-1 text-[12px] leading-relaxed text-muted">{entry.takeaway}</p>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div className="p-4">
-            <div className="flex items-baseline justify-between gap-2">
-              <p className="label">
-                {stanceFilter === "full"
-                  ? "Supports"
-                  : stanceFilter === "partial"
-                    ? "Unsure"
-                    : stanceFilter === "ignore"
-                      ? "Rejected"
-                      : "Community reactions"}
-              </p>
-              {stanceFilter && (
-                <button
-                  onClick={() => setStanceFilter(null)}
-                  className="label underline-offset-2 hover:text-ink hover:underline"
-                >
-                  show everyone
-                </button>
-              )}
-            </div>
-            <div className="mt-3 max-h-[420px] space-y-2 overflow-y-auto pr-1">
-              {answered ? (
-                [...reactions.values()]
-                  .filter((r) => r.reason)
-                  .filter((r) => !stanceFilter || r.attention === stanceFilter)
-                  .slice(-40)
-                  .reverse()
-                  .map((r) => {
-                    const p = personas.find((x) => x.id === r.personaId);
-                    return (
-                      <button
-                        key={r.personaId}
-                        onClick={() => openCall(r.personaId)}
-                        className="block w-full rounded-[3px] px-2 py-1.5 text-left transition hover:bg-surface-2"
-                      >
-                        {/* A light, then a name in sentence case. The old row
-                            was three all-caps fragments and a schema code —
-                            legible only if you already knew the schema. */}
-                        <div className="flex items-center gap-2">
-                          <span
-                            className="inline-block h-2 w-2 shrink-0 rounded-full"
-                            style={{
-                              background:
-                                r.attention === "full"
-                                  ? "var(--go)"
-                                  : r.attention === "partial"
-                                    ? "var(--caution)"
-                                    : "var(--stop)",
-                              boxShadow: `0 0 7px -1px ${
-                                r.attention === "full"
-                                  ? "var(--go)"
-                                  : r.attention === "partial"
-                                    ? "var(--caution)"
-                                    : "var(--stop)"
-                              }`,
-                            }}
-                          />
-                          <span className="truncate text-[13px] text-ink">
-                            {p?.name ?? "Someone"}
-                          </span>
-                          <span className="truncate text-[12px] text-muted">
-                            {p?.label ?? p?.title ?? ""}
-                          </span>
-                        </div>
-                        <p className="mt-1 pl-4 text-[13px] leading-relaxed text-ink/80">
-                          &ldquo;{r.reason}&rdquo;
-                        </p>
-                        <p className="mt-0.5 pl-4 text-[12px] text-faint">
-                          {r.problemId
-                            ? r.wouldPay
-                              ? "Has this problem · would pay"
-                              : "Has this problem · would not pay"
-                            : "None of these are their problem"}
-                        </p>
-                      </button>
-                    );
-                  })
-              ) : (
-                <p className="text-xs leading-relaxed text-faint">
-                  {listening
-                    ? "Every answer is collected here once everyone has spoken."
-                    : "Answers appear here once the crowd has spoken."}
-                </p>
-              )}
-            </div>
-          </div>
+          <MarketEvidence {...evidenceProps} onSelectReaction={openCall} />
         </aside>
       </div>
 
@@ -1626,6 +1388,7 @@ export default function Discover() {
             crowd={personas.length}
             problemCount={problems.length}
             advice={advice}
+            evidence={evidenceProps}
             refining={refining}
             onAccept={enterCommittee}
             onRefine={() => void startRefine()}
@@ -1640,42 +1403,3 @@ export default function Discover() {
   );
 }
 
-/**
- * Hub ranking computed on the client from the reactions we already have. No
- * round trip, so the founder can pick a city the instant the crowd lands.
- * It is the only place a city score comes from now.
- */
-function rankFromCrowd(crowd: CrowdVerdict, personas: DeployedPersona[]): HubRank[] {
-  const hubOf = new Map(personas.map((p) => [p.id, p.hubId]));
-  const rows = new Map<string, { asked: number; haveIt: number; pay: number; severity: number }>();
-
-  for (const r of crowd.reactions) {
-    const hubId = hubOf.get(r.personaId);
-    if (!hubId) continue;
-    const row = rows.get(hubId) ?? { asked: 0, haveIt: 0, pay: 0, severity: 0 };
-    row.asked++;
-    if (r.problemId === crowd.marketProblemId) {
-      row.haveIt++;
-      row.severity += r.problemSeverity;
-      if (r.wouldPay) row.pay++;
-    }
-    rows.set(hubId, row);
-  }
-
-  return [...rows.entries()]
-    .map(([hubId, row]) => {
-      const incidence = row.asked ? row.haveIt / row.asked : 0;
-      const payRate = row.haveIt ? row.pay / row.haveIt : 0;
-      const meanSeverity = row.haveIt ? row.severity / row.haveIt : 0;
-      return {
-        hubId,
-        fitScore: Math.round(incidence * 55 + payRate * 30 + (meanSeverity / 100) * 15),
-        asked: row.asked,
-        haveIt: row.haveIt,
-        wouldPay: row.pay,
-      };
-    })
-    // A city where we asked almost nobody is not a finding.
-    .filter((h) => h.asked >= 3)
-    .sort((a, b) => b.fitScore - a.fitScore);
-}
