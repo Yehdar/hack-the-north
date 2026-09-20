@@ -39,11 +39,61 @@ type Props = {
   className?: string;
 };
 
-const SUIT = 0x232a3a;
-const SUIT_LIGHT = 0x2f3950;
-const SHIRT = 0xe8eaf0;
 const SKINS = [0xd9a689, 0xc08457, 0x8d5524, 0xf0c8a0, 0xa9714b];
 const HAIR = [0x2b2118, 0x4a3728, 0x1a1a1a, 0x6b4a2f, 0x3a2a1e];
+
+// Five people, not one person copied five times. A room of identical figures
+// reads as placeholder art however well it is lit.
+const SUITS = [0x232a3a, 0x2b2c34, 0x1e2b33, 0x322e3a, 0x26303f];
+const SHIRTS = [0xe8eaf0, 0xd7e1f0, 0xefe8dc, 0xe8eaf0, 0xdbe6f2];
+
+type Look = {
+  glasses?: boolean;
+  /** Hair with body at the sides rather than a flat cap. */
+  volume?: boolean;
+  bun?: boolean;
+  /** A scarf, in this colour. */
+  scarf?: number;
+  cup?: boolean;
+  pad?: boolean;
+};
+
+const LOOKS: Look[] = [
+  { glasses: true, pad: true },
+  { volume: true, cup: true },
+  { bun: true, scarf: 0xa8442f, pad: true },
+  { glasses: true, volume: true },
+  { volume: true, bun: true, cup: true, pad: true },
+];
+
+const TABLE_RX = 2.5;
+const TABLE_RZ = 1.55;
+
+/**
+ * How far the table edge is from the middle, along one seat's line.
+ *
+ * Seats used to sit on their own ellipse, which left a gap that changed with
+ * the angle: some partners rested their hands on the table and others on thin
+ * air. Measuring from the table means every seat is the same distance from it.
+ */
+function edgeAt(a: number) {
+  const c = Math.cos(a) / TABLE_RX;
+  const z = Math.sin(a) / TABLE_RZ;
+  return 1 / Math.sqrt(c * c + z * z);
+}
+
+/** A capsule stretched between two joints, so a limb can be posed by its ends. */
+function limb(from: THREE.Vector3, to: THREE.Vector3, radius: number, mat: THREE.Material) {
+  const dir = new THREE.Vector3().subVectors(to, from);
+  const mesh = new THREE.Mesh(
+    new THREE.CapsuleGeometry(radius, Math.max(dir.length() - radius * 2, 0.02), 4, 10),
+    mat
+  );
+  mesh.position.copy(from).add(to).multiplyScalar(0.5);
+  mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.normalize());
+  mesh.castShadow = true;
+  return mesh;
+}
 
 function tieColor(stance?: number): number {
   if (stance === undefined) return 0x6b7280;
@@ -52,9 +102,17 @@ function tieColor(stance?: number): number {
   return 0xd9a441;
 }
 
-/** Seat n of m around the table, clockwise from the far side. */
+/**
+ * Seat i of n, spread across the far side of the table.
+ *
+ * They used to ring it completely, which sat two partners with their backs to
+ * you for the whole meeting: you could not see their faces, and the faces are
+ * the point. A pitch is not arranged that way either. The committee is on one
+ * side of the table and you are on the other.
+ */
 function seatAngle(i: number, n: number) {
-  return -Math.PI / 2 + (i / n) * Math.PI * 2;
+  if (n < 2) return -Math.PI / 2;
+  return -Math.PI / 2 + (i / (n - 1) - 0.5) * Math.PI * 0.76;
 }
 
 type Person = {
@@ -64,6 +122,8 @@ type Person = {
   tie: THREE.Mesh;
   glow: THREE.Mesh;
   angle: number;
+  /** This partner's own suit, since they no longer share one. */
+  suit: number;
   /** Where the head is pointing now, eased toward a target each frame. */
   turn: number;
 };
@@ -106,28 +166,47 @@ export function Boardroom({
     // At the head of the table, a little above eye level, looking down it.
     // Far enough back that the two nearest partners are whole rather than
     // cropped to a shoulder, which is what a tighter frame did.
-    cam.position.set(0, 3.5, 10.6);
-    cam.lookAt(0, 1.25, 0);
+    cam.position.set(0, 2.6, 8.9);
+    cam.lookAt(0, 1.5, -1.1);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    // Without a shadow under them the figures hover, and hovering is most of
+    // what "not rendered" looks like.
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.setSize(el.clientWidth, el.clientHeight);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     el.appendChild(renderer.domElement);
     renderer.domElement.style.cursor = "pointer";
 
     // ---- light ----------------------------------------------------------
-    scene.add(new THREE.HemisphereLight(0x8fa6c8, 0x0a0e16, 1.05));
+    scene.add(new THREE.HemisphereLight(0x9db4d6, 0x0d1220, 1.25));
 
     const key = new THREE.DirectionalLight(0xffffff, 1.5);
     key.position.set(3, 8, 5);
+    key.castShadow = true;
+    key.shadow.mapSize.set(1024, 1024);
+    key.shadow.camera.left = -7;
+    key.shadow.camera.right = 7;
+    key.shadow.camera.top = 7;
+    key.shadow.camera.bottom = -7;
+    key.shadow.camera.near = 1;
+    key.shadow.camera.far = 24;
+    key.shadow.bias = -0.0012;
     scene.add(key);
 
     const fill = new THREE.DirectionalLight(0x6f86b8, 0.5);
     fill.position.set(-5, 3, -4);
     scene.add(fill);
 
+    // A soft light from where you are sitting. The lamp is directly overhead,
+    // so without this every face turned toward you is in its own shadow.
+    const faceLight = new THREE.DirectionalLight(0xcfd9ea, 0.55);
+    faceLight.position.set(0, 2.4, 9);
+    scene.add(faceLight);
+
     // The lamp over the table, which is what makes it read as a room.
-    const lamp = new THREE.PointLight(0xffe6c4, 26, 12, 2);
+    const lamp = new THREE.PointLight(0xffe6c4, 34, 14, 2);
     lamp.position.set(0, 3.1, 0);
     scene.add(lamp);
 
@@ -135,10 +214,11 @@ export function Boardroom({
     const table = new THREE.Group();
 
     const top = new THREE.Mesh(
-      new THREE.CylinderGeometry(2.5, 2.5, 0.14, 64),
+      new THREE.CylinderGeometry(TABLE_RX, TABLE_RX, 0.14, 64),
       new THREE.MeshStandardMaterial({ color: 0x2b2118, roughness: 0.45, metalness: 0.05 })
     );
-    top.scale.set(1, 1, 0.62);
+    top.scale.set(1, 1, TABLE_RZ / TABLE_RX);
+    top.receiveShadow = true;
     top.position.y = 0.92;
     table.add(top);
 
@@ -167,6 +247,7 @@ export function Boardroom({
       new THREE.MeshStandardMaterial({ color: 0x0c111b, roughness: 1 })
     );
     floor.rotation.x = -Math.PI / 2;
+    floor.receiveShadow = true;
     scene.add(floor);
 
     // A wall around them. Without it the far partners sat against nothing and
@@ -190,76 +271,253 @@ export function Boardroom({
       const a = seatAngle(i, seatList.length);
       const group = new THREE.Group();
 
-      // Seated around an ellipse, facing the middle of the table.
-      const rx = 3.1;
-      const rz = 2.0;
-      group.position.set(Math.cos(a) * rx, 0, Math.sin(a) * rz);
+      // Pushed back a fixed distance from the table edge, facing the middle.
+      const d = edgeAt(a) + 0.62;
+      group.position.set(Math.cos(a) * d, 0, Math.sin(a) * d);
       group.rotation.y = -a - Math.PI / 2;
 
       const skin = SKINS[i % SKINS.length];
       const hair = HAIR[i % HAIR.length];
+      const suit = SUITS[i % SUITS.length];
+      const look = LOOKS[i % LOOKS.length];
+
+      const suitMat = new THREE.MeshStandardMaterial({ color: suit, roughness: 0.78 });
+      const suitLit = new THREE.MeshStandardMaterial({
+        color: new THREE.Color(suit).multiplyScalar(1.38),
+        roughness: 0.8,
+      });
+      const skinMat = new THREE.MeshStandardMaterial({ color: skin, roughness: 0.82 });
+      const hairMat = new THREE.MeshStandardMaterial({ color: hair, roughness: 0.96 });
+      const shirtMat = new THREE.MeshStandardMaterial({
+        color: SHIRTS[i % SHIRTS.length],
+        roughness: 0.62,
+      });
+      const darkMat = new THREE.MeshStandardMaterial({ color: 0x12151c, roughness: 0.4 });
 
       // chair
       const chair = new THREE.Mesh(
-        new THREE.BoxGeometry(0.72, 0.9, 0.12),
+        new THREE.BoxGeometry(0.74, 0.92, 0.13),
         new THREE.MeshStandardMaterial({ color: 0x151b28, roughness: 0.9 })
       );
-      chair.position.set(0, 0.95, -0.42);
+      chair.position.set(0, 0.96, -0.46);
+      chair.castShadow = true;
       group.add(chair);
 
       // jacket
-      const torso = new THREE.Mesh(
-        new THREE.CapsuleGeometry(0.33, 0.44, 6, 16),
-        new THREE.MeshStandardMaterial({ color: SUIT, roughness: 0.72 })
-      );
+      const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.33, 0.44, 6, 16), suitMat);
       torso.scale.set(1.16, 1, 0.78);
       torso.position.y = 1.2;
+      torso.castShadow = true;
       group.add(torso);
 
       // shoulders, so the silhouette reads as a jacket rather than a pill
-      const shoulders = new THREE.Mesh(
-        new THREE.CapsuleGeometry(0.17, 0.62, 4, 12),
-        new THREE.MeshStandardMaterial({ color: SUIT_LIGHT, roughness: 0.75 })
-      );
+      const shoulders = new THREE.Mesh(new THREE.CapsuleGeometry(0.17, 0.62, 4, 12), suitLit);
       shoulders.rotation.z = Math.PI / 2;
       shoulders.position.y = 1.42;
+      shoulders.castShadow = true;
       group.add(shoulders);
 
-      // shirt
-      const shirt = new THREE.Mesh(
-        new THREE.ConeGeometry(0.17, 0.34, 3),
-        new THREE.MeshStandardMaterial({ color: SHIRT, roughness: 0.6 })
-      );
+      // shirt, showing in the V between the lapels
+      // A narrow V. At full width this read as a pale bib with a jacket drawn
+      // round it, rather than a suit with a shirt under it.
+      const shirt = new THREE.Mesh(new THREE.ConeGeometry(0.115, 0.3, 3), shirtMat);
       shirt.rotation.x = Math.PI;
-      shirt.position.set(0, 1.35, 0.25);
+      shirt.position.set(0, 1.4, 0.26);
       group.add(shirt);
+
+      // Lapels and a collar. This is the detail that turns a capsule into a
+      // suit, and it costs eight triangles.
+      for (const side of [-1, 1]) {
+        const lapel = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.36, 0.03), suitLit);
+        lapel.position.set(side * 0.145, 1.31, 0.27);
+        lapel.rotation.set(-0.08, 0, side * 0.26);
+        group.add(lapel);
+
+        const collar = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.07, 0.04), shirtMat);
+        collar.position.set(side * 0.1, 1.48, 0.2);
+        collar.rotation.z = side * 0.42;
+        group.add(collar);
+      }
 
       // tie, which carries where they stand
       const tie = new THREE.Mesh(
-        new THREE.BoxGeometry(0.075, 0.3, 0.03),
-        new THREE.MeshStandardMaterial({ color: tieColor(s.stance), roughness: 0.4 })
+        new THREE.BoxGeometry(0.075, 0.28, 0.03),
+        new THREE.MeshStandardMaterial({ color: tieColor(s.stance), roughness: 0.38 })
       );
-      tie.position.set(0, 1.28, 0.3);
+      tie.position.set(0, 1.31, 0.3);
       group.add(tie);
 
-      // head
-      const head = new THREE.Mesh(
-        new THREE.SphereGeometry(0.235, 24, 20),
-        new THREE.MeshStandardMaterial({ color: skin, roughness: 0.85 })
+      const knot = new THREE.Mesh(
+        new THREE.BoxGeometry(0.085, 0.07, 0.045),
+        tie.material as THREE.Material
       );
-      head.position.y = 1.73;
+      knot.position.set(0, 1.46, 0.26);
+      group.add(knot);
+
+      // neck
+      const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.085, 0.1, 0.18, 12), skinMat);
+      neck.position.y = 1.55;
+      group.add(neck);
+
+      // Arms, resting on the table in front of them.
+      //
+      // Their absence is what made these read as unfinished. A torso with a
+      // head on it is a mannequin; a person puts their hands somewhere.
+      for (const side of [-1, 1]) {
+        const shoulder = new THREE.Vector3(side * 0.37, 1.4, 0.02);
+        const elbow = new THREE.Vector3(side * 0.43, 1.11, 0.19);
+        const wrist = new THREE.Vector3(side * 0.25, 1.04, 0.5);
+
+        group.add(limb(shoulder, elbow, 0.098, suitMat));
+        group.add(limb(elbow, wrist, 0.084, suitMat));
+
+        // a cuff of shirt where the sleeve ends
+        const cuff = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.07, 0.07, 0.032, 10),
+          shirtMat
+        );
+        cuff.position.copy(wrist).lerp(elbow, 0.3);
+        cuff.quaternion.setFromUnitVectors(
+          new THREE.Vector3(0, 1, 0),
+          new THREE.Vector3().subVectors(wrist, elbow).normalize()
+        );
+        group.add(cuff);
+
+        const hand = new THREE.Mesh(new THREE.SphereGeometry(0.085, 14, 12), skinMat);
+        hand.position.copy(wrist);
+        hand.scale.set(0.95, 0.6, 1.35);
+        hand.castShadow = true;
+        group.add(hand);
+      }
+
+      // head
+      const head = new THREE.Mesh(new THREE.SphereGeometry(0.235, 24, 20), skinMat);
+      head.position.y = 1.75;
       head.scale.set(1, 1.08, 0.95);
+      head.castShadow = true;
       group.add(head);
 
-      // One cap, in head-local space. Adding a second copy at the head's
-      // WORLD height put a bare scalp floating above the table.
-      const hairMesh = new THREE.Mesh(
-        new THREE.SphereGeometry(0.245, 20, 16, 0, Math.PI * 2, 0, Math.PI * 0.62),
-        new THREE.MeshStandardMaterial({ color: hair, roughness: 0.95 })
+      // A face. Everything below hangs off the head, so it turns when they do
+      // and the room reads as people looking at each other.
+      for (const side of [-1, 1]) {
+        const eye = new THREE.Mesh(new THREE.SphereGeometry(0.034, 12, 10), darkMat);
+        eye.position.set(side * 0.082, 0.02, 0.198);
+        head.add(eye);
+
+        const brow = new THREE.Mesh(new THREE.BoxGeometry(0.078, 0.02, 0.022), hairMat);
+        brow.position.set(side * 0.084, 0.088, 0.2);
+        brow.rotation.z = side * -0.14;
+        head.add(brow);
+
+        const ear = new THREE.Mesh(new THREE.SphereGeometry(0.045, 10, 8), skinMat);
+        ear.position.set(side * 0.225, -0.01, -0.01);
+        ear.scale.set(0.45, 1, 0.8);
+        head.add(ear);
+      }
+
+      const nose = new THREE.Mesh(new THREE.SphereGeometry(0.036, 10, 8), skinMat);
+      nose.position.set(0, -0.045, 0.215);
+      nose.scale.set(0.8, 1, 0.9);
+      head.add(nose);
+
+      const mouth = new THREE.Mesh(
+        new THREE.BoxGeometry(0.072, 0.016, 0.02),
+        new THREE.MeshStandardMaterial({ color: 0x8a4f45, roughness: 0.7 })
       );
-      hairMesh.position.set(0, 0.015, 0);
-      hairMesh.scale.set(1, 1.02, 1);
-      head.add(hairMesh);
+      mouth.position.set(0, -0.125, 0.198);
+      head.add(mouth);
+
+      if (look.glasses) {
+        const frame = new THREE.MeshStandardMaterial({
+          color: 0x0f1219,
+          roughness: 0.32,
+          metalness: 0.25,
+        });
+        for (const side of [-1, 1]) {
+          const rim = new THREE.Mesh(new THREE.TorusGeometry(0.069, 0.013, 8, 20), frame);
+          rim.position.set(side * 0.086, 0.02, 0.206);
+          head.add(rim);
+
+          const arm = new THREE.Mesh(new THREE.BoxGeometry(0.014, 0.014, 0.17), frame);
+          arm.position.set(side * 0.155, 0.03, 0.125);
+          head.add(arm);
+        }
+        const bridge = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.014, 0.014), frame);
+        bridge.position.set(0, 0.028, 0.214);
+        head.add(bridge);
+      }
+
+      // Hair with some mass to it. A single smooth skullcap read as a bald
+      // mannequin, which was half of why these looked unrendered.
+      // Two pieces, because one shell cannot do both jobs. A cap generous
+      // enough to cover the back of the head came down over the eyes and
+      // nose, which is exactly why they looked faceless.
+      const cap = new THREE.Mesh(
+        new THREE.SphereGeometry(0.248, 20, 16, 0, Math.PI * 2, 0, Math.PI * 0.36),
+        hairMat
+      );
+      cap.position.set(0, 0.012, -0.012);
+      cap.scale.set(1.03, 1.05, 1.05);
+      cap.castShadow = true;
+      head.add(cap);
+
+      // the mass at the back and sides, which sits behind the face
+      const back = new THREE.Mesh(new THREE.SphereGeometry(0.242, 18, 14), hairMat);
+      back.position.set(0, 0.015, -0.085);
+      back.scale.set(0.99, 0.98, 0.86);
+      back.castShadow = true;
+      head.add(back);
+
+      if (look.volume) {
+        for (const side of [-1, 1]) {
+          const puff = new THREE.Mesh(new THREE.SphereGeometry(0.118, 14, 12), hairMat);
+          puff.position.set(side * 0.155, 0.05, -0.05);
+          puff.scale.set(0.85, 1, 1.15);
+          head.add(puff);
+        }
+      }
+      if (look.bun) {
+        const bun = new THREE.Mesh(new THREE.SphereGeometry(0.108, 14, 12), hairMat);
+        bun.position.set(0, 0.04, -0.215);
+        head.add(bun);
+      }
+
+      if (look.scarf) {
+        const scarfMat = new THREE.MeshStandardMaterial({ color: look.scarf, roughness: 0.96 });
+        const loop = new THREE.Mesh(new THREE.TorusGeometry(0.155, 0.058, 10, 22), scarfMat);
+        loop.rotation.x = Math.PI / 2;
+        loop.position.y = 1.57;
+        loop.scale.set(1, 1, 0.88);
+        loop.castShadow = true;
+        group.add(loop);
+
+        const tail = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.24, 0.06), scarfMat);
+        tail.position.set(0.08, 1.44, 0.2);
+        tail.rotation.z = 0.14;
+        group.add(tail);
+      }
+
+      // What is in front of them. A boardroom table is never empty, and a
+      // notepad reads as somebody who did the reading.
+      if (look.pad) {
+        const pad = new THREE.Mesh(
+          new THREE.BoxGeometry(0.3, 0.012, 0.21),
+          new THREE.MeshStandardMaterial({ color: 0xdcd8cd, roughness: 0.92 })
+        );
+        pad.position.set(0.02, 1.005, 0.56);
+        pad.rotation.y = 0.12;
+        pad.castShadow = true;
+        group.add(pad);
+      }
+      if (look.cup) {
+        const cup = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.052, 0.043, 0.11, 14),
+          new THREE.MeshStandardMaterial({ color: 0xe6e0d4, roughness: 0.78 })
+        );
+        cup.position.set(-0.4, 1.054, 0.48);
+        cup.castShadow = true;
+        group.add(cup);
+      }
 
       // a ring on the floor that lights when they speak
       const glow = new THREE.Mesh(
@@ -278,7 +536,7 @@ export function Boardroom({
       group.userData.seatId = s.id;
       scene.add(group);
 
-      people.current.set(s.id, { group, head, torso, tie, glow, angle: a, turn: 0 });
+      people.current.set(s.id, { group, head, torso, tie, glow, angle: a, turn: 0, suit });
 
       // nameplate
       const plate = document.createElement("div");
@@ -317,7 +575,7 @@ export function Boardroom({
     // ---- loop ------------------------------------------------------------
     let raf = 0;
     const tmp = new THREE.Vector3();
-    const camTarget = new THREE.Vector3(0, 3.5, 7.4);
+    const camTarget = new THREE.Vector3(0, 2.6, 8.9);
     const lookTarget = new THREE.Vector3(0, 0.9, 0);
 
     const tick = () => {
@@ -337,8 +595,8 @@ export function Boardroom({
           lookTarget.set(p.group.position.x * 0.75, 1.6, p.group.position.z * 0.75);
         }
       } else {
-        camTarget.set(0, 4.6, 11.2);
-        lookTarget.set(0, 1.1, 0);
+        camTarget.set(0, 2.6, 8.9);
+        lookTarget.set(0, 1.5, -1.1);
       }
       cam.position.lerp(camTarget, 0.045);
       tmp.copy(lookTarget);
@@ -384,7 +642,9 @@ export function Boardroom({
         bodyMat.opacity = 1;
         bodyMat.transparent = false;
         bodyMat.color.lerp(
-          new THREE.Color(wantsDim ? 0x171d2a : isSpeaking ? SUIT_LIGHT : SUIT),
+          wantsDim
+            ? new THREE.Color(0x171d2a)
+            : new THREE.Color(p.suit).multiplyScalar(isSpeaking ? 1.3 : 1),
           0.08
         );
 
@@ -400,7 +660,8 @@ export function Boardroom({
         // landed on each other; a place setting never can.
         const plate = labels.current.get(id);
         if (plate) {
-          tmp.set(Math.cos(p.angle) * 2.12, 1.02, Math.sin(p.angle) * 1.3).project(cam);
+          const pd = edgeAt(p.angle) - 0.21;
+          tmp.set(Math.cos(p.angle) * pd, 1.02, Math.sin(p.angle) * pd).project(cam);
           const rect = renderer.domElement.getBoundingClientRect();
           const onScreen = tmp.z < 1;
           plate.style.opacity = onScreen ? (dim ? "0.25" : "1") : "0";
