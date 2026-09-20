@@ -71,13 +71,34 @@ All in `src/components/Boardroom.tsx`:
 
 ### What to do next
 
-1. **Watch the animation, which cannot be checked from an automated tab.** The
-   head turns toward whoever is being addressed, the speaker lifts and nods, the
-   floor ring pulses, the tie lerps to the stance colour, and clicking a partner
-   eases the camera onto them. All of it is bound to real state, none of it has
-   been seen running. The still frame is verified; the motion is not.
-2. **Then go after typography**, under Still open below. It is the biggest
-   remaining complaint and nothing has been done about it.
+Jaineel walked the app after the figures landed and asked for four things. They
+are in progress in the session that wrote this line; if that session stopped,
+these are the open items and this is the order.
+
+1. **At least two of the five partners should be women.** Right now every figure
+   is built from one template with different hair colours, which reads as five
+   men. Needs a `build` field on the `LOOKS` table driving hair, jaw and frame,
+   not a colour swap.
+2. **Clicking a partner to chat is buggy.** His word was "buggy" without a
+   repro, so reproduce it first: click each of the five, mid-deliberation and
+   after it finishes, and watch for the panel opening against a stale seat, the
+   camera never easing back, or the drain queue continuing to speak underneath
+   the conversation.
+3. **The push to talk in the chat panel must behave like the rest of the app's
+   audio.** `TableChat.tsx` has its own `detectTier` / `startCapture` /
+   `stopSpeaking` wiring. The committee page and the narrator already do this;
+   the two paths have drifted. Make the chat use the same one, including
+   `unlockAudio()` on a gesture.
+4. **Then a full end to end pass**: dashboard, create a project, Part 1, the
+   reveal, Part 2, a conversation with a partner, the verdict, the report.
+   Fix everything found.
+
+Still true and still not done from before:
+
+- **The motion has never been watched.** The head turns, the speaker's nod, the
+  ring pulse, and the click to zoom are all bound to real state, but only the
+  still frame has been verified. An automated tab cannot check it (see gotchas).
+- **Typography** is the biggest remaining UX complaint. Nothing done yet.
 
 ---
 
