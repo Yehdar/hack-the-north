@@ -11,7 +11,7 @@ import { Logo } from "@/components/Logo";
 // starts clean, so nothing can leave a stale door shut on someone's screen.
 //
 // CSS transitions rather than a JS animation loop, so the leaves still finish
-// moving if the frame loop is throttled — the timers that navigate never wait
+// moving if the frame loop is throttled. The timers that navigate never wait
 // on an animation callback.
 // ============================================================================
 
@@ -22,7 +22,7 @@ export function armDoor() {
   armed = true;
 }
 
-/** Pure read — safe inside a state initialiser. */
+/** Pure read. Safe inside a state initialiser. */
 export function doorArmed() {
   return armed;
 }

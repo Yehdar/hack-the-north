@@ -3,7 +3,7 @@ import type { CrowdSignals } from "@/lib/discovery/signals";
 import type { AgentVerdict, ICVerdict, Objection, PVSBreakdown } from "@/lib/types";
 
 // ============================================================================
-// ADVICE — pure, and specific to this run.
+// ADVICE. Pure, and specific to this run.
 //
 // The failure mode this replaces: telling a founder "the people accountable
 // cannot tell which part carries risk" and stopping there. That is a restatement
@@ -65,7 +65,7 @@ export function assess(
     findings.push({
       severity: "fatal",
       headline: "Almost nobody would pay for this",
-      evidence: `${payers} of ${asked} people would pay — ${(payRate * 100).toFixed(0)}%. A market needs buyers, not sympathisers.`,
+      evidence: `${payers} of ${asked} people would pay, ${(payRate * 100).toFixed(0)}%. A market needs buyers, not sympathisers.`,
       action:
         "Before writing more code, find five people who will pre-pay. If you cannot find five, the problem is not painful enough to charge for and no amount of product work fixes that.",
     });
@@ -87,7 +87,7 @@ export function assess(
     findings.push({
       severity: "fatal",
       headline: "Most of the market ignored you outright",
-      evidence: `${crowd.attention.ignore} of ${asked} paid no attention at all — ${(ignoredRate * 100).toFixed(0)}%. These were people selected as relevant.`,
+      evidence: `${crowd.attention.ignore} of ${asked} paid no attention at all, ${(ignoredRate * 100).toFixed(0)}%. These were people selected as relevant.`,
       action:
         "Indifference is harder to beat than objection. Either the audience is wrong or the problem is invisible to them. Re-run against a different buyer before changing the product.",
     });
@@ -120,7 +120,7 @@ export function assess(
     findings.push({
       severity: "serious",
       headline: "The case rests on assertion",
-      evidence: `Evidence strength scored ${pvs.evidenceStrength} of 100 — most claims in the analysis cite nothing.`,
+      evidence: `Evidence strength scored ${pvs.evidenceStrength} of 100. Most claims in the analysis cite nothing.`,
       action:
         "Every number in your deck needs a source an investor can check. Assume they will check one at random.",
     });
@@ -164,7 +164,7 @@ export function assess(
 
   const callToAction =
     verdict === "fail"
-      ? `Do not build more of this yet. ${findings[0].headline.toLowerCase()} — that is disqualifying on its own.`
+      ? `Do not build more of this yet. ${findings[0].headline.toLowerCase()}. That is disqualifying on its own.`
       : verdict === "weak"
         ? "There is something here, but not the thing you are currently pitching."
         : verdict === "promising"
@@ -211,7 +211,7 @@ export function explainVerdict(
 
   if (verdict.decision === "conditional") {
     return {
-      headline: "Conditional — not a yes",
+      headline: "Conditional, not a yes",
       because: dodged.length
         ? `You dodged ${dodged.length} question${dodged.length === 1 ? "" : "s"}. In a real room that is the whole meeting: ${dodged[0].text}`
         : unanswered.length
@@ -228,6 +228,6 @@ export function explainVerdict(
         ? `, over the objection of ${verdict.dissents.map(roleOf).join(" and ")}`
         : " without a dissent"
     }.`,
-    toReopen: verdict.conditions[0] ?? "Move fast — conviction decays.",
+    toReopen: verdict.conditions[0] ?? "Move fast, conviction decays.",
   };
 }

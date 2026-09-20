@@ -18,7 +18,7 @@ import {
 import { FigureLayer, shirtColor, stanceColor, type FigureKind, type FigureSpec } from "./figures";
 
 // ============================================================================
-// GLOBE — the navigator both phases hang off.
+// GLOBE. The navigator both phases hang off.
 //
 // Raw Three.js rather than react-three-fiber: the dots are mutated every frame
 // from a ref and must never round-trip through React state, and the HTML
@@ -48,7 +48,7 @@ export type GlobeDot = {
 };
 
 /** A named place. Rendered as a label anchored at the city itself, separate
- *  from the persona dots — attaching a city name to one arbitrary dot in its
+ *  from the persona dots. Attaching a city name to one arbitrary dot in its
  *  cluster puts the text on top of its neighbours. */
 export type GlobePlace = {
   id: string;
@@ -78,7 +78,7 @@ type Props = {
    *  see the seats pulse. */
   focus?: LatLon | null;
   arcs?: GlobeArc[];
-  /** A place that keeps pulsing — where the council or committee is sitting. */
+  /** A place that keeps pulsing. Where the council or committee is sitting. */
   beacon?: LatLon | null;
   /** Camera distance to ease to whenever this changes; larger is a smaller
    *  globe. Unset leaves the distance to the user's scroll wheel. */
@@ -97,8 +97,8 @@ const ARC_FADE_MS = 500;
 const RIPPLE_MS = 1100;
 /** Where a city's label may sit, relative to the city, in the order tried:
  *  just above it, a little higher over its crowd, then just below. No
- *  further: a label floated far off its city names the wrong one — Paris
- *  ended up printed above Berlin — so beyond this it gives way, and the city
+ *  further: a label floated far off its city names the wrong one, Paris
+ *  ended up printed above Berlin. So beyond this it gives way, and the city
  *  is still named in the side panel. */
 const LABEL_LIFTS = [-30, -48, -66, 14, 32];
 
@@ -173,7 +173,7 @@ export function Globe({ dots, places, onDotClick, focus, arcs, beacon, distance,
     cam.position.set(0, 1.4, 6);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-    // Two passes a frame — the globe, then the people over it — so the clears
+    // Two passes a frame. The globe, then the people over it, so the clears
     // are done by hand.
     renderer.autoClear = false;
     renderer.setSize(el.clientWidth, el.clientHeight);
@@ -332,7 +332,7 @@ export function Globe({ dots, places, onDotClick, focus, arcs, beacon, distance,
       depthWrite: false,
     });
     // Line2 does its width maths in screen space, so a zero resolution divides
-    // by zero and every arc renders as a straight ray to infinity — which is
+    // by zero and every arc renders as a straight ray to infinity. Which is
     // exactly what a globe that has not laid out yet produces at mount. Fall
     // back to the window until a real size arrives.
     arcMat.resolution.set(
@@ -450,7 +450,7 @@ export function Globe({ dots, places, onDotClick, focus, arcs, beacon, distance,
         // rather than a pile. The old size made neighbouring people merge into
         // one blob, which is the opposite of what a crowd view is for.
         const base = 0.012 + (d.weight ?? 0.4) * 0.022;
-        // Pulse in brightness, not size — a pulsing radius made dots collide
+        // Pulse in brightness, not size. A pulsing radius made dots collide
         // with their neighbours on every beat.
         mesh.scale.setScalar(base);
         const mat = mesh.material as THREE.MeshBasicMaterial;
@@ -562,7 +562,7 @@ export function Globe({ dots, places, onDotClick, focus, arcs, beacon, distance,
 
       // Active place first, then the heavier ones, then whatever faces us most
       // squarely. A label that loses the contest is hidden, never slid
-      // sideways — that detaches the name from its city. It may rise straight
+      // sideways. That detaches the name from its city. It may rise straight
       // up over its own city's crowd, or drop just below it, because a city's
       // name is exactly where its people stand.
       candidates.sort(
@@ -587,7 +587,7 @@ export function Globe({ dots, places, onDotClick, focus, arcs, beacon, distance,
         let lift: number | null = null;
         for (const dy of LABEL_LIFTS) {
           const box = { x: c.x - w / 2, y: c.y + dy, w, h };
-          // Only wholly on screen — a label pushed up over its crowd must
+          // Only wholly on screen. A label pushed up over its crowd must
           // not rise out of the top of the canvas.
           if (box.x < 0 || box.y < 0 || box.x + w > rect.width || box.y + h > rect.height) continue;
           const clash = taken.some(
@@ -729,8 +729,8 @@ export function Globe({ dots, places, onDotClick, focus, arcs, beacon, distance,
         (mesh.material as THREE.MeshBasicMaterial).color = color;
       }
       // Every time, not only on creation. The committee's seats keep their ids
-      // when the firm changes — and the first render always has the default
-      // firm, because the persisted one arrives after hydration — so placing
+      // when the firm changes. And the first render always has the default
+      // firm, because the persisted one arrives after hydration, so placing
       // them once left the committee sitting in San Francisco while the camera
       // and the header had moved to the real HQ.
       mesh.position.copy(latLonToVector3(d.lat, d.lon, RADIUS * 1.015));

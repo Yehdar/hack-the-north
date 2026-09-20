@@ -7,7 +7,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest
 // for each API.
 //
 // Neither provider had ever run against its real API. Each rule below is a 400
-// on every call when broken — and callers absorb failed calls as neutral
+// on every call when broken. And callers absorb failed calls as neutral
 // placeholders, so a broken shape shows up as a demo that runs and says
 // nothing. Cheaper to pin here than to find on stage.
 // ============================================================================

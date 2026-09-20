@@ -76,6 +76,25 @@ export function Minutes({ minutes, size = "sm" }: { minutes: MinutesDoc; size?: 
         </Part>
       )}
 
+      {/* The chair's rulings. A challenge nobody met is the most actionable
+          line in a set of minutes. It is a hole the room found and left. */}
+      {minutes.unanswered?.length > 0 && (
+        <Part title="Left unanswered">
+          <ul className="space-y-2">
+            {minutes.unanswered.map((u, i) => (
+              <li key={i} className="border-l-2 pl-3" style={{ borderColor: "var(--stop)" }}>
+                <p className="text-[11px] leading-relaxed">
+                  &ldquo;{u.challenge}&rdquo;
+                </p>
+                <p className="insert-muted mt-0.5 text-[10px]">
+                  {u.from} asked {u.to} · {u.reason}
+                </p>
+              </li>
+            ))}
+          </ul>
+        </Part>
+      )}
+
       {minutes.conditions.length > 0 && (
         <Part title="Conditions">
           <List items={minutes.conditions} />

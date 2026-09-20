@@ -3,6 +3,7 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
 import { Logo } from "@/components/Logo";
+import { Progress } from "@/components/Progress";
 
 // Boot sequence. Buys the pre-read call its latency back by making the wait
 // feel like the system coming online rather than a spinner.
@@ -68,9 +69,6 @@ export function AgentBoot({
     return () => clearInterval(tick);
   }, [STEPS.length]);
 
-  const BARS = 32;
-  const filled = Math.floor((progress / 100) * BARS);
-
   return (
     <AnimatePresence>
       {!done && (
@@ -99,23 +97,12 @@ export function AgentBoot({
               {STEPS[step]}
             </motion.p>
 
-            <div className="flex gap-0.5">
-              {Array.from({ length: BARS }, (_, i) => (
-                <div
-                  key={i}
-                  className={`h-3 flex-1 transition-colors duration-200 ${
-                    i < filled ? "bg-ink" : "bg-edge"
-                  }`}
-                />
-              ))}
-            </div>
-
-            <div className="mt-3 flex justify-between font-mono text-xs text-faint">
-              <span>{Math.round(progress)}%</span>
-              <span>
-                {step + 1}/{STEPS.length}
-              </span>
-            </div>
+            <Progress
+              pct={progress}
+              size="lg"
+              live={progress < 100}
+              right={`${step + 1} of ${STEPS.length}`}
+            />
           </div>
         </motion.div>
       )}

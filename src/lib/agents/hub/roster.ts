@@ -5,7 +5,7 @@ import { PERSONAS } from "@/data/personas";
 import { hubById } from "@/data/globePoints";
 
 // ============================================================================
-// THE HUB COUNCIL — five agents who argue about whether a problem is worth
+// THE HUB COUNCIL. Five agents who argue about whether a problem is worth
 // solving in one particular city.
 //
 // This roster runs through the SAME deliberate() engine as the investment
@@ -145,14 +145,14 @@ ${agent.persona.background}
 Convictions you hold. These are not preferences to be talked out of:
 ${agent.priors.map((p) => `  - ${p}`).join("\n")}
 
-You judge only: ${agent.focus.join(", ")}. Other members cover the rest — do not
+You judge only: ${agent.focus.join(", ")}. Other members cover the rest. Do not
 duplicate their lanes, and do not soften your view to meet theirs.
 
 Rules:
 - Ground claims in the crowd data or the hub facts you were given, and say which.
   An assertion with nothing under it is worse than saying you do not know.
 - You are speaking in a room. One tight point at a time.
-- Talk like a person, not a report: plain words, contractions, first person, about this specific product or problem. No jargon and no headline style — everything you say is read aloud.
+- Talk like a person, not a report: plain words, contractions, first person, about this specific product or problem. No jargon and no headline style. Everything you say is read aloud.
 - Disagreeing with this council is not a problem to be avoided.`;
 }
 
@@ -181,7 +181,7 @@ export function hubContext(
     .slice(0, 6)
     .map((r) => {
       const p = PERSONAS.find((x) => x.id === r.personaId);
-      return `    "${r.reason}" — ${p?.title ?? "someone"}, ${p?.professional.seniority ?? ""}`;
+      return `    "${r.reason}", ${p?.title ?? "someone"}, ${p?.professional.seniority ?? ""}`;
     })
     .join("\n");
 

@@ -28,7 +28,7 @@ import { writeMinutes, type Minutes as MinutesDoc } from "@/lib/minutes";
 import { Minutes } from "@/components/Minutes";
 
 // ============================================================================
-// PART 2 — THE ROOM.
+// PART 2, THE ROOM.
 //
 // The committee sits at the firm's own HQ and has read the file Part 1 wrote.
 // It deliberates over five rounds before the founder says a word.
@@ -59,12 +59,12 @@ const EXPECTED_TURNS = 10;
  *  on. Real model calls can be slow; this only offers, it never decides. */
 const STALL_MS = 30_000;
 
-// What each round is for, in a sentence — the protocol explained while it runs.
+// What each round is for, in a sentence. The protocol explained while it runs.
 const ROUND_MEANING: Record<number, string> = {
   0: "The managing partner breaks the decision into questions and hands each one to the partner whose job it is.",
   1: "Each partner answers their own questions first, without hearing the others, so nobody just agrees with the loudest voice.",
   2: "Now they've heard each other, and they push back on specific claims, by name.",
-  3: "The partners who were challenged answer — and some change their minds. Every change is written down.",
+  3: "The partners who were challenged answer. And some change their minds. Every change is written down.",
   4: "The Devil's Advocate argues against wherever the room has landed.",
 };
 
@@ -150,7 +150,7 @@ export default function Committee() {
     sidebar.current?.scrollTo({ top: sidebar.current.scrollHeight, behavior: "smooth" });
   }, [messages.length]);
 
-  // When the room decides, the minutes are the thing to read — above the
+  // When the room decides, the minutes are the thing to read. Above the
   // transcript they summarise.
   useEffect(() => {
     if (minutes) sidebar.current?.scrollTo({ top: 0, behavior: "smooth" });
@@ -164,7 +164,7 @@ export default function Committee() {
     () =>
       new SpeechQueue(
         // Playback only needs synthesis, which browsers without speech
-        // recognition still have — the "text" tier is about the microphone.
+        // recognition still have, the "text" tier is about the microphone.
         (text, voice) => speak(text, voice, tier === "elevenlabs" ? "elevenlabs" : "browser"),
         (agentId, id) => {
           // The narrator is not in the room; only partners show as speaking.
@@ -202,7 +202,7 @@ export default function Committee() {
 
     // What the start event establishes is needed again at the end of the same
     // stream. State would still hold the previous run's values by then, so it
-    // is carried in locals — reading `roster` here once left the report with
+    // is carried in locals, reading `roster` here once left the report with
     // an empty panel and every slider missing.
     let firmName = "";
     let seated: RosterEntry[] = [];
@@ -242,7 +242,7 @@ export default function Committee() {
               ...f,
             ].slice(0, 4)
           );
-          // Queued, not spoken immediately — deliberation streams faster than
+          // Queued, not spoken immediately. Deliberation streams faster than
           // speech, so without a queue three partners talk over each other.
           if (audioRef.current) queue.current?.push(m.id, m.from, m.text);
           break;
@@ -264,6 +264,13 @@ export default function Committee() {
             finalVerdicts: DeliberationSnapshot["verdicts"];
             messages: DeliberationSnapshot["messages"];
             metrics: DeliberationSnapshot["metrics"];
+            rulings?: {
+              from: string;
+              to: string;
+              challenge: string;
+              answered: boolean;
+              reason: string;
+            }[];
           };
           const verdict = ev.verdict as ICVerdict;
 
@@ -282,6 +289,7 @@ export default function Committee() {
             snapshot,
             verdict,
             problem: vf.chosenProblem?.statement,
+            rulings: result.rulings,
           });
           setMinutes(written);
           setMindChanges(result.metrics.mindChanges);
@@ -322,7 +330,7 @@ export default function Committee() {
 
   const seatDots = Object.values(seats);
   const dots: GlobeDot[] = [
-    // Cities stay dots — except those under the committee's feet, which the
+    // Cities stay dots. Except those under the committee's feet, which the
     // row of partners would stand on top of. The beacon marks the HQ itself.
     ...HUB_POINTS.filter(
       (h) => Math.hypot(h.lat - hq.lat, (h.lon - hq.lon) * Math.cos((hq.lat * Math.PI) / 180)) > 7
@@ -365,18 +373,18 @@ export default function Committee() {
         title: `Verdict · ${decision.decision}`,
         line: `Score ${decision.score.toFixed(2)}. ${
           decision.dissents.length > 0 ? "Dissent is kept, not averaged away. " : ""
-        }Now defend it out loud — every question you dodge costs you at the vote.`,
+        }Now defend it out loud. Every question you dodge costs you at the vote.`,
       }
     : running && stalled
       ? {
           title: "The room has gone quiet",
-          line: "Nothing has come back for a while — the model may be slow, or stuck. Keep waiting, run the committee again, or go straight to the pitch.",
+          line: "Nothing has come back for a while. The model may be slow, or stuck. Keep waiting, run the committee again, or go straight to the pitch.",
         }
     : running
       ? { title: round ? ROUND_LABEL[round] : "Round 0 · decompose", line: ROUND_MEANING[round] }
       : {
           title: "The room",
-          line: `${firm.name}'s partners have read your file. Convene them — they argue with each other before you say a word.`,
+          line: `${firm.name}'s partners have read your file. Convene them. They argue with each other before you say a word.`,
         };
 
 
@@ -437,7 +445,7 @@ export default function Committee() {
             </div>
           )}
 
-          {/* header: the room, and the file it read — below the Part 2 bar */}
+          {/* header: the room, and the file it read. Below the Part 2 bar */}
           <div className="absolute left-6 top-20 z-40 w-[300px]">
             <AnimatePresence mode="wait">
               {running ? (
@@ -468,7 +476,7 @@ export default function Committee() {
                         </p>
                       ) : (
                         <p className="mt-1.5 text-[11px] leading-relaxed text-muted">
-                          &ldquo;{ventureFile.solution}&rdquo; — no validated problem. The
+                          &ldquo;{ventureFile.solution}&rdquo;, no validated problem. The
                           committee will treat that as a finding.
                         </p>
                       )}

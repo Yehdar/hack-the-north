@@ -4,7 +4,7 @@
  * POST + read a server-sent-event stream.
  *
  * EventSource can only GET, and the committee needs the founder's venture file
- * in the request body — so we read the stream off fetch by hand instead.
+ * in the request body. So we read the stream off fetch by hand instead.
  */
 export async function streamPost(
   url: string,

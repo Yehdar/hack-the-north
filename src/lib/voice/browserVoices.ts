@@ -3,8 +3,8 @@
 //
 // With no ElevenLabs or OpenAI key, everyone speaks through speechSynthesis,
 // whose default voice is the robotic one. Most machines ship far better voices
-// — macOS "Premium"/"Enhanced" voices, Edge's "Natural" ones, Chrome's Google
-// voices — they are just never picked. This picks them, and matches each to
+//, macOS "Premium"/"Enhanced" voices, Edge's "Natural" ones, Chrome's Google
+// voices. They are just never picked. This picks them, and matches each to
 // the speaker: the partner drawn as a girl speaks with a woman's voice.
 //
 // Pure: takes the list, returns a choice. The browser plumbing is in client.ts.

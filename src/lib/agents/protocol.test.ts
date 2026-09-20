@@ -4,8 +4,8 @@ import type { AgentTemplate } from "@/lib/types";
 import { deliberate, variance } from "./protocol";
 
 // ---------------------------------------------------------------------------
-// A scripted provider. The point is to test the PROTOCOL — routing, directed
-// messaging, belief revision, metrics — deterministically, without a model and
+// A scripted provider. The point is to test the PROTOCOL. Routing, directed
+// messaging, belief revision, metrics, deterministically, without a model and
 // without a key. Model quality is a separate question from whether the
 // machinery that carries it works.
 // ---------------------------------------------------------------------------
@@ -47,7 +47,7 @@ class ScriptedProvider implements LLMProvider {
             { question: "Is the market big enough?", assignedTo: "alpha", why: "lane" },
             { question: "Do the unit economics work?", assignedTo: "beta", why: "lane" },
             { question: "What does this rhyme with?", assignedTo: "gamma", why: "lane" },
-            // Assigned to nobody in the room — must be dropped.
+            // Assigned to nobody in the room, must be dropped.
             { question: "Irrelevant", assignedTo: "ghost", why: "invalid" },
           ],
         } as T;
@@ -68,7 +68,7 @@ class ScriptedProvider implements LLMProvider {
         const scripted: Record<string, { to: string; text: string }[]> = {
           alpha: [
             { to: "gamma", text: "You are pattern-matching against the last decade." },
-            // Self-challenge — must be dropped.
+            // Self-challenge, must be dropped.
             { to: "alpha", text: "I challenge myself." },
           ],
           gamma: [{ to: "alpha", text: "Your TAM assumes a budget that does not exist." }],
@@ -78,11 +78,21 @@ class ScriptedProvider implements LLMProvider {
         return { challenges: scripted[who] ?? [] } as T;
       }
 
+      case "chair_rulings": {
+        // alpha conceded, so that challenge is met; gamma brushed its one off.
+        return {
+          rulings: [
+            { challengeId: "m4", answered: true, reason: "Conceded honestly." },
+            { challengeId: "m5", answered: false, reason: "Restated a position." },
+          ],
+        } as T;
+      }
+
       case "rebuttal": {
         // Alpha is genuinely moved. Gamma holds its conviction under pressure.
         const conceded = who === "alpha";
         return {
-          response: conceded ? "Fair — the budget assumption is load-bearing." : "No, that analogy does not hold.",
+          response: conceded ? "Fair. The budget assumption is load-bearing." : "No, that analogy does not hold.",
           conceded,
           revisedStance: conceded ? 0.3 : -0.7,
           revisedConfidence: 0.8,
@@ -148,7 +158,7 @@ describe("deliberation protocol", () => {
     }
   });
 
-  it("records belief revision — the thing fan-out cannot do", async () => {
+  it("records belief revision. The thing fan-out cannot do", async () => {
     const r = await deliberate({ ...OPTS, llm: new ScriptedProvider() });
 
     const moved = r.metrics.mindChanges.find((m) => m.agentId === "alpha");
@@ -189,7 +199,9 @@ describe("deliberation protocol", () => {
       llm: new ScriptedProvider(),
       onEvent: (e) => seen.push(e.type),
     });
-    expect(new Set(seen)).toEqual(new Set(["task", "message", "verdict", "round"]));
+    expect(new Set(seen)).toEqual(
+      new Set(["task", "message", "verdict", "round", "rulings"])
+    );
   });
 });
 
@@ -258,5 +270,50 @@ describe("transcript", () => {
     console.log(lines.join("\n"));
 
     expect(r.messages.length).toBeGreaterThan(5);
+  });
+});
+
+describe("the chair rules on challenges", () => {
+  it("marks a challenge unanswered when nobody replied to it", async () => {
+    // beta is challenged by nobody and replies to nobody, so only the two
+    // directed challenges can be ruled on at all.
+    const r = await deliberate({ ...OPTS, llm: new ScriptedProvider() });
+
+    expect(r.rulings.length).toBe(2);
+    for (const ruling of r.rulings) {
+      expect(ruling.challenge.length).toBeGreaterThan(0);
+      expect(ruling.reason.length).toBeGreaterThan(0);
+      expect(ruling.from).not.toBe(ruling.to);
+    }
+  });
+
+  it("counts what was never answered, because that is the number that costs", async () => {
+    const r = await deliberate({ ...OPTS, llm: new ScriptedProvider() });
+    expect(r.metrics.unanswered).toBe(
+      r.rulings.filter((x) => !x.answered).length
+    );
+  });
+
+  it("rules a challenge unanswered when no reply exists, whatever the chair says", async () => {
+    // A provider that claims everything was answered must not override the
+    // plain fact that a challenge drew no reply at all.
+    class Generous extends ScriptedProvider {
+      override async completeJSON<T>(req: LLMRequest): Promise<T> {
+        if (req.schema?.name === "chair_rulings") {
+          return {
+            rulings: [
+              { challengeId: "m4", answered: true, reason: "fine" },
+              { challengeId: "m5", answered: true, reason: "fine" },
+            ],
+          } as T;
+        }
+        return super.completeJSON<T>(req);
+      }
+    }
+
+    const r = await deliberate({ ...OPTS, llm: new Generous() });
+    // gamma never rebutted alpha's challenge in the script, so it stands.
+    const unreplied = r.rulings.filter((x) => x.reason === "Never addressed.");
+    for (const u of unreplied) expect(u.answered).toBe(false);
   });
 });

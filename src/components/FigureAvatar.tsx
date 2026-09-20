@@ -5,7 +5,7 @@ import type { FigureKind } from "@/components/globe/figures";
 // ============================================================================
 // THE PERSON YOU ARE TALKING TO, ON THE CALL CARD.
 //
-// The same figure as on the globe — same skin, hair, dress or shirt — drawn
+// The same figure as on the globe. Same skin, hair, dress or shirt, drawn
 // flat, because the call card can sit right over the spot on the globe where
 // that person is standing. Their hello has to be visible somewhere, and here
 // it always is.
@@ -78,7 +78,7 @@ export function FigureAvatar({
         <circle cx="28.5" cy="42" r="2.4" fill={skin} />
       </g>
 
-      {/* head, hair on top, face — nodding along while they talk */}
+      {/* head, hair on top, face. Nodding along while they talk */}
       <g className={speaking ? "figure-nod" : undefined}>
       <circle cx="20" cy="18" r="9" fill={skin} />
       <path

@@ -3,7 +3,7 @@ import type { CrowdVerdict } from "@/lib/discovery/types";
 import { normalizeWeights, type WeightMap } from "@/lib/verdict";
 
 // ============================================================================
-// PROBLEM VALIDATION SCORE — pure functions only.
+// PROBLEM VALIDATION SCORE, pure functions only.
 //
 // Same discipline as src/lib/verdict.ts: no async, no fetch, no model calls.
 // Moving a weight slider re-runs all of this synchronously on cached data. If
@@ -32,7 +32,7 @@ const EVIDENCE_CAP = 90;
 /**
  * How badly the market feels the winning problem.
  *
- * Severity alone is not enough — a problem many people rate as painful but
+ * Severity alone is not enough. A problem many people rate as painful but
  * nobody will pay to fix is a complaint, not a market. Willingness to pay is
  * folded in directly rather than reported beside it.
  */
@@ -179,7 +179,7 @@ export function pvsReason(pvs: PVSBreakdown): string {
 
 /**
  * Which hub this problem lands best in, from crowd data alone. Cheap enough to
- * run for every hub without convening a council in each — the council is
+ * run for every hub without convening a council in each. The council is
  * reserved for the one the founder picks.
  */
 export function rankHubs(

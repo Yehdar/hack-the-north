@@ -1,7 +1,7 @@
 import type { AgentId, AgentVerdict, ICVerdict, Objection } from "@/lib/types";
 
 // ============================================================================
-// WEIGHTED VERDICT — pure functions only. Track B owns this file.
+// WEIGHTED VERDICT, pure functions only. Track B owns this file.
 //
 // No async, no fetch, no model calls. Moving a weight slider re-runs all of
 // this synchronously on cached votes. If anything here ever needs to await,
@@ -58,7 +58,7 @@ export function computeScore(
 
 /**
  * Agents whose position diverged sharply from where the room landed.
- * Always surfaced, never averaged away — a lone hard no from the Skeptic is
+ * Always surfaced, never averaged away. A lone hard no from the Skeptic is
  * the single most useful thing this app produces.
  */
 export function detectDissents(votes: AgentVerdict[], score: number): AgentId[] {
@@ -117,7 +117,7 @@ export function buildVerdict(
 }
 
 /** Spread of opinion in the room. Near zero means the agents collapsed into
- *  one voice — which is a bug in the priors, not a real consensus. */
+ *  one voice. Which is a bug in the priors, not a real consensus. */
 export function stanceVariance(votes: AgentVerdict[]): number {
   if (votes.length < 2) return 0;
   const mean = votes.reduce((a, v) => a + v.stance, 0) / votes.length;

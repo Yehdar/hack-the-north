@@ -9,7 +9,7 @@ import type { AgentVerdict } from "@/lib/types";
 // THE COUNCIL, AS THE MAIN THING ON SCREEN.
 //
 // While five agents argue about a city, the argument is what the founder came
-// for — not the globe. This lays the meeting out the way you would follow a
+// for, not the globe. This lays the meeting out the way you would follow a
 // real one: what the chair asked each of them, who is talking to whom right
 // now in words big enough to read from across a room, and every challenge
 // with the answer it got.
@@ -143,7 +143,7 @@ export function CouncilStage({
             {tasks.map((t) => (
               <li key={t.id} className="text-[12px] leading-relaxed">
                 <span className="text-ink">{roleOf(t.assignedTo)}</span>
-                <span className="text-muted"> — {t.question}</span>
+                <span className="text-muted">, {t.question}</span>
               </li>
             ))}
           </ul>
@@ -194,7 +194,7 @@ export function CouncilStage({
             {findings.map((f) => (
               <li key={f.id} className="text-[12px] leading-relaxed">
                 <span className="text-ink">{roleOf(f.from)}</span>
-                <span className="text-ink/80"> — {f.text}</span>
+                <span className="text-ink/80">, {f.text}</span>
               </li>
             ))}
           </ul>

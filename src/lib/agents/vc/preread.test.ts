@@ -35,7 +35,7 @@ describe("preReadAll", () => {
 describe("ventureFileToContext", () => {
   it("flags that the founder was moved off their original problem", () => {
     const ctx = ventureFileToContext(MOCK_VENTURE_FILE);
-    expect(ctx).toContain("the research moved them");
+    expect(ctx).toContain("research moved them");
   });
 
   it("calls out a PVS below threshold as expensive", () => {

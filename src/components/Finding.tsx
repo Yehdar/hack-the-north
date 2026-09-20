@@ -7,7 +7,7 @@ import type { PVSBreakdown, ProblemStatement } from "@/lib/types";
 // PART ONE CLOSES HERE.
 //
 // Everything the market established, on one printed card, before the founder
-// walks into a different room. This is the file the committee reads — showing
+// walks into a different room. This is the file the committee reads. Showing
 // it at the threshold is what makes Part 2 feel like a consequence of Part 1
 // rather than a second app behind a link.
 // ============================================================================
@@ -58,7 +58,7 @@ export function Finding({
         {original && (
           <div className="mt-5">
             <p className="label">
-              You walked in with{walkedInWith && " — then rewrote your pitch around theirs"}
+              You walked in with{walkedInWith && ". Then rewrote your pitch around theirs"}
             </p>
             <p className="insert-muted mt-1 text-[13px] leading-relaxed line-through decoration-negative/70">
               {original}
@@ -108,7 +108,7 @@ export function Finding({
                   className="num text-xs"
                   style={{ color: pvs.passed ? "#1d7a46" : "#b4232a" }}
                 >
-                  {pvs.passed ? `clears ${pvs.threshold}` : `below ${pvs.threshold} — they will be told`}
+                  {pvs.passed ? `clears ${pvs.threshold}` : `below ${pvs.threshold}. They will be told`}
                 </span>
               </p>
             ) : (

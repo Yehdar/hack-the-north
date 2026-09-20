@@ -17,6 +17,7 @@ import { AgentFeed, type FeedItem } from "@/components/hud/AgentFeed";
 import { Intake } from "@/components/Intake";
 import { SystemPanel } from "@/components/hud/SystemPanel";
 import { Light, LightRow } from "@/components/Light";
+import { Meter } from "@/components/Progress";
 import { PersonaCall } from "@/components/PersonaCall";
 import { StageRail, deriveStages, type Segment } from "@/components/StageRail";
 import { Reveal } from "@/components/Reveal";
@@ -38,7 +39,7 @@ import { pvsReason } from "@/lib/pvs";
 import { CouncilStage, type StageMessage, type StageTask } from "@/components/CouncilStage";
 
 // ============================================================================
-// PART 1 — DISCOVERY, in segments.
+// PART 1, DISCOVERY, in segments.
 //
 //   split -> deploy -> listen -> the result -> council -> the score
 //
@@ -134,7 +135,7 @@ const PACE = {
  *  model calls can take a while; this only offers, it never decides. */
 const STALL_MS = 25_000;
 const STALL_LINE =
-  "Nothing new has come back for a while. The model may just be slow — or stuck. Keep waiting, or carry on with what has arrived.";
+  "Nothing new has come back for a while. The model may just be slow, or stuck. Keep waiting, or carry on with what has arrived.";
 
 /** Roughly how long a line takes to read, clamped so the room never stalls. */
 function readingTime(text: string): number {
@@ -153,7 +154,7 @@ const COUNCIL_ROUND: Record<number, { title: string; line: string }> = {
   },
   3: {
     title: "Round 3 · rebuttal",
-    line: "The agents who were challenged answer — and some change their minds. A green line means someone conceded.",
+    line: "The agents who were challenged answer. And some change their minds. A green line means someone conceded.",
   },
   4: {
     title: "Round 4 · the Contrarian",
@@ -168,7 +169,6 @@ const hubName = (id: string) => hubById(id)?.label ?? id;
 
 // Where the idea is sent out from when the crowd deploys. Hack the North.
 const HOME = hubById("waterloo") ?? { lat: 43.46, lon: -80.52 };
-const TOTAL_STEPS = 8;
 
 export default function Discover() {
   const router = useRouter();
@@ -222,14 +222,55 @@ export default function Discover() {
   const [councilRound, setCouncilRound] = useState(0);
   const [pvs, setPvs] = useState<PVSBreakdown | null>(null);
 
+  // ---- come back to a finished run and find it still here -----------------
+  //
+  // Going to the committee and pressing back used to show "Nobody asked yet"
+  // over an empty globe, while the dashboard listed the same run as complete.
+  // The run was in the store the whole time; this screen's copy of it was not.
+  //
+  // Restores once, only when this screen has nothing and the store has a
+  // finished run. So it can never stamp on a run in progress.
+  const restored = useRef(false);
+  useEffect(() => {
+    if (restored.current) return;
+
+    const { ventureFile: vf, crowd, deployed } = useVenture.getState();
+    if (!vf || !crowd?.verdict || !deployed?.length) return;
+    if (personas.length > 0 || segment !== "idle") return;
+
+    restored.current = true;
+    const people = deployed as unknown as DeployedPersona[];
+
+    // Deferred out of the effect body on purpose. Restoring seven pieces of
+    // state synchronously inside an effect cascades a second render before the
+    // first has painted, and touching the playback refs from here makes the
+    // compiler treat them as frozen everywhere else in the file.
+    queueMicrotask(() => {
+      setPersonas(people);
+      setProblems(vf.extractedProblems ?? []);
+      setReactions(new Map(crowd.verdict.reactions.map((r) => [r.personaId, r])));
+      setVerdict(crowd.verdict);
+      setSignals(crowd.signals);
+      setHubRanking(rankFromCrowd(crowd.verdict, people));
+      if (vf.pvs) setPvs(vf.pvs);
+
+      // Land on the last beat the run reached rather than replaying it, and do
+      // not narrate what the founder already heard.
+      setSegment(vf.pvs ? "deliberated" : "heard");
+    });
+    // Deliberately does not touch the playback refs. Landing on a finished
+    // beat leaves auto-advance nothing to do, and letting the narrator read
+    // that beat once is right. It says where you are.
+  }, [segment, personas.length]);
+
   // ---- hearing the council. Off by default, like the committee's: a page
   // that starts talking on its own is hostile.
   const [hear, setHear] = useState(false);
   const hearRef = useRef(false);
   const [tier, setTier] = useState<VoiceTier | null>(null);
   const [voiced, setVoiced] = useState<string | null>(null);
-  /** One queue for every voice on this screen — the council and the narrator
-   *  — so two of them never talk at once. */
+  /** One queue for every voice on this screen. The council and the narrator
+   * , so two of them never talk at once. */
   const speech = useRef<SpeechQueue | null>(null);
   const narratorOn = useNarratorVoice((s) => s.on);
   const toggleNarrator = useNarratorVoice((s) => s.toggle);
@@ -291,7 +332,7 @@ export default function Discover() {
   const ensureSpeech = useCallback(() => {
     speech.current ??= new SpeechQueue(
       // Playback only needs synthesis, which browsers without speech
-      // recognition still have — the "text" tier is about the microphone.
+      // recognition still have, the "text" tier is about the microphone.
       (text, voice) => speak(text, voice, tier === "elevenlabs" ? "elevenlabs" : "browser"),
       (agentId, id) => setVoiced(agentId === "narrator" ? null : id)
     );
@@ -498,6 +539,9 @@ export default function Discover() {
           moved();
           personasRef.current = crowd;
           setPersonas(crowd);
+          // Survives navigating away. The crowd verdict has reactions but no
+          // coordinates, so without this the globe comes back empty.
+          useVenture.getState().setDeployed(crowd);
           setProgress({ done: 0, total: crowd.length });
           nextAt.current = now + (quick || auto.current ? 500 : PACE.deploy);
         } else if (auto.current) {
@@ -766,7 +810,7 @@ export default function Discover() {
   }, [acceptMarketProblem, walkThroughDoor]);
 
   /**
-   * Straight to Part 2 with whatever Part 1 has established — for a stream that
+   * Straight to Part 2 with whatever Part 1 has established. For a stream that
    * never came back, or a market that has none of the candidate problems. The
    * committee already treats a missing validation as a finding rather than
    * refusing to sit, so nothing is invented to get there.
@@ -947,7 +991,7 @@ export default function Discover() {
       return {
         step: 1,
         title: "The product",
-        line: "Describe what you built. The market will tell you which problem it actually solves.",
+        line: "Tell us what you made. We'll find out what people actually need it for.",
       };
     }
     switch (segment) {
@@ -956,12 +1000,12 @@ export default function Discover() {
           ? {
               step: 2,
               title: "Problem split",
-              line: `Your idea could be solving any of these ${expecting} problems. The first is how you framed it — keep an eye on it. Next, we choose who to ask.`,
+              line: `Here are ${expecting} problems this could be fixing. The top one is yours. See if the crowd agrees.`,
             }
           : {
               step: 2,
               title: "Problem split",
-              line: "First, we split your idea into the distinct problems it could be solving.",
+              line: "Working out what this could actually be fixing…",
             };
       case "deploy":
         return deployReady
@@ -969,25 +1013,25 @@ export default function Discover() {
               step: 3,
               title: "Deploy",
               line: consumer
-                ? `${personas.length} people in ${cities} cities, asked as themselves rather than as their job. Click anyone to talk to them and see why they were picked.`
-                : `${personas.length} people in ${cities} cities who work in this space — many of them can sign for it. Click anyone to talk to them and see why they were picked.`,
+                ? `${personas.length} real-ish people in ${cities} cities. Tap anyone to hear them out.`
+                : `${personas.length} people in ${cities} cities who work in this space. Plenty can actually sign. Tap anyone to hear them out.`,
             }
           : {
               step: 3,
               title: "Deploy",
-              line: "Now we choose who should hear it, and send it out from here.",
+              line: "Picking who should see this…",
             };
       case "listen":
         return {
           step: 4,
           title: "Listen",
-          line: `Each person picks which problem they actually have — not whether they like the idea. ${progress.done} of ${progress.total || personas.length} have answered.`,
+          line: `We're asking which problem they have. Not whether they like it. ${progress.done} of ${progress.total || personas.length} back so far.`,
         };
       case "heard":
         return {
           step: 4,
           title: "Listen",
-          line: "Everyone has answered. Ready to see which problem the market actually has?",
+          line: "That's everyone. Want to see what they actually said?",
         };
       case "council":
         return councilRound && COUNCIL_ROUND[councilRound]
@@ -999,13 +1043,13 @@ export default function Discover() {
           : {
               step: 6,
               title: `Hub council · ${hubName(councilHub ?? "")}`,
-              line: "Five agents are about to argue about whether this problem is worth solving here. First, the chair hands each of them one question.",
+              line: "Five people are about to argue about whether this is worth doing here.",
             };
       case "deliberated":
         return {
           step: 6,
           title: "The council has spoken",
-          line: "That is the argument. Next, what it adds up to: one validation score.",
+          line: "That's the argument. Here's what it adds up to.",
         };
       case "scored":
         return pvs
@@ -1013,20 +1057,20 @@ export default function Discover() {
               step: 7,
               title: "Validation",
               line: pvs.passed
-                ? `${pvs.total} out of 100 — it clears the bar. An investment committee is waiting to test it.`
-                : `${pvs.total} out of 100, below the bar of ${pvs.threshold}, mostly because ${pvsReason(pvs)}. You can still pitch it — the committee will be told.`,
+                ? `${pvs.total} out of 100. That clears the bar. Investors are ready when you are.`
+                : `${pvs.total} out of 100, under the ${pvs.threshold} bar, mostly because ${pvsReason(pvs)}. Pitch it anyway if you like; they will know.`,
             }
           : {
               step: 7,
               title: "Validation",
-              line: "The council ended early, so there is no validation score this time. You can still take it to the committee — it will be told the problem is unscored.",
+              line: "The council stopped early, so there's no score this time. You can still pitch it.",
             };
       case "result":
         if (!verdict?.marketProblemId) {
           return {
             step: 5,
             title: "The result",
-            line: "Nobody in this crowd has any of these problems. That is a finding — try describing it differently.",
+            line: "Nobody here has any of these problems. That's worth knowing. Try saying it another way.",
           };
         }
         return verdict.mismatch
@@ -1035,7 +1079,7 @@ export default function Discover() {
               title: "The reveal",
               // In words. "You pitched p1. The market has p2" read out schema
               // ids to an audience that has never seen the schema.
-              line: `The market has a different problem from the one you pitched — and ${Math.round((marketVote?.payRate ?? 0) * 100)}% of the people who have it would pay to fix it. Next: is it worth solving, and where?`,
+              line: `The market has a different problem from the one you pitched, and ${Math.round((marketVote?.payRate ?? 0) * 100)}% of the people who have it would pay to fix it. Next: is it worth solving, and where?`,
             }
           : {
               step: 5,
@@ -1268,7 +1312,6 @@ export default function Discover() {
             >
               <Narrator
                 step={guide.step}
-                total={TOTAL_STEPS}
                 title={guide.title}
                 line={narratorLine}
                 voice={{
@@ -1422,7 +1465,7 @@ export default function Discover() {
           </AnimatePresence>
 
           {/* ---------------------------------------------------- controls */}
-          {/* One button, always the next step — its label says what happens. */}
+          {/* One button, always the next step. Its label says what happens. */}
           <div className="absolute bottom-6 z-40 -translate-x-1/2" style={{ left: centreClear.left }}>
             <div className="panel flex items-center gap-1 whitespace-nowrap p-1.5">
               {next && (
@@ -1535,7 +1578,7 @@ export default function Discover() {
                     How real and how big the problem is, out of 100: how badly the crowd feels
                     it and would pay, how much room is left, how the council rated this city,
                     and how much of that is cited rather than asserted. Below 60 you can still
-                    pitch — the committee is told.
+                    pitch. The committee is told.
                   </Hint>
                 </p>
                 <span className="num text-2xl text-ink">{pvs.total}</span>
@@ -1549,7 +1592,7 @@ export default function Discover() {
               <p className="mt-3 text-[10px] leading-relaxed text-muted">
                 {pvs.passed
                   ? `Clears the bar of ${pvs.threshold}. The weak spot the committee will find: ${pvsReason(pvs)}.`
-                  : `Below the bar of ${pvs.threshold}, mostly because ${pvsReason(pvs)}. You can pitch anyway — the committee will be told you did.`}
+                  : `Below the bar of ${pvs.threshold}, mostly because ${pvsReason(pvs)}. You can pitch anyway. The committee will be told you did.`}
               </p>
             </div>
           )}
@@ -1593,21 +1636,13 @@ export default function Discover() {
                       councilHub === h.hubId ? "glow-accent" : "panel hover:panel-bright"
                     }`}
                   >
-                    <div className="flex items-baseline justify-between">
-                      <span className="text-[11px] uppercase tracking-wider text-ink/90">
-                        {hubName(h.hubId)}
-                      </span>
-                      <span className="num text-[10px] text-muted">{h.fitScore}</span>
-                    </div>
-                    <div className="mt-1 h-1 bg-edge">
-                      <div
-                        className="h-full transition-all duration-500"
-                        style={{
-                          width: `${h.fitScore}%`,
-                          background: councilHub === h.hubId ? "var(--accent)" : "var(--border-bright)",
-                        }}
-                      />
-                    </div>
+                    <Meter
+                      label={hubName(h.hubId)}
+                      value={h.fitScore}
+                      color={
+                        councilHub === h.hubId ? "var(--accent)" : "var(--border-bright)"
+                      }
+                    />
                     {/* Spelled out. "2/4 have it · 1 would pay" reads as a
                         score line rather than a sentence about people. */}
                     <p className="mt-1 text-[9px] leading-relaxed text-faint">
@@ -1631,7 +1666,7 @@ export default function Discover() {
               The crowd
               <Hint>
                 Attention is whether they cared at all; sentiment is how warmly. A spread near
-                zero would mean the crowd collapsed into one voice — which is a bug, not a
+                zero would mean the crowd collapsed into one voice. Which is a bug, not a
                 consensus.
               </Hint>
             </p>
@@ -1893,7 +1928,7 @@ export default function Discover() {
 }
 
 /**
- * Hub ranking computed on the client from the reactions we already have — no
+ * Hub ranking computed on the client from the reactions we already have. No
  * round trip, so the founder can pick a city the instant the crowd lands.
  * Same shape the council route returns, so the two agree.
  */
@@ -1943,19 +1978,12 @@ function AttentionBar({
   total: number;
   tone: "accent" | "muted" | "cold";
 }) {
-  const pct = total ? (n / total) * 100 : 0;
   const color =
     tone === "accent" ? "var(--accent)" : tone === "cold" ? "var(--cold)" : "var(--muted)";
 
   return (
     <div>
-      <div className="flex justify-between num text-[10px] text-muted">
-        <span>{label}</span>
-        <span>{n}</span>
-      </div>
-      <div className="mt-1 h-1.5 bg-edge">
-        <div className="h-full transition-all duration-500" style={{ width: `${pct}%`, background: color }} />
-      </div>
+      <Meter label={label} value={n} max={total} color={color} />
     </div>
   );
 }

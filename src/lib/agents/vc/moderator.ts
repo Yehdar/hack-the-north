@@ -4,13 +4,13 @@ import { ventureFileToContext } from "./context";
 import { SEATS } from "./seats";
 
 // ============================================================================
-// THE MODERATOR — Track B owns this file.
+// THE MODERATOR, Track B owns this file.
 //
 // Runs on EVERY founder speech turn, so it is deliberately cheap and fast
 // (gpt-5.6-luna). It answers only three questions:
 //
 //   1. Should a seat interrupt right now?
-//   2. If so, which one — whose lane does this fall in?
+//   2. If so, which one. Whose lane does this fall in?
 //   3. Did anything the founder just said resolve an open objection?
 //
 // It never writes the line the seat speaks. Splitting "should we interrupt"
@@ -136,7 +136,7 @@ function normalize(
   };
 }
 
-/** Applies the moderator's resolutions. Pure — the caller owns persistence. */
+/** Applies the moderator's resolutions. Pure. The caller owns persistence. */
 export function applyResolutions(
   objections: Objection[],
   decision: ModeratorDecision,

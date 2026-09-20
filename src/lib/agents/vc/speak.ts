@@ -6,7 +6,7 @@ import { SEATS, buildSeatSystemPrompt } from "./seats";
 import type { SeatPreRead } from "./preread";
 
 // ============================================================================
-// SEAT RESPONSE — what a partner actually says out loud. Track B owns this.
+// SEAT RESPONSE. What a partner actually says out loud. Track B owns this.
 //
 // The Moderator already decided that this seat should speak and why. This call
 // only composes the line. It is constrained hard on length because the output
@@ -20,7 +20,7 @@ export type SeatResponse = {
   line: string;
   /** Whether this puts a new challenge on the table. */
   isObjection: boolean;
-  /** Canonical phrasing for the tracker — terser than the spoken line. */
+  /** Canonical phrasing for the tracker. Terser than the spoken line. */
   objectionText: string;
 };
 

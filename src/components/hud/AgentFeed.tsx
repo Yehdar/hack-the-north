@@ -35,7 +35,7 @@ export function AgentFeed({
   top?: string;
 }) {
   // Cards expire on their own. Without this they pile up on top of each other
-  // and the stack becomes an unreadable smear — which is exactly what it did
+  // and the stack becomes an unreadable smear. Which is exactly what it did
   // the first time this ran.
   const newest = items[0]?.id;
   useEffect(() => {
