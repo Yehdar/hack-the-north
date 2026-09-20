@@ -21,7 +21,7 @@ import { CommitteeLean, TableLog, type LogLine } from "@/components/TableLog";
 import { leanOf, weightsOf } from "@/lib/lean";
 import { FIRMS } from "@/data/firms";
 import { useVenture, type DeliberationSnapshot } from "@/lib/store";
-import { SpeechQueue } from "@/lib/voice/agentVoices";
+import { SpeechQueue, voiceFor } from "@/lib/voice/agentVoices";
 import { detectTier, speak, unlockAudio, type VoiceTier } from "@/lib/voice/client";
 import { mayStartSpeaking, narrationKey, useNarratorVoice } from "@/lib/voice/narrator";
 import { recordVerdict } from "@/lib/sessions";
@@ -111,6 +111,7 @@ export default function Committee() {
   >([]);
   const [chat, setChat] = useState<Record<string, ChatTurn[]>>({});
   const [chatBusy, setChatBusy] = useState(false);
+  const [chatSpeaking, setChatSpeaking] = useState<string | null>(null);
 
 
 
@@ -182,63 +183,6 @@ export default function Committee() {
     [roster]
   );
 
-  /**
-   * Ask one partner something, in private. Their answer can move their stance,
-   * which moves the room, which is the point of being able to talk to them at
-   * all. A conversation that cannot change anything is set dressing.
-   */
-  const askPartner = useCallback(
-    async (seatId: string, question: string) => {
-      const vf = useVenture.getState().ventureFile;
-      if (!vf) return;
-
-      setChat((c) => ({ ...c, [seatId]: [...(c[seatId] ?? []), { speaker: "founder", text: question }] }));
-      setChatBusy(true);
-
-      try {
-        const res = await fetch("/api/vc/ask", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            seatId,
-            question,
-            firmId,
-            ventureFile: vf,
-            history: chat[seatId] ?? [],
-            stance: stances[seatId]?.stance,
-          }),
-        });
-        const json = await res.json();
-        if (!res.ok) throw new Error(json.error ?? "ask failed");
-
-        setChat((c) => ({
-          ...c,
-          [seatId]: [...(c[seatId] ?? []), { speaker: "agent", text: json.line }],
-        }));
-
-        if (typeof json.stance === "number") {
-          setStances((prev) => ({
-            ...prev,
-            [seatId]: { ...(prev[seatId] ?? { agentId: seatId, confidence: 0.6 }), ...json, stance: json.stance },
-          }));
-        }
-        if (json.summary) {
-          setChatSummaries((prev) => [
-            ...prev.filter((p) => p.id !== seatId),
-            { id: seatId, role: roleOf(seatId), text: json.summary },
-          ]);
-        }
-      } catch {
-        setChat((c) => ({
-          ...c,
-          [seatId]: [...(c[seatId] ?? []), { speaker: "agent", text: "Sorry, I lost my train of thought there." }],
-        }));
-      } finally {
-        setChatBusy(false);
-      }
-    },
-    [chat, firmId, stances, roleOf]
-  );
   const sidebar = useRef<HTMLDivElement>(null);
 
   const firm = FIRMS[firmId] ?? FIRMS.bessemer;
@@ -288,6 +232,92 @@ export default function Committee() {
     queue.current ??= newQueue();
     return queue.current;
   }, [newQueue]);
+
+  /**
+   * Ask one partner something, in private. Their answer can move their stance,
+   * which moves the room, which is the point of being able to talk to them at
+   * all. A conversation that cannot change anything is set dressing.
+   *
+   * Defined after the queue on purpose: the reply is spoken through the same
+   * queue the meeting uses, so a partner answering you can never start on top
+   * of the room.
+   */
+  const askPartner = useCallback(
+    async (seatId: string, question: string) => {
+      const vf = useVenture.getState().ventureFile;
+      if (!vf) return;
+
+      setChat((c) => ({ ...c, [seatId]: [...(c[seatId] ?? []), { speaker: "founder", text: question }] }));
+      setChatBusy(true);
+
+      try {
+        const res = await fetch("/api/vc/ask", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            seatId,
+            question,
+            firmId,
+            ventureFile: vf,
+            history: chat[seatId] ?? [],
+            stance: stances[seatId]?.stance,
+          }),
+        });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error ?? "ask failed");
+
+        setChat((c) => ({
+          ...c,
+          [seatId]: [...(c[seatId] ?? []), { speaker: "agent", text: json.line }],
+        }));
+
+        // Only the fields that belong. Spreading the whole reply in here put
+        // its line, summary and role inside the stance object.
+        if (typeof json.stance === "number") {
+          setStances((prev) => ({
+            ...prev,
+            [seatId]: {
+              ...(prev[seatId] ?? {
+                agentId: seatId,
+                confidence: 0.6,
+                position: json.line,
+              }),
+              stance: json.stance,
+            },
+          }));
+        }
+        if (json.summary) {
+          setChatSummaries((prev) => [
+            ...prev.filter((p) => p.id !== seatId),
+            { id: seatId, role: roleOf(seatId), text: json.summary },
+          ]);
+        }
+
+        // Out loud, in their voice. Part one's calls already answer this way;
+        // here the reply arrived as text and nothing ever said it.
+        setChatBusy(false);
+        if (json.line) {
+          setChatSpeaking(seatId);
+          await ensureQueue().say(
+            `ask-${seatId}-${Date.now()}`,
+            seatId,
+            json.line,
+            voiceFor(seatId)
+          );
+          setChatSpeaking(null);
+        }
+      } catch {
+        setChat((c) => ({
+          ...c,
+          [seatId]: [...(c[seatId] ?? []), { speaker: "agent", text: "Sorry, I lost my train of thought there." }],
+        }));
+      } finally {
+        setChatBusy(false);
+        setChatSpeaking(null);
+      }
+    },
+    [chat, firmId, stances, roleOf, ensureQueue]
+  );
 
   const run = useCallback(() => {
     const vf = useVenture.getState().ventureFile;
@@ -528,7 +558,13 @@ export default function Committee() {
             thinking={active}
             conceded={conceded}
             selected={selected}
-            onSelect={setSelected}
+            onSelect={(id) => {
+              // A click is the gesture a browser needs before it will play
+              // anything, and this is the only one on the way into a chat.
+              unlockAudio();
+              if (!id && selected) queue.current?.drop(selected);
+              setSelected(id);
+            }}
           />
 
           <div className="absolute left-1/2 top-6 z-40 -translate-x-1/2">
@@ -606,73 +642,10 @@ export default function Committee() {
 
           <AgentFeed items={feed} onDismiss={dismiss} top="top-20" />
 
-          <AnimatePresence>
-            {selected && (
-              <motion.div
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 12 }}
-                className="panel panel-bright absolute bottom-28 left-6 z-40 w-96 p-4"
-              >
-                {(() => {
-                  const entry = roster.find((r) => r.id === selected);
-                  const v = stances[selected];
-                  const said = messages.filter((m) => m.from === selected);
-                  const against = messages.filter((m) => m.to === selected);
-                  const moved = mindChanges.find((c) => c.agentId === selected);
-
-                  return (
-                    <>
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <p className="font-mono text-sm text-ink">{entry?.role ?? selected}</p>
-                          <p className="label mt-0.5">
-                            weight {((entry?.weight ?? 0) * 100).toFixed(0)}% ·{" "}
-                            {v ? `stance ${v.stance.toFixed(2)} · conf ${v.confidence.toFixed(2)}` : "no position yet"}
-                          </p>
-                        </div>
-                        <button
-                          onClick={() => setSelected(null)}
-                          className="px-2 font-mono text-xs text-faint hover:text-ink"
-                        >
-                          ✕
-                        </button>
-                      </div>
-
-                      {v && <p className="mt-3 text-xs leading-relaxed text-ink/85">{v.position}</p>}
-
-                      {moved && (
-                        <p className="num mt-3 border border-positive/40 p-2 text-[11px] text-positive">
-                          moved {moved.from.toFixed(2)} → {moved.to.toFixed(2)}
-                          {moved.conceded && " after conceding"}
-                        </p>
-                      )}
-
-                      {against.length > 0 && (
-                        <div className="mt-3">
-                          <p className="label" style={{ color: "var(--accent)" }}>
-                            Challenged by
-                          </p>
-                          {against.map((m) => (
-                            <p key={m.id} className="mt-1 text-[11px] leading-relaxed text-muted">
-                              <span className="font-mono text-faint">{m.from}: </span>
-                              {m.text}
-                            </p>
-                          ))}
-                        </div>
-                      )}
-
-                      {said.length > 0 && (
-                        <p className="label mt-3">
-                          {said.length} contribution{said.length === 1 ? "" : "s"} this session
-                        </p>
-                      )}
-                    </>
-                  );
-                })()}
-              </motion.div>
-            )}
-          </AnimatePresence>
+          {/* The card that used to open here as well, showing the same
+              partner's weight and raw stance, has gone. One click opened two
+              panels, and the numbers on it contradicted the lean the room
+              shows on purpose. Everything it said is in the conversation. */}
 
           {/* The bottom of the room, stacked rather than layered. What is being
               said sits directly above where the round is named, above the
@@ -808,15 +781,25 @@ export default function Committee() {
               opening={stances[selected]?.position}
               turns={chat[selected] ?? []}
               thinking={chatBusy}
+              speakingNow={chatSpeaking === selected}
               onAsk={(q) => void askPartner(selected, q)}
-              onClose={() => setSelected(null)}
+              onClose={() => {
+                // Cut them off rather than letting a reply carry on talking
+                // into an empty room after you have walked away.
+                queue.current?.drop(selected);
+                setChatSpeaking(null);
+                setSelected(null);
+              }}
             />
           )}
         </AnimatePresence>
 
         <aside
+          // A conversation takes 400px of its own, so the log gives some back.
+          // With both at full width the room was squeezed into a portrait
+          // slot and the partners at each end fell out of frame.
           className={`flex shrink-0 flex-col border-l border-edge bg-surface/40 transition-[width] duration-500 ease-out ${
-            convened ? "w-[min(560px,40vw)]" : "w-96"
+            convened && !selected ? "w-[min(560px,40vw)]" : "w-96"
           }`}
         >
           {/* Where the room stands, and everything it has said. The graph

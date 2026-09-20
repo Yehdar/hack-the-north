@@ -40,7 +40,16 @@ type Props = {
 };
 
 const SKINS = [0xd9a689, 0xc08457, 0x8d5524, 0xf0c8a0, 0xa9714b];
-const HAIR = [0x2b2118, 0x4a3728, 0x1a1a1a, 0x6b4a2f, 0x3a2a1e];
+// Keyed by seat, like the rest of a partner's appearance. Dark hair on a dark
+// suit has no silhouette at this size, so the long styles are the lighter ones.
+const HAIR: Record<string, number> = {
+  chair: 0x8a5a33,
+  gp: 0x2b2118,
+  principal: 0x6e4526,
+  skeptic: 0x1a1a1a,
+  "devils-advocate": 0x4a3728,
+};
+const FALLBACK_HAIR = 0x3a2a1e;
 
 // Five people, not one person copied five times. A room of identical figures
 // reads as placeholder art however well it is lit.
@@ -52,19 +61,29 @@ type Look = {
   /** Hair with body at the sides rather than a flat cap. */
   volume?: boolean;
   bun?: boolean;
+  /** Hair past the jaw, a narrower frame, and a ribbon in place of a tie. */
+  woman?: boolean;
   /** A scarf, in this colour. */
   scarf?: number;
   cup?: boolean;
   pad?: boolean;
 };
 
-const LOOKS: Look[] = [
-  { glasses: true, pad: true },
-  { volume: true, cup: true },
-  { bun: true, scarf: 0xa8442f, pad: true },
-  { glasses: true, volume: true },
-  { volume: true, bun: true, cup: true, pad: true },
-];
+/**
+ * Keyed by seat id, not by the order they happen to be listed in.
+ *
+ * Index keying meant a partner changed face whenever the roster was filtered
+ * differently, which is unsettling in a room you are supposed to recognise.
+ */
+const LOOKS: Record<string, Look> = {
+  chair: { woman: true, volume: true, pad: true },
+  gp: { glasses: true, pad: true },
+  principal: { woman: true, bun: true, cup: true },
+  skeptic: { volume: true, scarf: 0xa8442f, pad: true },
+  "devils-advocate": { glasses: true, volume: true, cup: true },
+};
+
+const FALLBACK_LOOK: Look = { volume: true };
 
 const TABLE_RX = 2.5;
 const TABLE_RZ = 1.55;
@@ -277,9 +296,9 @@ export function Boardroom({
       group.rotation.y = -a - Math.PI / 2;
 
       const skin = SKINS[i % SKINS.length];
-      const hair = HAIR[i % HAIR.length];
+      const hair = HAIR[s.id] ?? FALLBACK_HAIR;
       const suit = SUITS[i % SUITS.length];
-      const look = LOOKS[i % LOOKS.length];
+      const look = LOOKS[s.id] ?? FALLBACK_LOOK;
 
       const suitMat = new THREE.MeshStandardMaterial({ color: suit, roughness: 0.78 });
       const suitLit = new THREE.MeshStandardMaterial({
@@ -305,13 +324,16 @@ export function Boardroom({
 
       // jacket
       const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.33, 0.44, 6, 16), suitMat);
-      torso.scale.set(1.16, 1, 0.78);
+      torso.scale.set(look.woman ? 1.05 : 1.16, 1, look.woman ? 0.74 : 0.78);
       torso.position.y = 1.2;
       torso.castShadow = true;
       group.add(torso);
 
       // shoulders, so the silhouette reads as a jacket rather than a pill
-      const shoulders = new THREE.Mesh(new THREE.CapsuleGeometry(0.17, 0.62, 4, 12), suitLit);
+      const shoulders = new THREE.Mesh(
+        new THREE.CapsuleGeometry(look.woman ? 0.15 : 0.17, look.woman ? 0.5 : 0.62, 4, 12),
+        suitLit
+      );
       shoulders.rotation.z = Math.PI / 2;
       shoulders.position.y = 1.42;
       shoulders.castShadow = true;
@@ -339,23 +361,31 @@ export function Boardroom({
         group.add(collar);
       }
 
-      // tie, which carries where they stand
-      const tie = new THREE.Mesh(
-        new THREE.BoxGeometry(0.075, 0.28, 0.03),
-        new THREE.MeshStandardMaterial({ color: tieColor(s.stance), roughness: 0.38 })
-      );
-      tie.position.set(0, 1.31, 0.3);
+      // What they are wearing at the collar carries where they stand. A tie on
+      // some, a ribbon on others: one mesh either way, so the frame loop that
+      // lerps its colour does not care which.
+      const stanceMat = new THREE.MeshStandardMaterial({
+        color: tieColor(s.stance),
+        roughness: 0.38,
+      });
+
+      const tie = look.woman
+        ? new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.055, 0.05), stanceMat)
+        : new THREE.Mesh(new THREE.BoxGeometry(0.075, 0.28, 0.03), stanceMat);
+      tie.position.set(0, look.woman ? 1.47 : 1.31, look.woman ? 0.24 : 0.3);
       group.add(tie);
 
-      const knot = new THREE.Mesh(
-        new THREE.BoxGeometry(0.085, 0.07, 0.045),
-        tie.material as THREE.Material
-      );
-      knot.position.set(0, 1.46, 0.26);
-      group.add(knot);
+      if (!look.woman) {
+        const knot = new THREE.Mesh(new THREE.BoxGeometry(0.085, 0.07, 0.045), stanceMat);
+        knot.position.set(0, 1.46, 0.26);
+        group.add(knot);
+      }
 
       // neck
-      const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.085, 0.1, 0.18, 12), skinMat);
+      const neck = new THREE.Mesh(
+        new THREE.CylinderGeometry(look.woman ? 0.072 : 0.085, look.woman ? 0.086 : 0.1, 0.18, 12),
+        skinMat
+      );
       neck.position.y = 1.55;
       group.add(neck);
 
@@ -364,9 +394,10 @@ export function Boardroom({
       // Their absence is what made these read as unfinished. A torso with a
       // head on it is a mannequin; a person puts their hands somewhere.
       for (const side of [-1, 1]) {
-        const shoulder = new THREE.Vector3(side * 0.37, 1.4, 0.02);
-        const elbow = new THREE.Vector3(side * 0.43, 1.11, 0.19);
-        const wrist = new THREE.Vector3(side * 0.25, 1.04, 0.5);
+        const w = look.woman ? 0.9 : 1;
+        const shoulder = new THREE.Vector3(side * 0.37 * w, 1.4, 0.02);
+        const elbow = new THREE.Vector3(side * 0.43 * w, 1.11, 0.19);
+        const wrist = new THREE.Vector3(side * 0.25 * w, 1.04, 0.5);
 
         group.add(limb(shoulder, elbow, 0.098, suitMat));
         group.add(limb(elbow, wrist, 0.084, suitMat));
@@ -467,6 +498,25 @@ export function Boardroom({
       back.scale.set(0.99, 0.98, 0.86);
       back.castShadow = true;
       head.add(back);
+
+      // Hair that carries on past the jaw. Read with the narrower frame it is
+      // what makes a figure in the same suit as the others read as a woman,
+      // and it is honest geometry rather than a colour swap.
+      if (look.woman) {
+        for (const side of [-1, 1]) {
+          const fall = new THREE.Mesh(new THREE.CapsuleGeometry(0.105, 0.28, 5, 12), hairMat);
+          fall.position.set(side * 0.2, -0.15, -0.045);
+          fall.scale.set(0.82, 1, 1.2);
+          fall.rotation.z = side * 0.12;
+          fall.castShadow = true;
+          head.add(fall);
+        }
+        const nape = new THREE.Mesh(new THREE.CapsuleGeometry(0.15, 0.2, 5, 12), hairMat);
+        nape.position.set(0, -0.12, -0.15);
+        nape.scale.set(1.12, 1, 0.78);
+        nape.castShadow = true;
+        head.add(nape);
+      }
 
       if (look.volume) {
         for (const side of [-1, 1]) {
@@ -575,6 +625,18 @@ export function Boardroom({
     // ---- loop ------------------------------------------------------------
     let raf = 0;
     const tmp = new THREE.Vector3();
+
+    /**
+     * How far back the camera has to sit for the whole row to fit.
+     *
+     * The room is much narrower when a conversation is open beside it, and at
+     * that aspect a fixed distance cropped the partners at each end.
+     */
+    const fitDistance = () => {
+      const vHalf = (cam.fov / 2) * (Math.PI / 180);
+      const hHalf = Math.atan(Math.tan(vHalf) * cam.aspect);
+      return Math.max(7.5, Math.min(17, 3.3 / Math.tan(hHalf) + 1));
+    };
     const camTarget = new THREE.Vector3(0, 2.6, 8.9);
     const lookTarget = new THREE.Vector3(0, 0.9, 0);
 
@@ -589,13 +651,13 @@ export function Boardroom({
         if (p) {
           camTarget.set(
             p.group.position.x * 0.5,
-            2.9,
-            p.group.position.z * 0.5 + 6.0
+            2.4,
+            p.group.position.z * 0.5 + Math.max(4.2, fitDistance() * 0.62)
           );
           lookTarget.set(p.group.position.x * 0.75, 1.6, p.group.position.z * 0.75);
         }
       } else {
-        camTarget.set(0, 2.6, 8.9);
+        camTarget.set(0, 2.6, fitDistance());
         lookTarget.set(0, 1.5, -1.1);
       }
       cam.position.lerp(camTarget, 0.045);
