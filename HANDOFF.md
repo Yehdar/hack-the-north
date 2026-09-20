@@ -10,8 +10,8 @@ script).
 
 ## Where things stand right now
 
-**Branch `master`.** Last push is `b51ad7f` "Put the committee in a room you can
-see".
+**Branch `master`.** Last push is `36531c3` "Give the committee faces, hands,
+and a side of the table".
 
 The working tree is clean. Everything described below is committed and pushed.
 
@@ -31,7 +31,7 @@ stylised 3D people with **arms and hands, glasses, a scarf, volumetric hair,
 jacket lapels, and grounded contact shadows**. That list is the spec. Mine were
 armless, faceless capsules, which is exactly why they read as unrendered.
 
-### What is already done (the uncommitted work)
+### What is already done
 
 All in `src/components/Boardroom.tsx`:
 
