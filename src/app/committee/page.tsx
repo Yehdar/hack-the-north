@@ -15,7 +15,7 @@ import { Wordmark } from "@/components/Logo";
 import { Narrator } from "@/components/Narrator";
 import { hubById } from "@/data/globePoints";
 import { Boardroom } from "@/components/Boardroom";
-import { Subtitles } from "@/components/RoundTable";
+import { Subtitles, type SubtitleLine } from "@/components/RoundTable";
 import { TableChat, type ChatTurn } from "@/components/TableChat";
 import { CommitteeLean, TableLog, type LogLine } from "@/components/TableLog";
 import { leanOf, weightsOf } from "@/lib/lean";
@@ -65,6 +65,11 @@ const SEATED: RosterEntry[] = [SEATS.gp, SEATS.principal, SEATS.skeptic, DEVILS_
   (a) => ({ id: a.id, role: a.role, weight: a.defaultWeight })
 );
 
+// A seat's title never actually changes mid-session, only whether it is on
+// screen. Used from the caption log, which runs inside a callback with no
+// reactive dependency on the roster, so it needs a lookup that is not one.
+const ROLE_OF_SEAT: Record<string, string> = Object.fromEntries(SEATED.map((s) => [s.id, s.role]));
+
 const ROUND_LABEL: Record<number, string> = {
   1: "Round 1 · each on their own",
   2: "Round 2 · questioning each other",
@@ -98,7 +103,6 @@ export default function Committee() {
   const [booting, setBooting] = useState(() => !doorArmed());
 
   const [running, setRunning] = useState(false);
-  const [provider, setProvider] = useState("");
   const [roster, setRoster] = useState<RosterEntry[]>(SEATED);
   const [messages, setMessages] = useState<Msg[]>([]);
   const [feed, setFeed] = useState<FeedItem[]>([]);
@@ -120,7 +124,12 @@ export default function Committee() {
   /** Who the current speaker is addressing, so the room turns to look. */
   const [addressing, setAddressing] = useState<string | null>(null);
   /** The line under the table. */
-  const [subtitle, setSubtitle] = useState<string | null>(null);
+  // Everything said so far, for the scrolling caption log under the table.
+  // Capped so a long meeting does not hold every line it has ever said.
+  const [subtitleLog, setSubtitleLog] = useState<SubtitleLine[]>([]);
+  const logLine = useCallback((id: string, speaker: string, text: string) => {
+    setSubtitleLog((log) => [...log, { id, speaker, text }].slice(-40));
+  }, []);
   const [paused, setPaused] = useState(false);
   /** One line per conversation the founder has had with a partner. */
   const [chatSummaries, setChatSummaries] = useState<
@@ -156,7 +165,7 @@ export default function Committee() {
       const m = pending.current.shift()!;
       setNowSpeaking(m.from);
       setAddressing(m.to === "room" ? null : m.to);
-      setSubtitle(m.text);
+      logLine(m.id, ROLE_OF_SEAT[m.from] ?? m.from, m.text);
 
       // Long enough to read at a natural pace, with a floor so a short line
       // does not flash past. Fast forward keeps every line on screen, just
@@ -171,7 +180,7 @@ export default function Committee() {
     setNowSpeaking(null);
     setAddressing(null);
     draining.current = false;
-  }, []);
+  }, [logLine]);
   const queue = useRef<SpeechQueue | null>(null);
   // Each run owns the room; a stuck one is aborted when the founder runs again.
   const runId = useRef(0);
@@ -365,14 +374,15 @@ export default function Committee() {
     setRunning(true);
     setMessages([]); setFeed([]); setStances({}); setDecision(null); setMinutes(null);
     pending.current = [];
-    setSubtitle(null);
+    setSubtitleLog([]);
     setNowSpeaking(null);
     setAddressing(null);
     // The chair opens by putting the report on the table, which is what starts
     // every one of these meetings in life.
     setTimeout(() => {
       setNowSpeaking("chair");
-      setSubtitle("Right. Let's look at the report.");
+      const opening = "Right. Let's look at the report.";
+      logLine("opening", ROLE_OF_SEAT.chair, opening);
       setTimeout(() => setNowSpeaking(null), 2200);
     }, 350);
 
@@ -398,7 +408,6 @@ export default function Committee() {
         case "start": {
           firmName = (ev.firm as { name: string }).name;
           seated = ev.roster as RosterEntry[];
-          setProvider(ev.provider as string);
           setRoster(seated);
           setStep("The chair hands out questions");
           break;
@@ -514,7 +523,7 @@ export default function Committee() {
         setStep("Failed");
         setRunning(false);
       });
-  }, [replaceVenture, setDeliberation, firmId, audio, ensureQueue, drain]);
+  }, [replaceVenture, setDeliberation, firmId, audio, ensureQueue, drain, logLine]);
 
 
   // Once the room convenes the argument is the thing to watch: the panel
@@ -689,11 +698,7 @@ export default function Committee() {
               said sits directly above where the round is named, above the
               controls. Three absolutely positioned cards used to overlap. */}
           <div className="pointer-events-none absolute inset-x-0 bottom-6 z-40 flex flex-col items-center gap-3 px-8">
-            <Subtitles
-              speaker={nowSpeaking ? roleOf(nowSpeaking) : null}
-              line={subtitle}
-              paused={paused}
-            />
+            <Subtitles lines={subtitleLog} paused={paused} />
 
             {ventureFile && (
               <div className="pointer-events-auto w-[520px] max-w-full">
@@ -829,7 +834,6 @@ export default function Committee() {
                 </span>
               )}
 
-              {provider && <span className="label px-2">{provider}</span>}
             </div>
           </div>
         </div>

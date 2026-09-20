@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { AgentFace, moodOf } from "@/components/AgentFace";
 
@@ -163,34 +164,64 @@ export function RoundTable({
   );
 }
 
-/** What is being said, under the table, one line at a time. */
+export type SubtitleLine = { id: string; speaker: string; text: string };
+
+/**
+ * What has been said, under the table. Used to be one line, replaced the
+ * moment the next arrived, so anyone who looked away for a sentence lost it
+ * for good. It is a scrolling caption log now: everything said stays
+ * reachable, and it follows the newest line down unless you scroll up to
+ * read back, the way a video call's own captions do.
+ */
 export function Subtitles({
-  speaker,
-  line,
+  lines,
   paused,
 }: {
-  speaker?: string | null;
-  line?: string | null;
+  lines: SubtitleLine[];
   paused?: boolean;
 }) {
+  const feed = useRef<HTMLDivElement>(null);
+  const last = lines[lines.length - 1];
+
+  // Follow the conversation down, but only if the viewer was already at the
+  // bottom. Scrolling up to reread should not get yanked back to now.
+  useEffect(() => {
+    const el = feed.current;
+    if (!el) return;
+    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+    if (atBottom) el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+  }, [lines.length]);
+
   return (
     <div className="pointer-events-none flex w-full justify-center">
-      <AnimatePresence mode="wait">
-        {line && (
+      <AnimatePresence>
+        {lines.length > 0 && (
           <motion.div
-            key={line}
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -6 }}
-            className="panel panel-bright max-w-2xl px-4 py-3 text-center"
+            className="panel panel-bright pointer-events-auto w-full max-w-2xl px-4 py-3"
           >
-            {speaker && (
-              <p className="label" style={{ color: "var(--accent)" }}>
-                {speaker}
+            {last && (
+              <p className="label text-center" style={{ color: "var(--accent)" }}>
+                {last.speaker}
                 {paused && " · paused"}
               </p>
             )}
-            <p className="mt-1 text-[17px] leading-snug text-ink">{line}</p>
+            <div
+              ref={feed}
+              className="mt-1 max-h-32 space-y-1.5 overflow-y-auto text-center"
+            >
+              {lines.map((l, i) => (
+                <p
+                  key={l.id}
+                  className="text-[17px] leading-snug text-ink transition-opacity"
+                  style={{ opacity: i === lines.length - 1 ? 1 : 0.45 }}
+                >
+                  {l.text}
+                </p>
+              ))}
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
