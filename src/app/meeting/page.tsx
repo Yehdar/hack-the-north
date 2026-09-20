@@ -208,7 +208,7 @@ export default function Meeting() {
         {!vf && (
           <p className="mt-4 border border-edge-bright bg-surface p-3 font-mono text-xs text-muted">
             No idea entered yet.{" "}
-            <Link href="/" className="text-ink underline">
+            <Link href="/study" className="text-ink underline">
               Start in Part one
             </Link>{" "}
             so the committee has a venture file to read before you pitch.

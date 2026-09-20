@@ -95,6 +95,10 @@ type State = {
   deployed: DeployedSnapshot[] | null;
   setDeployed: (people: DeployedSnapshot[]) => void;
   setCrowd: (verdict: CrowdVerdict, signals: CrowdSignals | null) => void;
+  /** What the founder called this project on the dashboard. Consumed when the
+   *  run starts, so a project is named without creating a second record. */
+  pendingName: string | null;
+  setPendingName: (name: string | null) => void;
   /** Which firm's committee you are pitching to. */
   firmId: string;
   setFirmId: (id: string) => void;
@@ -117,6 +121,9 @@ export const useVenture = create<State>()(
       setCrowd: (verdict, signals) => set({ crowd: { verdict, signals } }),
       setDeployed: (deployed) => set({ deployed }),
       firmId: "bessemer",
+      pendingName: null,
+
+      setPendingName: (pendingName) => set({ pendingName }),
 
       setFirmId: (firmId) => set({ firmId, deliberation: null }),
 

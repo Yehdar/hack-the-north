@@ -22,6 +22,9 @@ export type SessionSummary = {
   id: string;
   createdAt: number;
   updatedAt: number;
+  /** What the founder calls this project. Defaults to a name taken from the
+   *  idea, and can be changed at any point with "Save as". */
+  name?: string;
   /** The founder's own words, at the time of the run. */
   solution: string;
 
@@ -56,7 +59,9 @@ type State = {
   activeId: string | null;
 
   /** Starts a new saved run. `parentId` links a re-run to what it came from. */
-  begin: (solution: string, parentId?: string) => string;
+  begin: (solution: string, parentId?: string, name?: string) => string;
+  /** Name or rename a project. */
+  rename: (id: string, name: string) => void;
   /** Merges into a run. The active one unless `id` names another. A stream
    *  that outlives a navigation must write to the run it started, not to
    *  whichever run is active by the time it finishes. */
@@ -72,7 +77,7 @@ export const useSessions = create<State>()(
       sessions: [],
       activeId: null,
 
-      begin: (solution, parentId) => {
+      begin: (solution, parentId, name) => {
         const id = `s_${Date.now().toString(36)}`;
         const now = Date.now();
         const session: SessionSummary = {
@@ -80,6 +85,7 @@ export const useSessions = create<State>()(
           createdAt: now,
           updatedAt: now,
           solution: solution.trim(),
+          name: (name ?? defaultName(solution)).trim(),
           crowdSize: 0,
           problemCount: 0,
           mismatch: false,
@@ -91,6 +97,13 @@ export const useSessions = create<State>()(
         set({ sessions: [session, ...get().sessions].slice(0, 40), activeId: id });
         return id;
       },
+
+      rename: (id, name) =>
+        set({
+          sessions: get().sessions.map((s) =>
+            s.id === id ? { ...s, name: name.trim(), updatedAt: Date.now() } : s
+          ),
+        }),
 
       record: (patch, id) => {
         const target = id ?? get().activeId;
@@ -120,6 +133,24 @@ export const useSessions = create<State>()(
  * only when that run is the idea actually being pitched. Otherwise a committee
  * convened on some other idea would overwrite a run it has nothing to do with.
  */
+/**
+ * A name from the idea itself, so a project is never called "Untitled".
+ * The first clause is nearly always the thing it is, which is what a founder
+ * would have typed anyway.
+ */
+export function defaultName(solution: string): string {
+  const head = solution
+    .trim()
+    .replace(/^(we|i)\s+(are\s+)?(built|building|made|making|have built)\s+/i, "")
+    .replace(/^(an?|the)\s+/i, "")
+    .split(/[.,;\n]|\s+(?:that|which|for|so)\s+/i)[0]
+    .trim();
+
+  const words = head.split(/\s+/).slice(0, 6).join(" ");
+  const named = words.length >= 3 ? words : solution.trim().slice(0, 40);
+  return named.charAt(0).toUpperCase() + named.slice(1);
+}
+
 export function recordVerdict(solution: string, patch: Partial<SessionSummary>) {
   const { sessions, activeId, record } = useSessions.getState();
   const active = sessions.find((s) => s.id === activeId);

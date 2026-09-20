@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { Wordmark } from "@/components/Logo";
@@ -39,12 +40,70 @@ const STAGES: { id: StageId; part: 1 | 2; name: string; blurb: string }[] = [
   { id: "pitch", part: 2, name: "Committee", blurb: "Defend it to a firm's partners." },
 ];
 
+/** Click the name to rename. Enter saves, Escape abandons. */
+function ProjectName({
+  name,
+  onRename,
+}: {
+  name: string;
+  onRename: (name: string) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(name);
+
+  if (!editing) {
+    return (
+      <button
+        onClick={() => {
+          setDraft(name);
+          setEditing(true);
+        }}
+        title="Rename this project"
+        className="group flex w-full items-baseline gap-2 text-left"
+      >
+        <span className="min-w-0 flex-1 truncate text-[14px] leading-tight text-ink">
+          {name || "Untitled project"}
+        </span>
+        <span className="label shrink-0 opacity-0 transition group-hover:opacity-100">
+          save as
+        </span>
+      </button>
+    );
+  }
+
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        onRename(draft.trim() || name);
+        setEditing(false);
+      }}
+    >
+      <input
+        autoFocus
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={() => {
+          onRename(draft.trim() || name);
+          setEditing(false);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") setEditing(false);
+        }}
+        className="w-full rounded-[3px] border border-edge-bright bg-ground px-2 py-1 text-[14px] text-ink focus:outline-none"
+      />
+    </form>
+  );
+}
+
 export function StageRail({
   state,
   solution,
   rerun,
   under,
   onReset,
+  projectName,
+  onRename,
   onJump,
 }: {
   state: Record<StageId, StageState>;
@@ -56,6 +115,9 @@ export function StageRail({
   under?: React.ReactNode;
   /** Start again with a different product. */
   onReset?: () => void;
+  /** What this project is called, and how to rename it. Omit to hide. */
+  projectName?: string;
+  onRename?: (name: string) => void;
   onJump?: (id: StageId) => void;
 }) {
   return (
@@ -69,7 +131,13 @@ export function StageRail({
         <>
           <div className="rule mx-4" />
           <div className="px-4 py-2.5">
-            <div className="flex items-baseline justify-between gap-2">
+            {/* The project's name, editable in place. "Save as" wants to be
+                where the name already is, not behind a menu somewhere else. */}
+            {onRename && (
+              <ProjectName name={projectName ?? ""} onRename={onRename} />
+            )}
+
+            <div className="mt-2 flex items-baseline justify-between gap-2">
               <p className="label" style={rerun ? { color: "var(--accent)" } : undefined}>
                 {rerun ? "Solution · rewritten" : "Solution"}
               </p>
@@ -171,11 +239,10 @@ export function StageRail({
 
       <div className="rule mx-4" />
       <Link
-        href="/dashboard"
+        href="/"
         className="label mx-4 mt-3 flex items-center justify-between transition hover:text-ink"
       >
-        <span>Saved runs</span>
-        <span aria-hidden>→</span>
+        <span>← All projects</span>
       </Link>
       <p className="p-4 text-[9px] leading-relaxed text-faint">
         AI simulation. Not affiliated with or endorsed by any firm named here.
