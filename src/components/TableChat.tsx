@@ -12,6 +12,7 @@ import {
   type VoiceTier,
 } from "@/lib/voice/client";
 import { voiceFor } from "@/lib/voice/agentVoices";
+import { opinionOf, OPINION_TONE } from "@/lib/lean";
 
 // ============================================================================
 // TALKING TO ONE PARTNER.
@@ -30,6 +31,7 @@ export type ChatTurn = { speaker: "founder" | "agent"; text: string };
 
 export function TableChat({
   role,
+  stance,
   opening,
   turns,
   thinking,
@@ -40,6 +42,9 @@ export function TableChat({
   /** Kept in the call site for keying; the panel itself only needs the role. */
   seatId?: string;
   role: string;
+  /** Their conviction right now, -1 to 1. Red or yellow is who you came here
+   *  to win over; the header says so without making you guess from the tie. */
+  stance?: number;
   /** What they said in the deliberation, so the conversation starts somewhere. */
   opening?: string;
   turns: ChatTurn[];
@@ -48,6 +53,7 @@ export function TableChat({
   onAsk: (question: string) => void;
   onClose: () => void;
 }) {
+  const opinion = OPINION_TONE[opinionOf(stance)];
   const [tier, setTier] = useState<VoiceTier | null>(null);
   const [typed, setTyped] = useState("");
   const [recording, setRecording] = useState(false);
@@ -106,6 +112,13 @@ export function TableChat({
             In conversation with
           </p>
           <p className="mt-1 text-[15px] text-ink">{role}</p>
+          <p className="label mt-1 flex items-center gap-1.5" style={{ color: opinion.color }}>
+            <span
+              className="inline-block h-1.5 w-1.5 shrink-0 rounded-full"
+              style={{ background: opinion.color, boxShadow: `0 0 6px -1px ${opinion.color}` }}
+            />
+            {opinion.label}
+          </p>
         </div>
         <button
           onClick={onClose}

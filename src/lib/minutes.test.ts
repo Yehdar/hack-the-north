@@ -60,9 +60,9 @@ describe("the minutes", () => {
       "Lead Partner",
       "Principal",
       "Skeptical Partner",
-      "Managing Partner (chair)",
+      "Financial Analyst (chair)",
     ]);
-    expect(minutes.keptBy).toBe("Managing Partner (chair)");
+    expect(minutes.keptBy).toBe("Financial Analyst (chair)");
   });
 
   it("seats the chair once, whatever its title is", () => {
@@ -82,6 +82,9 @@ describe("the minutes", () => {
     expect(chairs).toHaveLength(1);
     expect(chairs[0].note).toMatch(/keeps these minutes/);
     expect(new Set(withChair.present.map((p) => p.role)).size).toBe(withChair.present.length);
+    // keptBy reads the same live title, so a renamed chair never needs a
+    // matching edit here the way the duplicate-listing bug once did.
+    expect(withChair.keptBy).toBe("Managing Partner (chair)");
   });
 
   it("gives each partner's view and says who moved", () => {

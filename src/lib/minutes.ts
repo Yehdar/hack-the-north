@@ -2,7 +2,7 @@ import type { DeliberationSnapshot } from "@/lib/store";
 import type { ICVerdict, Objection } from "@/lib/types";
 
 // ============================================================================
-// THE MINUTES, the Managing Partner's document.
+// THE MINUTES, the chair's document.
 //
 // A real partner meeting ends with a written record: who was in the room, what
 // each partner thought and whether they moved, where they disagreed, what was
@@ -37,7 +37,9 @@ export type Minutes = {
 
 type Msg = DeliberationSnapshot["messages"][number] & { inReplyTo?: string };
 
-const CHAIR = "Managing Partner (chair)";
+/** Only used if the roster has no chair at all. The live title is read off
+ *  the roster instead, so a rename here does not also need one there. */
+const CHAIR = "Financial Analyst (chair)";
 
 export function leanOf(stance: number): Lean {
   return stance > 0.2 ? "for" : stance < -0.2 ? "against" : "undecided";
@@ -141,10 +143,16 @@ export function writeMinutes(input: {
     verdict.comeBackWhen ? `Come back when ${lowerFirst(verdict.comeBackWhen.replace(/[.]+$/, ""))}.` : "",
   ].filter(Boolean);
 
+  // Read off the live roster rather than hardcoded, the same fix as present
+  // above: a title this once matched by name went stale the moment the chair
+  // was renamed.
+  const chairRole = snapshot.roster.find((r) => r.id === "chair")?.role;
+  const keptBy = chairRole ? `${chairRole} (chair)` : CHAIR;
+
   return {
     firm: input.firm,
     takenAt: input.now ?? Date.now(),
-    keptBy: CHAIR,
+    keptBy,
     problem: input.problem,
     present,
     views,
