@@ -43,7 +43,7 @@ independence is exactly what you want. It is the wrong choice for a
 ## 2. The protocol
 
 Five rounds. Agents are blind first, then they talk to each other, then they
-are allowed to change their minds — and every one of those events is recorded.
+are allowed to change their minds, and every one of those events is recorded.
 
 ```mermaid
 flowchart TD
@@ -85,13 +85,13 @@ flowchart TD
     SYN --> V[ICVerdict]
 ```
 
-### Round 0 — Decompose
+### Round 0 · Decompose
 
-A non-voting Chair splits the decision into 5–7 concrete diligence questions and
+A non-voting Chair splits the decision into 5-7 concrete diligence questions and
 assigns each to the one agent whose declared lane owns it.
 
 This is the piece that makes it a *system* rather than a crowd. Agents are not
-all answering "what do you think of this idea" — the GP is answering "is the
+all answering "what do you think of this idea", the GP is answering "is the
 market big enough to return the fund", the Principal is answering "what is CAC
 payback", the Skeptic is answering "what does this rhyme with that we passed
 on". Specialization is assigned, not merely suggested by a persona blurb.
@@ -99,14 +99,14 @@ on". Specialization is assigned, not merely suggested by a persona blurb.
 Fails safe: if decomposition returns nothing usable, each agent falls back to
 its declared `focus` areas and the meeting still runs.
 
-### Round 1 — Independent (blind)
+### Round 1 · Independent (blind)
 
 Agents answer only their assigned questions, in parallel, with **no visibility
 into each other**. Blindness here is deliberate: if agents see each other's
 positions before forming their own, they anchor, and anchoring is precisely how
 N agents quietly become one agent.
 
-### Round 2 — Cross-examination
+### Round 2 · Cross-examination
 
 Now they see everything. Each agent may issue **at most two challenges, each
 addressed to a specific agent by id**.
@@ -124,7 +124,7 @@ addressed to a specific agent by id**.
    └─────────────┘                                     └─────────────┘
 ```
 
-Two constraints matter. Challenges must be **directed** — a challenge with a
+Two constraints matter. Challenges must be **directed**, a challenge with a
 named recipient forces the model to engage with a specific claim rather than
 emit generic scepticism. And agents are explicitly told to return *no*
 challenges rather than manufacture disagreement, so the challenge count means
@@ -132,7 +132,7 @@ something.
 
 Self-challenges and challenges to agents not in the room are dropped.
 
-### Round 3 — Rebuttal and belief revision
+### Round 3 · Rebuttal and belief revision
 
 Challenged agents answer and restate stance and confidence. They may concede.
 
@@ -144,7 +144,7 @@ change, so we can distinguish *persuaded* from *drifted*.
 **This round is where emergence lives.** A stance that moves between round 1 and
 round 3 is a conclusion the system reached that no individual agent started with.
 
-### Round 4 — Adversarial
+### Round 4 · Adversarial
 
 The Devil's Advocate runs last, sees where the room settled, and attacks that.
 It exists because convergence is suspicious: a committee that agrees quickly has
@@ -185,8 +185,8 @@ protocol emits metrics whose only purpose is to make the claim falsifiable.
 | `varianceByRound` | Stance spread after each round | Near-zero at round 1 = personas collapsed |
 | `challenges` | Agents engaged with specific claims | Zero = nobody read anybody |
 | `concessions` | Agents were genuinely persuaded | Always-zero = agents are stubborn props |
-| `mindChanges[]` | Per-agent stance delta, round 1 → final | All zero = rounds 2–3 changed nothing and could be deleted |
-| `convergence` | Variance drop across deliberation | — |
+| `mindChanges[]` | Per-agent stance delta, round 1 → final | All zero = rounds 2-3 changed nothing and could be deleted |
+| `convergence` | Variance drop across deliberation |, |
 
 `convergence` is deliberately signed. Positive means the room converged.
 **Negative is a legitimate and more interesting outcome**: deliberation surfaced
@@ -195,11 +195,11 @@ cannot produce a negative convergence at all, because it has nothing to converge
 from.
 
 The test suite asserts a **stance-variance floor**. If the agents ever
-homogenize into one voice, the build fails — we find out at hour 7, not on stage.
+homogenize into one voice, the build fails, we find out at hour 7, not on stage.
 
 ---
 
-## 5. Synthesis: weighting, not averaging
+## 5. Synthesis · weighting, not averaging
 
 Averaging is what we are avoiding, so the final score is confidence-weighted and
 dissent is preserved rather than smoothed away.
@@ -221,25 +221,44 @@ Two properties worth naming:
   the report, not buried in a mean. This is the single most useful output the
   system produces, and it is exactly what fan-out destroys.
 
-Weights are role defaults the user can override with live sliders. Recomputation
-is a pure synchronous function over cached votes — **moving a slider never calls
-a model.**
+Weights are the seat defaults carried on the roster. Recomputation is a pure
+synchronous function over cached votes, so re-reading a report never calls a
+model and works with the network off.
+
+The report once exposed those weights as live sliders. They were removed
+deliberately. A founder cannot tell what re-weighting a partner is supposed to
+mean, so the control invited a question it could not answer, and a score out of
+a hundred invites optimising the figure rather than listening to the argument
+underneath it.
 
 ---
 
 ## 6. Model selection
 
-| Tier | Model | Used for | Why |
-|---|---|---|---|
-| Deep | `gpt-5.6-sol` | Seat reasoning, cross-examination, rebuttal | Holding a persona under adversarial pressure and finding the non-obvious objection is the hardest thinking in the app, and it is the product |
-| Fast | `gpt-5.6-luna` | The Moderator | Runs on every founder speech turn, must decide in under a second whether to interrupt; ~20× cheaper and built for high-volume low-latency |
+Two tiers, because the work has two shapes. Deep is seat reasoning,
+cross-examination and rebuttal, which is the hardest thinking in the app and is
+the product. Fast is the Moderator, which runs on every founder speech turn and
+has under a second to decide whether a seat interrupts.
 
-**Cost per deliberation:** roughly 15 calls × (~2k in / ~0.5k out) ≈ **$0.27**.
-Cheap enough to rehearse freely.
+| Provider | Deep | Fast | Notes |
+|---|---|---|---|
+| Gemini | `gemini-2.5-flash` | `gemini-2.5-flash-lite` | What the public deployment runs on. Free tier, no card, 1,500 requests a day |
+| OpenAI | `gpt-5.6-sol` | `gpt-5.6-luna` | Roughly $0.27 a deliberation |
+| Anthropic | `claude-opus-5` | `claude-haiku-4-5` | |
+| Demo | attribute-driven | attribute-driven | No key, no network, reactions computed from each persona's real fields |
+
+Selection is automatic and falls through in that order in reverse. A paid key
+that is present was set on purpose, so it wins over the free one.
+
+The Gemini path disables thinking on the fast tier outright. The 2.5 Flash
+models reason by default and that reasoning is billed against `maxOutputTokens`,
+so an unconfigured Moderator call can think its way through the entire budget
+and return an empty candidate, which reaches the table as a partner who says
+nothing.
 
 **Why not `gpt-6-astra`:** it is the most capable model available, built for hard
 end-to-end agentic work over million-token contexts. Our calls are small,
-structured, and numerous — that is not the shape of workload Astra is priced for,
+structured, and numerous, that is not the shape of workload Astra is priced for,
 and flagship latency × 15 sequential-ish calls hurts a live demo more than the
 marginal reasoning gain helps. `OPENAI_MODEL=gpt-6-astra` upgrades it in one env
 var if seat quality ever looks like the bottleneck.
@@ -248,7 +267,7 @@ var if seat quality ever looks like the bottleneck.
 scaffold pass and has been replaced.
 
 For the live voice loop, `gpt-live-transcribe` is the low-latency STT option if
-ElevenLabs Scribe latency disappoints — but ElevenLabs remains the TTS layer,
+ElevenLabs Scribe latency disappoints, but ElevenLabs remains the TTS layer,
 since distinct partner voices are the point.
 
 ---
@@ -276,11 +295,12 @@ producing the same opinion. Five defences, in order of how much they matter:
 
 | Failure | Handling |
 |---|---|
-| One agent's call fails | `allSettled`, not `all` — the seat degrades to a neutral placeholder and the meeting continues. One dead agent must never empty the room. |
+| One agent's call fails | `allSettled`, not `all`, the seat degrades to a neutral placeholder and the meeting continues. One dead agent must never empty the room. |
 | Decomposition returns garbage | Falls back to lane-based assignment from each agent's declared `focus`. |
 | Model returns prose around its JSON | `parseJSON` recovers from fenced blocks and surrounding prose before throwing. |
+| Free tier throttles or runs out | The call falls through to the demo provider. A 429 steps back for a minute rather than for the day, because the free tier limits by the minute too and that is the one a live deliberation trips. |
 | Model ignores "exactly two questions" | Output is normalized and truncated rather than trusted. |
-| No API key at all | Mock provider returns schema-valid output, so every feature builds and runs with zero keys. |
+| No API key at all | The demo provider computes every reaction from that persona's real attributes, so the mechanism is genuine and only the words are synthetic. |
 | Venue wifi dies on stage | `DEMO_MODE=1` replays recorded fixtures. |
 
 ---
@@ -289,7 +309,7 @@ producing the same opinion. Five defences, in order of how much they matter:
 
 `src/lib/agents/protocol.ts` is generic over `AgentTemplate[]` and a context
 string. The VC committee and Track A's hub council are the **same protocol with
-different rosters** — which is itself the argument that this is infrastructure
+different rosters**, which is itself the argument that this is infrastructure
 rather than one bespoke prompt chain.
 
 ```
@@ -308,12 +328,15 @@ Honest list of what is not built yet, roughly in priority order.
 - **No persistent memory across deliberations.** Each run starts cold; agents do
   not remember previous pitches from the same founder.
 - **Rebuttal is one round.** Real committees iterate until they stop moving. A
-  convergence-triggered loop (repeat rounds 2–3 until `|Δvariance| < ε`) is the
-  natural upgrade and is deliberately deferred — it multiplies cost and latency.
+  convergence-triggered loop (repeat rounds 2-3 until `|Δvariance| < ε`) is the
+  natural upgrade and is deliberately deferred, it multiplies cost and latency.
 - **No coalition detection.** Agents that consistently agree could be identified
   and down-weighted as correlated rather than independent evidence.
-- **Challenge quality is unscored.** We count challenges but do not yet grade
-  whether one landed.
-- **The Chair does not adjudicate.** It routes and synthesizes but never rules a
-  challenge answered or dodged — during the live meeting that job belongs to the
-  Moderator.
+- **Challenge quality is graded, not scored.** The Chair now rules each
+  challenge answered or dodged and those rulings reach the minutes as "left
+  unanswered", which is the most actionable line a set of minutes carries. What
+  is still missing is a measure of whether the challenge itself was any good, so
+  a sharp objection and a lazy one still count the same.
+- **The Moderator and the Chair overlap.** The Chair rules after the
+  deliberation, the Moderator rules during the live pitch, and the two paths
+  reach the same conclusion by different code.
