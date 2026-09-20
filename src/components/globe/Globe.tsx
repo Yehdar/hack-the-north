@@ -91,9 +91,12 @@ type Props = {
 // Matches --accent in globals.css. Kept in sync by hand because a WebGL
 // uniform cannot read a CSS custom property.
 const ACCENT = new THREE.Color("#1d6fb8");
-// Darker than the sea by a wide margin. At a close value the two land
-// masses nearly vanished into the ocean they were meant to sit on.
-const LAND_DOT = new THREE.Color("#1c2634");
+// The app's own "go" green (globals.css --go / --positive), so the globe
+// does not introduce a colour nothing else on the page uses.
+const LAND_DOT = new THREE.Color("#1a7f37");
+// A darker shade of the same green for the coastline itself, so a border
+// reads as a line drawn on the land rather than land of a different colour.
+const LAND_BORDER = new THREE.Color("#0e4a20");
 const ARC_GROW_MS = 1100;
 const ARC_FADE_MS = 500;
 const RIPPLE_MS = 1100;
@@ -297,6 +300,22 @@ export function Globe({ dots, places, onDotClick, focus, arcs, beacon, distance,
             })
           )
         );
+
+        // Borders. Each ring is a closed coastline, country by country (this
+        // is the same data the dots above are tested against, just drawn
+        // instead of sampled), so a loop of thin lines just above the dots
+        // is a border for free rather than a second dataset to fetch.
+        const borderMat = new THREE.LineBasicMaterial({
+          color: LAND_BORDER,
+          transparent: true,
+          opacity: 0.85,
+        });
+        for (const ring of rings) {
+          if (ring.length < 3) continue;
+          const points = ring.map(([lon, lat]) => latLonToVector3(lat, lon, RADIUS * 1.004));
+          const geo = new THREE.BufferGeometry().setFromPoints(points);
+          group.add(new THREE.LineLoop(geo, borderMat));
+        }
       })
       .catch(() => {
         /* the globe still renders without continents */
