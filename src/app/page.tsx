@@ -9,6 +9,7 @@ import { defaultName, diffSessions, useSessions, type SessionSummary } from "@/l
 import { useVenture } from "@/lib/store";
 import { hubById } from "@/data/globePoints";
 import { Minutes } from "@/components/Minutes";
+import { Intake } from "@/components/Intake";
 
 // ============================================================================
 // SAVED RUNS.
@@ -41,11 +42,14 @@ export default function Dashboard() {
   /** A project is one idea plus everything that happens to it. Creating one
    *  records it immediately, so it is in the list even if the founder never
    *  finishes the run. */
-  const create = (solution: string, name: string) => {
+  /** The study screen starts the run; this only describes it. The record is
+   *  opened there too, so abandoning the form leaves nothing behind. */
+  const create = (solution: string, founderProblem?: string) => {
     start(solution);
-    // The record itself is opened when the run starts, so an abandoned form
-    // never leaves an empty project behind.
-    useVenture.getState().setPendingName(name || defaultName(solution));
+    useVenture.getState().setPending({
+      name: defaultName(solution),
+      founderProblem,
+    });
     router.push("/study");
   };
 
@@ -118,7 +122,9 @@ export default function Dashboard() {
               exit={{ opacity: 0, height: 0 }}
               className="overflow-hidden"
             >
-              <NewProject onCreate={create} />
+              <div className="relative mt-4 min-h-[520px] overflow-hidden border border-edge-bright bg-surface/30">
+                <Intake cta="Ask the market" onDone={create} onCancel={() => setCreating(false)} />
+              </div>
             </motion.div>
           )}
         </AnimatePresence>
@@ -335,74 +341,5 @@ function Line({ k, v, struck, accent }: { k: string; v?: string; struck?: boolea
         {v ?? "—"}
       </span>
     </div>
-  );
-}
-
-/**
- * Naming a project up front is the difference between a list of runs and a
- * list of things a founder recognises. The name is optional and prefilled from
- * the idea, so it never blocks getting started.
- */
-function NewProject({
-  onCreate,
-}: {
-  onCreate: (solution: string, name: string) => void;
-}) {
-  const [solution, setSolution] = useState("");
-  const [name, setName] = useState("");
-  const [touched, setTouched] = useState(false);
-
-  const suggested = solution.trim().length > 6 ? defaultName(solution) : "";
-  const shown = touched ? name : suggested;
-
-  return (
-    <form
-      onSubmit={(e) => {
-        e.preventDefault();
-        if (solution.trim().length < 8) return;
-        onCreate(solution, shown);
-      }}
-      className="mt-6 border border-edge-bright bg-surface/40 p-5"
-    >
-      <label className="label" htmlFor="np-idea">
-        What have you built?
-      </label>
-      <textarea
-        id="np-idea"
-        autoFocus
-        rows={3}
-        value={solution}
-        onChange={(e) => setSolution(e.target.value)}
-        placeholder="We built…"
-        className="mt-2 w-full resize-none rounded-[3px] border border-edge bg-ground p-3 text-sm leading-relaxed text-ink placeholder:text-faint focus:border-edge-bright focus:outline-none"
-      />
-      <p className="mt-1.5 text-[11px] leading-relaxed text-faint">
-        Describe the thing, not the problem. Working out which problem it actually
-        solves is this system&apos;s job.
-      </p>
-
-      <label className="label mt-4 block" htmlFor="np-name">
-        Call it
-      </label>
-      <div className="mt-2 flex flex-wrap items-center gap-3">
-        <input
-          id="np-name"
-          value={shown}
-          onChange={(e) => {
-            setTouched(true);
-            setName(e.target.value);
-          }}
-          placeholder="named from your idea"
-          className="min-w-0 flex-1 rounded-[3px] border border-edge bg-ground px-3 py-2 text-sm text-ink placeholder:text-faint focus:border-edge-bright focus:outline-none"
-        />
-        <button
-          type="submit"
-          disabled={solution.trim().length < 8}
-          className="bg-accent px-5 py-2.5 font-mono text-[11px] uppercase tracking-[0.14em] text-ground transition hover:brightness-110 disabled:bg-edge disabled:text-faint"
-        >
-          Create and ask the market
-        </button>
-      </div>
-    </form>
   );
 }

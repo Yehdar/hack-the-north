@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
+import { SaveState } from "@/components/SaveState";
 import { Wordmark } from "@/components/Logo";
 
 // ============================================================================
@@ -134,7 +135,10 @@ export function StageRail({
             {/* The project's name, editable in place. "Save as" wants to be
                 where the name already is, not behind a menu somewhere else. */}
             {onRename && (
-              <ProjectName name={projectName ?? ""} onRename={onRename} />
+              <>
+                <ProjectName name={projectName ?? ""} onRename={onRename} />
+                <SaveState className="mt-1" />
+              </>
             )}
 
             <div className="mt-2 flex items-baseline justify-between gap-2">

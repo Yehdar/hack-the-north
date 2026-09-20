@@ -255,6 +255,8 @@ export default function Discover() {
     projects.find((p) => p.id === activeId) ??
     projects.find((p) => p.solution === ventureFile?.solution);
 
+
+
   const restored = useRef(false);
   useEffect(() => {
     if (restored.current) return;
@@ -389,13 +391,12 @@ export default function Discover() {
     setStalled(false);
     runEnded.current = false;
     const token = ++runToken.current;
-    const named = useVenture.getState().pendingName;
+    const pending = useVenture.getState().pending;
     const sessionId = useSessions.getState().begin(
       vf.solution,
       opts.parentId,
-      named ?? undefined
+      pending?.name
     );
-    if (named) useVenture.getState().setPendingName(null);
     sessionRef.current = sessionId;
     parentRef.current = opts.parentId ?? null;
     auto.current = Boolean(opts.parentId);
@@ -489,6 +490,26 @@ export default function Discover() {
       if (token === runToken.current) runEnded.current = true;
     }, fail);
   }, []);
+
+  // A project created on the dashboard arrives here already described, so the
+  // run starts by itself. Without this the screen sat on a finished venture
+  // file with nothing running: pressing "Change" reopened the form with the
+  // same text still in it, and Part 2 stayed locked because no problem was
+  // ever chosen.
+  const autoStarted = useRef(false);
+  useEffect(() => {
+    if (autoStarted.current || booting || !ventureFile) return;
+    const pending = useVenture.getState().pending;
+    if (!pending) return;
+
+    autoStarted.current = true;
+    queueMicrotask(() => {
+      if (pending.founderProblem) setStatedProblem(pending.founderProblem);
+      run({ founderProblem: pending.founderProblem });
+      useVenture.getState().setPending(null);
+    });
+  }, [booting, ventureFile, run]);
+
 
   // ---------------------------------------------------------------- playback
   // A 100ms loop moves one item at a time from what has arrived to what is on
