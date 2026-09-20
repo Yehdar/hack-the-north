@@ -3,10 +3,8 @@
 import { motion } from "framer-motion";
 import { SessionDiff } from "@/components/SessionDiff";
 import { BlurWords } from "@/components/BlurWords";
-import { NumberTicker } from "@/components/NumberTicker";
 import type { Assessment, NoMarket } from "@/lib/advice";
 import type { ProblemStatement } from "@/lib/types";
-import type { CrowdVerdict } from "@/lib/discovery/types";
 import type { SessionDelta } from "@/lib/sessions";
 
 // ============================================================================
@@ -25,7 +23,6 @@ type Props = {
   /** Why nobody has it, when nobody does. */
   noMarket?: NoMarket | null;
   aligned: boolean;
-  votes: CrowdVerdict["problemVotes"];
   /** Against the run this one came from. Null on a first run. */
   delta: SessionDelta[] | null;
   crowd: number;
@@ -46,21 +43,11 @@ function lower(t: string): string {
   return /^[A-Z][a-z]/.test(s) ? s.charAt(0).toLowerCase() + s.slice(1) : s;
 }
 
-/** Severity as a word first, number second. A bare "sev 67" means nothing to
- *  someone reading it for the first time. */
-function severityWord(n: number): string {
-  if (n >= 75) return "badly";
-  if (n >= 55) return "enough to act on";
-  if (n >= 35) return "mildly";
-  return "barely";
-}
-
 export function Reveal({
   pitched,
   market,
   noMarket,
   aligned,
-  votes,
   delta,
   crowd,
   problemCount,
@@ -148,7 +135,7 @@ export function Reveal({
         )}
 
         {/* A founder cannot act on "47 out of 100". They can act on a
-            sentence. The numbers underneath are what it rests on. */}
+            sentence. */}
         {advice && market && (
           <div className="mt-6 pt-4" style={{ borderTop: "1px solid var(--insert-2)" }}>
             <p className="text-[17px] leading-snug">{advice.callToAction}</p>
@@ -158,44 +145,10 @@ export function Reveal({
           </div>
         )}
 
-        <div
-          className={`mt-6 grid grid-cols-3 gap-4 pt-4 ${market ? "" : "hidden"}`}
-          style={{ borderTop: "1px solid var(--insert-2)" }}
-        >
-          {/* Plain words, not field names. "p2 · theirs / 57 / sev 67 · 86%"
-              is readable only to whoever wrote the schema. */}
-          {votes.slice(0, 3).map((v, i) => (
-            <div key={v.problemId}>
-              <p className="label">
-                {v.problemId === pitched.id
-                  ? "The one you pitched"
-                  : v.problemId === market?.id && !aligned
-                    ? "The one they have"
-                    : "Real-world problems"}
-              </p>
-              <p className="mt-0.5 flex items-baseline gap-1.5">
-                <span className="text-2xl">
-                  <NumberTicker value={v.votes} delay={aligned ? 300 : 1400 + i * 120} />
-                </span>
-                <span className="insert-muted text-[11px]">
-                  {v.votes === 1 ? "person" : "people"}
-                </span>
-              </p>
-              <p className="insert-muted mt-1 text-[10px] leading-relaxed">
-                {(v.payRate * 100).toFixed(0)}% of them would pay to fix it
-                <br />
-                hurts {severityWord(v.meanSeverity)} ({v.meanSeverity.toFixed(0)} out of 100)
-              </p>
-            </div>
-          ))}
-        </div>
-
-        {market && !aligned && (
-          <p className="insert-muted mt-3 text-[11px] leading-relaxed">
-            Theirs wins on weight, not headcount: how badly it hurts the people who have it, and how
-            many of those would pay.
-          </p>
-        )}
+        {/* The three columns of problem counts that used to sit here are gone.
+            A founder cannot act on "34 people, 62% would pay, hurts badly",
+            and the headline above already says which problem won. The numbers
+            were the working, not the answer. */}
 
         {delta && (
           <div className="mt-6 pt-4" style={{ borderTop: "1px solid var(--insert-2)" }}>

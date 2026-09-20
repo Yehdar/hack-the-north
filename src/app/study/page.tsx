@@ -1622,7 +1622,6 @@ export default function Discover() {
             market={marketProblem ?? null}
             noMarket={marketProblem ? null : diagnoseNoMarket(verdict, pitchedProblem)}
             aligned={!verdict.mismatch}
-            votes={verdict.problemVotes}
             delta={delta}
             crowd={personas.length}
             problemCount={problems.length}
