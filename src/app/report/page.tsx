@@ -5,8 +5,6 @@ import Link from "next/link";
 import { useVenture } from "@/lib/store";
 import { recordVerdict } from "@/lib/sessions";
 import { assess } from "@/lib/advice";
-import { Meter } from "@/components/Progress";
-import { pvsReason } from "@/lib/pvs";
 import { writeMinutes } from "@/lib/minutes";
 import { Minutes } from "@/components/Minutes";
 import { PartTwoNav } from "@/components/PartTwoNav";
@@ -150,31 +148,9 @@ export default function Report() {
           )}
         </Section>
 
-        {/* 2. PVS ---------------------------------------------------------- */}
-        {vf.pvs && (
-          <Section n="02" title="Problem validation score">
-            <div className="flex items-baseline gap-3">
-              <span className="font-mono text-4xl">{vf.pvs.total}</span>
-              <span className="font-mono text-xs text-faint">
-                threshold {vf.pvs.threshold} · {vf.pvs.passed ? "cleared" : "not cleared"}
-              </span>
-            </div>
-            <p className="mt-2 text-sm text-muted">
-              {vf.pvs.passed ? "Its weak spot: " : "Mostly because "}
-              {pvsReason(vf.pvs)}.
-            </p>
-            <div className="mt-4 space-y-2">
-              <Bar label="Severity, weighted by who'd pay" value={vf.pvs.problemSeverity} />
-              <Bar label="Market gap" value={vf.pvs.marketGap} />
-              <Bar label="Hub fit" value={vf.pvs.hubFit} />
-              <Bar label="Evidence strength" value={vf.pvs.evidenceStrength} />
-            </div>
-          </Section>
-        )}
-
-        {/* 3. Hubs --------------------------------------------------------- */}
+        {/* 2. Hubs --------------------------------------------------------- */}
         {Object.values(vf.hubFindings).length > 0 && (
-          <Section n="03" title="Where it lands">
+          <Section n="02" title="Where it lands">
             {Object.values(vf.hubFindings)
               .sort((a, b) => b.fitScore - a.fitScore)
               .map((h) => (
@@ -191,8 +167,8 @@ export default function Report() {
           </Section>
         )}
 
-        {/* 4. The panel ---------------------------------------------------- */}
-        <Section n="04" title="What each partner said">
+        {/* 3. The panel ---------------------------------------------------- */}
+        <Section n="03" title="What each partner said">
           <p className="mb-4 text-sm leading-relaxed text-muted">
             Their own words. Where they disagreed with each other is worth more
             than where they agreed.
@@ -255,8 +231,8 @@ export default function Report() {
             still reaches the founder, but as words in "What each partner said"
             and as actions in "What to fix". */}
 
-        {/* 6. What to fix -------------------------------------------------- */}
-        <Section n="05" title="What to fix, and what to do next">
+        {/* 4. What to fix -------------------------------------------------- */}
+        <Section n="04" title="What to fix, and what to do next">
           {(() => {
             // Graded from this run's numbers rather than restated from the
             // problem statement. "The people accountable cannot tell which part
@@ -270,7 +246,7 @@ export default function Report() {
                 </p>
               );
             }
-            const a = assess(crowd.verdict, crowd.signals, vf.pvs, deliberation.verdicts, roleOf);
+            const a = assess(crowd.verdict, crowd.signals, undefined, deliberation.verdicts, roleOf);
 
             const TONE: Record<string, { label: string; color: string }> = {
               fail: { label: "Do not proceed", color: "var(--negative)" },
@@ -333,13 +309,13 @@ export default function Report() {
           })()}
         </Section>
 
-        {/* 7. How the room behaved ---------------------------------------- */}
+        {/* 5. How the room behaved ---------------------------------------- */}
         {/* "How the room behaved" removed: challenges, rebuttals and σ by
             round are how WE know the deliberation worked, not something a
             founder can act on, and nobody could tell how they were computed. */}
 
         {minutes && (
-          <Section n="06" title="Minutes of the meeting">
+          <Section n="05" title="Minutes of the meeting">
             <Minutes minutes={minutes} size="md" />
           </Section>
         )}
@@ -371,11 +347,5 @@ function Fact({ k, v }: { k: string; v: string }) {
       <dt className="text-faint">{k}</dt>
       <dd className="mt-0.5 text-ink/85">{v}</dd>
     </div>
-  );
-}
-
-function Bar({ label, value }: { label: string; value: number }) {
-  return (
-    <Meter label={label} value={value} />
   );
 }

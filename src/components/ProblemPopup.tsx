@@ -1,31 +1,33 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { ProcessingPanel } from "@/components/hud/ProcessingPanel";
 import type { ProblemStatement } from "@/lib/types";
 
 // ============================================================================
 // STEP TWO, AS A POP-UP.
 //
-// Reading the pitch takes a moment, so the founder watches it happen: the
-// progress first, then their own solution and the real world problems it could
-// be sold against, scrollable. Close it
-// and the list moves to the corner of the globe, where it stays reachable
-// without being in the way.
+// Reading the pitch takes a moment, so the founder watches it happen: what the
+// system is doing, then their own solution and the real world problems it
+// could be sold against, scrollable. Close it and the list moves to the corner
+// of the globe, where it stays reachable without being in the way.
+//
+// No bar, no percentage, no provider, no tally. This waits seconds, not
+// minutes, and a founder who has just typed the thing they have been building
+// for a year does not need it measured out for them. Five squares that stop
+// moving when the reading is done say the same thing and take no room.
 // ============================================================================
 
 export function ProblemPopup({
   loading,
-  progress,
-  provider,
+  step,
   solution,
   problem,
   others,
   onClose,
 }: {
   loading: boolean;
-  progress: { step: string; unit: string; done: number; total: number };
-  provider?: string;
+  /** What the system is doing right now, in words. */
+  step: string;
   /** The founder's own words for what they built. */
   solution?: string;
   /** The problem they said they were solving, if they said. Optional at
@@ -47,14 +49,25 @@ export function ProblemPopup({
         transition={{ duration: 0.25 }}
         className="panel panel-bright flex max-h-full w-[540px] max-w-full flex-col p-5"
       >
-        <ProcessingPanel
-          step={progress.step}
-          done={progress.done}
-          total={progress.total}
-          unit={progress.unit}
-          round={provider ? `provider ${provider}` : undefined}
-          live={loading}
-        />
+        <div className="flex items-center gap-3">
+          <div className="flex gap-1">
+            {Array.from({ length: 5 }, (_, i) => (
+              <motion.div
+                key={i}
+                className="h-2 w-2 bg-accent"
+                // Still and lit once it is done, so the pop-up does not look
+                // like it is still thinking after the answer is on screen.
+                animate={loading ? { opacity: [0.2, 1, 0.2] } : { opacity: 1 }}
+                transition={
+                  loading
+                    ? { duration: 1, repeat: Infinity, delay: i * 0.15 }
+                    : { duration: 0.3 }
+                }
+              />
+            ))}
+          </div>
+          <span className="font-mono text-sm text-ink">{step}</span>
+        </div>
 
         {solution && (
           <div className="mt-5 border-t border-edge pt-4">

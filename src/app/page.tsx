@@ -14,13 +14,11 @@ import { Hint } from "@/components/Hint";
 import { AgentBoot, MARKET_STEPS } from "@/components/hud/AgentBoot";
 import { ProcessingPanel } from "@/components/hud/ProcessingPanel";
 import { Intake } from "@/components/Intake";
-import { SystemPanel } from "@/components/hud/SystemPanel";
 import { LightRow } from "@/components/Light";
 import { Meter } from "@/components/Progress";
 import { PersonaCall } from "@/components/PersonaCall";
 import { StageRail, deriveStages, type Segment } from "@/components/StageRail";
 import { Reveal } from "@/components/Reveal";
-import { Finding } from "@/components/Finding";
 import { Door, DOOR_MS, armDoor } from "@/components/Door";
 import { useVenture } from "@/lib/store";
 import { diffSessions, summariseCrowd, useSessions, type SessionDelta } from "@/lib/sessions";
@@ -31,11 +29,9 @@ import { detectTier, speak, unlockAudio, type VoiceTier } from "@/lib/voice/clie
 import { mayStartSpeaking, narrationKey, useNarratorVoice } from "@/lib/voice/narrator";
 import { hubById } from "@/data/globePoints";
 import { FIRMS } from "@/data/firms";
-import type { AgentVerdict, PVSBreakdown, ProblemStatement } from "@/lib/types";
+import type { ProblemStatement } from "@/lib/types";
 import type { Attention, CrowdReaction, CrowdVerdict, FigureKind } from "@/lib/discovery/types";
 import type { CrowdSignals } from "@/lib/discovery/signals";
-import { pvsReason } from "@/lib/pvs";
-import { CouncilStage, type StageMessage, type StageTask } from "@/components/CouncilStage";
 import { assess, diagnoseNoMarket } from "@/lib/advice";
 import { Assessment } from "@/components/Assessment";
 import { Bet } from "@/components/Bet";
@@ -45,7 +41,12 @@ import { ProblemPopup } from "@/components/ProblemPopup";
 // ============================================================================
 // PART 1, DISCOVERY, in segments.
 //
-//   split -> deploy -> listen -> the result -> council -> the score
+//   split -> deploy -> listen -> the result
+//
+// The result is the end of Part 1. A council of five analysts and a 0-100
+// validation score used to sit between it and the committee; both are gone.
+// They delayed the only judgement that decides anything, and the committee was
+// never told anything by them it could not read off the crowd.
 //
 // The server answers as fast as it can; the screen does not. Everything the
 // stream sends is buffered, then played back one segment at a time at a pace a
@@ -75,19 +76,6 @@ type HubRank = {
   haveIt: number;
   wouldPay: number;
 };
-
-type CouncilMsg = {
-  id: string;
-  round: number;
-  from: string;
-  to: string;
-  kind: StageMessage["kind"];
-  text: string;
-  /** The challenge this answers, when it is an answer. */
-  inReplyTo?: string;
-};
-
-type CouncilSeat = { id: string; role: string; weight: number };
 
 type Batch = { done: number; total: number; batch: CrowdReaction[] };
 
@@ -119,21 +107,17 @@ type NextStep =
   | "ask"
   | "listening"
   | "show"
-  | "convene"
   | "rerun"
-  | "council-busy"
-  | "score"
   | "committee";
 
 /** Segments that play by themselves; the rest wait for the founder. */
-const PLAYING: Segment[] = ["split", "deploy", "listen", "council"];
+const PLAYING: Segment[] = ["split", "deploy", "listen"];
 
 // Pacing, in ms. Slow enough to read, quick enough not to drag.
 const PACE = {
   problem: 700, // between candidate problems appearing
   deploy: 1800, // let the arcs land before offering the next step
   batch: 1300, // between groups of answers
-  round: 1400, // the narrator explains a council round before it starts
 };
 
 /** Nothing new from the stream for this long, while the screen is waiting on
@@ -142,31 +126,6 @@ const PACE = {
 const STALL_MS = 25_000;
 const STALL_LINE =
   "Nothing new has come back for a while. The model may just be slow, or stuck. Keep waiting, or carry on with what has arrived.";
-
-/** Roughly how long a line takes to read, clamped so the room never stalls. */
-function readingTime(text: string): number {
-  const words = text.split(/\s+/).length;
-  return Math.min(3600, Math.max(1600, 700 + words * 75));
-}
-
-const COUNCIL_ROUND: Record<number, { title: string; line: string }> = {
-  1: {
-    title: "Round 1 · on their own",
-    line: "Each agent answers the question the chair gave them, without hearing the others first.",
-  },
-  2: {
-    title: "Round 2 · cross-examination",
-    line: "Now they've heard each other, and they push back on specific claims, by name. Each challenge is a line from one agent to another.",
-  },
-  3: {
-    title: "Round 3 · rebuttal",
-    line: "The agents who were challenged answer. And some change their minds. A green line means someone conceded.",
-  },
-  4: {
-    title: "Round 4 · the Contrarian",
-    line: "The Contrarian argues against wherever the room has landed.",
-  },
-};
 
 // The boot plays once per page load. Coming back from Part 2 is not a cold start.
 let booted = false;
@@ -187,7 +146,6 @@ export default function Discover() {
 
   // ---- what is on screen
   const [segment, setSegment] = useState<Segment>("idle");
-  const [provider, setProvider] = useState("");
   const [expecting, setExpecting] = useState(0);
   const [deployReady, setDeployReady] = useState(false);
   const [problems, setProblems] = useState<ProblemStatement[]>([]);
@@ -224,19 +182,12 @@ export default function Discover() {
   const isRerun = walkedInWith !== null;
 
   // ---- the way out of Part 1
-  const [finding, setFinding] = useState(false);
   const [door, setDoor] = useState<"none" | "open" | "closed">("none");
 
-  // ---- the hub council and the score
+  /** Where the market's problem lands hardest, from the crowd alone. Read
+   *  only: it tells the founder where this sells, and travels to the
+   *  committee's pre-read. Nothing is convened on it any more. */
   const [hubRanking, setHubRanking] = useState<HubRank[]>([]);
-  const [councilHub, setCouncilHub] = useState<string | null>(null);
-  const [councilRoster, setCouncilRoster] = useState<CouncilSeat[]>([]);
-  const [councilStances, setCouncilStances] = useState<Record<string, AgentVerdict>>({});
-  const [councilLog, setCouncilLog] = useState<CouncilMsg[]>([]);
-  /** Round 0: the question the chair handed each agent. */
-  const [councilTasks, setCouncilTasks] = useState<StageTask[]>([]);
-  const [councilRound, setCouncilRound] = useState(0);
-  const [pvs, setPvs] = useState<PVSBreakdown | null>(null);
 
   // ---- come back to a finished run and find it still here -----------------
   //
@@ -268,25 +219,19 @@ export default function Discover() {
       setVerdict(crowd.verdict);
       setSignals(crowd.signals);
       setHubRanking(rankFromCrowd(crowd.verdict, people));
-      if (vf.pvs) setPvs(vf.pvs);
 
       // Land on the last beat the run reached rather than replaying it, and do
       // not narrate what the founder already heard.
-      setSegment(vf.pvs ? "deliberated" : "heard");
+      setSegment("heard");
     });
     // Deliberately does not touch the playback refs. Landing on a finished
     // beat leaves auto-advance nothing to do, and letting the narrator read
     // that beat once is right. It says where you are.
   }, [segment, personas.length]);
 
-  // ---- hearing the council. Off by default, like the committee's: a page
-  // that starts talking on its own is hostile.
-  const [hear, setHear] = useState(false);
-  const hearRef = useRef(false);
   const [tier, setTier] = useState<VoiceTier | null>(null);
-  const [voiced, setVoiced] = useState<string | null>(null);
-  /** One queue for every voice on this screen. The council and the narrator
-   * , so two of them never talk at once. */
+  /** One queue for every voice on this screen, so two of them never talk at
+   *  once. Only the narrator speaks here now. */
   const speech = useRef<SpeechQueue | null>(null);
   const narratorOn = useNarratorVoice((s) => s.on);
   const toggleNarrator = useNarratorVoice((s) => s.toggle);
@@ -300,14 +245,9 @@ export default function Discover() {
   const bufBatches = useRef<Batch[]>([]);
   const bufVerdict = useRef<CrowdVerdict | null>(null);
   const bufSignals = useRef<CrowdSignals | null>(null);
-  const councilQueue = useRef<Record<string, unknown>[]>([]);
-  const pendingPvs = useRef<PVSBreakdown | null>(null);
 
   const problemsShown = useRef(0);
   const batchesShown = useRef(0);
-  const councilShown = useRef(0);
-  const lastRound = useRef(0);
-  const roundAnnounced = useRef(false);
   const nextAt = useRef(0);
   /** Skip: finish the current segment quickly. */
   const skipping = useRef(false);
@@ -318,7 +258,6 @@ export default function Discover() {
   /** The stream has closed. One that closed without its last event is not
    *  coming back, so there is no point making the founder wait it out. */
   const runEnded = useRef(false);
-  const councilEnded = useRef(false);
   const [stalled, setStalled] = useState(false);
   /** A rewrite run already knows its problems and crowd, so it walks itself
    *  through those segments and slows down for the answers. */
@@ -327,7 +266,6 @@ export default function Discover() {
   const [autoRun, setAutoRun] = useState(false);
   /** Each run owns the screen; a stale stream from an earlier run is ignored. */
   const runToken = useRef(0);
-  const councilToken = useRef(0);
 
   const personasRef = useRef<DeployedPersona[]>([]);
   /** The saved run this screen is showing, so later beats land on it. */
@@ -346,24 +284,10 @@ export default function Discover() {
       // Playback only needs synthesis, which browsers without speech
       // recognition still have, the "text" tier is about the microphone.
       (text, voice) => speak(text, voice, tier === "elevenlabs" ? "elevenlabs" : "browser"),
-      (agentId, id) => setVoiced(agentId === "narrator" ? null : id)
+      () => {}
     );
     return speech.current;
   }, [tier]);
-
-  const toggleHear = () => {
-    // Inside the click, because browsers silently refuse audio that no
-    // gesture started.
-    unlockAudio();
-    if (hear) {
-      speech.current?.clear();
-      setVoiced(null);
-    } else {
-      ensureSpeech();
-    }
-    hearRef.current = !hear;
-    setHear(!hear);
-  };
 
   // ---------------------------------------------------------------- the run
   const run = useCallback((opts: RunOptions = {}) => {
@@ -404,8 +328,7 @@ export default function Discover() {
     setProblems([]); setPersonas([]); setReactions(new Map());
     setVerdict(null); setSignals(null); setShowReveal(false); setFocus(null); setCallReport([]);
     setProgress({ done: 0, total: 0 });
-    setHubRanking([]); setCouncilHub(null); setCouncilLog([]); setCouncilRoster([]); setCouncilTasks([]);
-    setCouncilStances({}); setCouncilRound(0); setPvs(null);
+    setHubRanking([]);
     setDelta(null);
     setWalkedInWith(opts.parentId ? (opts.walkedInWith ?? null) : null);
 
@@ -427,9 +350,6 @@ export default function Discover() {
       (ev) => {
         if (token !== runToken.current) return;
         switch (ev.type) {
-          case "start":
-            setProvider(ev.provider as string);
-            break;
           case "problems":
             bufProblems.current = ev.problems as ProblemStatement[];
             setExpecting(bufProblems.current.length);
@@ -502,7 +422,7 @@ export default function Discover() {
       }
     };
     const starved = (now: number) => {
-      const ended = segment === "council" ? councilEnded.current : runEnded.current;
+      const ended = runEnded.current;
       if (!stalledRef.current && (ended || now - idleSince.current > STALL_MS)) {
         stalledRef.current = true;
         setStalled(true);
@@ -551,93 +471,21 @@ export default function Discover() {
         return;
       }
 
-      if (segment === "listen") {
-        const batches = bufBatches.current;
-        if (batchesShown.current < batches.length) {
-          showBatch(batches[batchesShown.current]);
-          batchesShown.current += 1;
-          moved();
-          nextAt.current = now + (quick ? 90 : PACE.batch);
-        } else if (bufVerdict.current) {
-          skipping.current = false;
-          setSegment("heard");
-        } else {
-          starved(now);
-        }
-        return;
-      }
-
-      // ---- the council, one event at a time
-      const queue = councilQueue.current;
-      if (councilShown.current >= queue.length) return starved(now);
-      const ev = queue[councilShown.current];
-
-      // Heard, not only read: the next line (and the council's end) waits
-      // until the last line has been said, so the voices and the transcript
-      // never drift apart the way the committee's used to. A line being
-      // spoken is progress, not a stall.
-      if ((ev.type === "message" || ev.type === "done") && !quick && speech.current?.busy) {
+      // listen, the last segment that plays itself.
+      const batches = bufBatches.current;
+      if (batchesShown.current < batches.length) {
+        showBatch(batches[batchesShown.current]);
+        batchesShown.current += 1;
         moved();
-        return;
-      }
-
-      const round =
-        ev.type === "message"
-          ? (ev.message as CouncilMsg).round
-          : ev.type === "verdict"
-            ? (ev.round as number)
-            : null;
-
-      // Before a new round starts, pause on it so the narrator can say what
-      // the round is for.
-      if (round !== null && round !== lastRound.current) {
-        if (!roundAnnounced.current && !quick) {
-          roundAnnounced.current = true;
-          setCouncilRound(round);
-          nextAt.current = now + PACE.round;
-          return;
-        }
-        roundAnnounced.current = false;
-        lastRound.current = round;
-        setCouncilRound(round);
-      }
-
-      councilShown.current += 1;
-      moved();
-      switch (ev.type) {
-        case "start":
-          setCouncilRoster(ev.roster as CouncilSeat[]);
-          nextAt.current = now + (quick ? 60 : 600);
-          break;
-        case "task":
-          setCouncilTasks((t) => [...t, ev.task as StageTask]);
-          nextAt.current = now + (quick ? 30 : 450);
-          break;
-        case "message": {
-          const m = ev.message as CouncilMsg;
-          setCouncilLog((l) => [...l, m]);
-          if (!quick && hearRef.current) speech.current?.push(m.id, m.from, m.text);
-          nextAt.current = now + (quick ? 90 : readingTime(m.text));
-          break;
-        }
-        case "verdict": {
-          const v = ev.verdict as AgentVerdict;
-          setCouncilStances((s) => ({ ...s, [v.agentId]: v }));
-          break;
-        }
-        case "pvs":
-          pendingPvs.current = ev.pvs as PVSBreakdown;
-          break;
-        case "done":
-          skipping.current = false;
-          setSegment("deliberated");
-          break;
-        case "error":
-          skipping.current = false;
-          setSegment("result");
-          break;
+        nextAt.current = now + (quick ? 90 : PACE.batch);
+      } else if (bufVerdict.current) {
+        skipping.current = false;
+        setSegment("heard");
+      } else {
+        starved(now);
       }
     };
+
 
     tick();
     const id = setInterval(tick, 100);
@@ -670,97 +518,40 @@ export default function Discover() {
     setTimeout(() => setShowReveal(true), 200);
   }, []);
 
-  /** Convene the five-agent council on one city. Same engine as the
-   *  investment committee, different roster. */
-  const runCouncil = useCallback(
-    (hubId: string) => {
-      const problem = problems.find((p) => p.id === verdict?.marketProblemId);
-      if (!problem || !verdict) return;
-
-      const token = ++councilToken.current;
-      const sessionId = sessionRef.current;
-      const fit = hubRanking.find((h) => h.hubId === hubId)?.fitScore ?? 0;
-      speech.current?.clear();
-
-      councilQueue.current = [];
-      councilShown.current = 0;
-      lastRound.current = 0;
-      roundAnnounced.current = false;
-      pendingPvs.current = null;
-      skipping.current = false;
-      nextAt.current = 0;
-
-      stalledRef.current = false;
-      setStalled(false);
-      councilEnded.current = false;
-      setCouncilHub(hubId);
-      setCouncilLog([]); setCouncilStances({}); setCouncilRoster([]); setCouncilRound(0);
-      setCouncilTasks([]);
-      setPvs(null);
-      setShowReveal(false);
-      setSegment("council");
-
-      void streamPost("/api/discovery/council", { hubId, problem, crowd: verdict }, (ev) => {
-        if (token !== councilToken.current) return;
-        councilQueue.current.push(ev);
-        if (ev.type === "pvs" && sessionId) {
-          const score = ev.pvs as PVSBreakdown;
-          useSessions.getState().record(
-            { pvs: score.total, pvsPassed: score.passed, topHub: { hubId, fitScore: fit } },
-            sessionId
-          );
-        }
-      })
-        .then(() => {
-          if (token === councilToken.current) councilEnded.current = true;
-        })
-        .catch(() => {
-          if (token === councilToken.current) councilQueue.current.push({ type: "error" });
-        });
-    },
-    [problems, verdict, hubRanking]
-  );
-
   /** Accept the market's problem and carry it into Part 2. */
   const acceptMarketProblem = useCallback(() => {
     if (!ventureFile || !verdict?.marketProblemId) return;
     const chosen = problems.find((p) => p.id === verdict.marketProblemId);
     if (!chosen) return;
 
+    // Whatever Part 1 established travels with it. The committee reads exactly
+    // these fields, so the handoff needs no new contract. The strongest city
+    // still goes, measured off the crowd rather than argued over: it is the
+    // first thing a partner asks after "who has this problem".
+    const top = hubRanking[0];
+
     replaceVenture({
       ...ventureFile,
       version: ventureFile.version + 1,
       extractedProblems: problems,
       chosenProblem: chosen,
-      // Whatever Part 1 has established travels with it. The committee reads
-      // exactly these fields, so the handoff needs no new contract.
-      pvs: pvs ?? ventureFile.pvs,
-      hubFindings: councilHub
+      hubFindings: top
         ? {
             ...ventureFile.hubFindings,
-            [councilHub]: {
-              hubId: councilHub,
-              fitScore: hubRanking.find((h) => h.hubId === councilHub)?.fitScore ?? 0,
-              verdicts: Object.values(councilStances),
-              gapSummary:
-                Object.values(councilStances)
-                  .map((v) => v.position)
-                  .join(" ") || "",
+            [top.hubId]: {
+              hubId: top.hubId,
+              fitScore: top.fitScore,
+              verdicts: [],
+              gapSummary: `${top.haveIt} of the ${top.asked} people asked in ${hubName(
+                top.hubId
+              )} have this problem${top.wouldPay > 0 ? `, and ${top.wouldPay} would pay to fix it` : ""}.`,
               incumbents: [],
               unserved: "",
             },
           }
         : ventureFile.hubFindings,
     });
-  }, [ventureFile, verdict, problems, replaceVenture, pvs, councilHub, hubRanking, councilStances]);
-
-  /** From the result: take the market's problem, and sit the council in the
-   *  city where it lands best. */
-  const acceptAndConvene = useCallback(() => {
-    acceptMarketProblem();
-    const top = hubRanking[0]?.hubId;
-    if (top) runCouncil(top);
-  }, [acceptMarketProblem, hubRanking, runCouncil]);
+  }, [ventureFile, verdict, problems, replaceVenture, hubRanking]);
 
   /** Rewrite the pitch around the market's problem, for the founder to edit. */
   const startRefine = useCallback(async () => {
@@ -794,7 +585,7 @@ export default function Discover() {
 
   /** Part 1 closes the doors; Part 2 opens them. */
   const walkThroughDoor = useCallback(() => {
-    setFinding(false);
+    setShowReveal(false);
     setDoor("open");
     setTimeout(() => setDoor("closed"), 40);
     setTimeout(() => {
@@ -817,9 +608,8 @@ export default function Discover() {
   const forceCommittee = useCallback(() => {
     const vf = useVenture.getState().ventureFile;
     if (!vf) return;
-    // Late events from either stream land on nothing.
+    // Late events from the stream land on nothing.
     runToken.current++;
-    councilToken.current++;
     speech.current?.clear();
 
     if (verdict?.marketProblemId) {
@@ -866,29 +656,22 @@ export default function Discover() {
       return;
     }
 
-    if (segment === "council") {
-      // Close the council on what it has said. Without a score it goes to the
-      // committee unscored, which the committee is told.
-      councilToken.current++;
-      skipping.current = false;
-      setSegment("deliberated");
-      return;
-    }
-
     // Nothing usable arrived at all.
     forceCommittee();
   };
 
   // Newest stage sits at the top of the sidebar, so the next thing to do is
   // always on screen. Scroll up when a new one arrives.
-  const stageKey = `${hubRanking.length > 0}|${councilHub}|${Boolean(pvs)}`;
+  const stageKey = `${hubRanking.length > 0}|${segment}`;
   useEffect(() => {
     asideRef.current?.scrollTo({ top: 0, behavior: "smooth" });
   }, [stageKey]);
 
   useEffect(() => {
-    if (finding) router.prefetch("/committee");
-  }, [finding, router]);
+    // The reveal's button goes straight through the door, so the route is
+    // warmed while the founder is still reading the card.
+    if (segment === "result") router.prefetch("/committee");
+  }, [segment, router]);
 
   // ---------------------------------------------------------------- derived
   const listening = segment === "listen";
@@ -930,7 +713,9 @@ export default function Discover() {
           lat: hub.lat,
           lon: hub.lon,
           weight: n,
-          active: councilHub === hubId,
+          // Once the crowd has answered, the city the problem lands hardest in
+          // is lit. Before that, no city is more interesting than another.
+          active: segment === "result" && hubRanking[0]?.hubId === hubId,
         };
       })
       .filter((p): p is GlobePlace => p !== null);
@@ -942,13 +727,8 @@ export default function Discover() {
   // only there, after the committee. A founder needs it the moment the crowd
   // has answered, which is here.
   const advice = useMemo(
-    () =>
-      verdict
-        ? assess(verdict, signals, pvs ?? undefined, Object.values(councilStances), (id) =>
-            councilRoster.find((r) => r.id === id)?.role ?? id
-          )
-        : null,
-    [verdict, signals, pvs, councilStances, councilRoster]
+    () => (verdict ? assess(verdict, signals) : null),
+    [verdict, signals]
   );
 
   // The bet on screen: what was pitched until the crowd answers, then what
@@ -980,15 +760,6 @@ export default function Discover() {
   /** One of the other framings, tested in place of the current one. */
   /** The founder's own wording for their claim. Same run, same people, their
    *  sentence: the test is only fair if the bet is theirs. */
-  const rewriteBet = useCallback(
-    (statement: string) => {
-      const [first, ...rest] = problems;
-      if (!first || !statement.trim()) return;
-      run({ problems: [{ ...first, statement: statement.trim() }, ...rest] });
-    },
-    [problems, run]
-  );
-
   const useProblem = useCallback(
     (chosen: { id: string }) => {
       const rest = problems.filter((p) => p.id !== chosen.id);
@@ -999,18 +770,12 @@ export default function Discover() {
   );
 
   const focused = focus ? personas.find((p) => p.id === focus) : null;
-  // While a council sits, the argument is the main thing on screen: the side
-  // panel widens into it and the globe steps back.
-  const councilView =
-    councilHub !== null && (segment === "council" || segment === "deliberated" || segment === "scored");
   /** Step two: the problem, centred on the globe. Nothing else is on screen. */
   const splitView = segment === "split";
   // Centred on the globe. The column that used to sit under the caption was
   // four problem cards deep; it is one card at the top now, so nothing is in
   // the way and the line belongs in the middle.
   const centreClear = { left: "50%", maxWidth: "calc(100% - 48px)" };
-  const councilPoint = councilHub ? hubById(councilHub) : undefined;
-  const findingCity = councilHub ?? hubRanking[0]?.hubId ?? null;
   const firmName = FIRMS[firmId]?.name ?? "the firm";
   const topCity = hubRanking[0] ? hubName(hubRanking[0].hubId) : null;
   const cities = new Set(personas.map((p) => p.hubId)).size;
@@ -1033,11 +798,6 @@ export default function Discover() {
     });
   }, [arcsOn, personas]);
 
-  const conceded = useMemo(
-    () => new Set(councilLog.filter((m) => m.kind === "concession").map((m) => m.from)),
-    [councilLog]
-  );
-
   // ---- the guide: what is happening, and the one thing to do next -------
   const guide = ((): { step: number; title: string; line: string } => {
     if (!ventureFile) {
@@ -1053,7 +813,11 @@ export default function Discover() {
           ? {
               step: 2,
               title: "Problem",
-              line: "This is the problem your product implies. Rewrite it if it is not your claim, then choose who to ask.",
+              // Says where the reading landed and what to do next. It used to
+              // say "rewrite it if it is not your claim", which pointed at a
+              // card that is no longer on this step; the other framings are in
+              // the rail, under the solution, and that is where to swap.
+              line: "Your idea has been read for the problem it implies. The other problems it could be sold against are listed on the left. Next, choose who to ask.",
             }
           : {
               step: 2,
@@ -1086,59 +850,34 @@ export default function Discover() {
           title: "Responses",
           line: "Everyone has answered. Ready to see what the market said.",
         };
-      case "council":
-        return councilRound && COUNCIL_ROUND[councilRound]
-          ? {
-              step: 6,
-              title: `${hubName(councilHub ?? "")} council · ${COUNCIL_ROUND[councilRound].title}`,
-              line: COUNCIL_ROUND[councilRound].line,
-            }
-          : {
-              step: 6,
-              title: `Council · ${hubName(councilHub ?? "")}`,
-              line: "Five analysts are about to assess whether this problem is worth solving here.",
-            };
-      case "deliberated":
-        return {
-          step: 6,
-          title: "Council",
-          line: "The council has finished. Next, what it adds up to.",
-        };
-      case "scored":
-        return pvs
-          ? {
-              step: 7,
-              title: "Validation",
-              line: pvs.passed
-                ? `${pvs.total} out of 100, which clears the bar of ${pvs.threshold}. A committee is ready to test it.`
-                : `${pvs.total} out of 100, below the bar of ${pvs.threshold}, mostly because ${pvsReason(pvs)}. You may still pitch; the committee will be told.`,
-            }
-          : {
-              step: 7,
-              title: "Validation",
-              line: "The council ended early, so there is no score for this run. You may still pitch it.",
-            };
-      case "result":
+      case "result": {
+        // Still step four: asking them and hearing the answer are one step now.
+        // The title is what the card says, not a step name, because there is
+        // no Result step on the rail for it to echo.
         if (!verdict?.marketProblemId) {
           return {
-            step: 5,
-            title: "Result",
+            step: 4,
+            title: "What the market said",
             line: "Nobody we asked claimed any of these problems. That is a finding in itself.",
           };
         }
+        // Where it sells is part of the answer, so the line says it rather
+        // than making the founder read it off the panel.
+        const where = topCity ? ` It lands hardest in ${topCity}.` : "";
         return verdict.mismatch
           ? {
-              step: 5,
-              title: "Result",
+              step: 4,
+              title: "What the market said",
               // In words. "You pitched p1. The market has p2" read out schema
               // ids to an audience that has never seen the schema.
-              line: `The market has a different problem from the one you pitched, and ${Math.round((marketVote?.payRate ?? 0) * 100)}% of those who have it would pay to fix it. Next, whether it is worth solving, and where.`,
+              line: `The market has a different problem from the one you pitched, and ${Math.round((marketVote?.payRate ?? 0) * 100)}% of those who have it would pay to fix it.${where} Take it to the venture capitalists when you are ready.`,
             }
           : {
-              step: 5,
-              title: isRerun ? "Result · run two" : "Result",
-              line: "The market has the problem you pitched. Next, whether it is worth solving, and where.",
+              step: 4,
+              title: isRerun ? "What the market said · run two" : "What the market said",
+              line: `The market has the problem you pitched.${where} Take it to the venture capitalists when you are ready.`,
             };
+      }
       default:
         return {
           step: 1,
@@ -1164,15 +903,9 @@ export default function Discover() {
             ? "listening"
             : segment === "heard"
               ? "show"
-              : segment === "result"
-                ? marketProblem && topCity
-                  ? "convene"
-                  : "rerun"
-                : segment === "council"
-                  ? "council-busy"
-                  : segment === "deliberated"
-                    ? "score"
-                    : "committee";
+              : marketProblem
+                ? "committee"
+                : "rerun";
 
   const nextLabel: Record<NextStep, string> = {
     run: "Ask the market",
@@ -1182,18 +915,15 @@ export default function Discover() {
     ask: "Next: ask them →",
     listening: `Listening · ${progress.done}/${progress.total || personas.length || 120}`,
     show: "Show me what they said →",
-    convene: `Convene the ${topCity} council`,
     rerun: "Run again",
-    "council-busy": "Council in session…",
-    score: "See the validation score →",
-    committee: "Take it to the committee →",
+    committee: "Take it to venture capitalists →",
   };
 
   // Offered, never forced: a slow model looks exactly like a stuck one.
   const stuck = stalled && PLAYING.includes(segment);
 
-  // ---- the narrator, out loud: each new line once, through the same queue as
-  // the council, never over a call, never before the founder has clicked.
+  // ---- the narrator, out loud: each new line once, never over a call, never
+  // before the founder has clicked.
   const narratorLine = stuck ? STALL_LINE : guide.line;
   const inCall = Boolean(focused);
   useEffect(() => {
@@ -1213,15 +943,12 @@ export default function Discover() {
   const moveOnLabel =
     segment === "listen" && progress.done > 0
       ? `Grade the ${progress.done} who answered ▸`
-      : segment === "council"
-        ? "End the council here ▸"
-        : "Skip to the committee ▸";
+      : "Skip to the committee ▸";
 
   const nextDisabled =
     next === "splitting" ||
     next === "choosing" ||
     next === "listening" ||
-    next === "council-busy" ||
     (next === "committee" && !marketProblem);
 
   const takeNextStep = () => {
@@ -1241,15 +968,10 @@ export default function Discover() {
       case "show":
         revealResult();
         break;
-      case "convene":
-        acceptAndConvene();
-        break;
-      case "score":
-        setPvs(pendingPvs.current);
-        setSegment("scored");
-        break;
       case "committee":
-        setFinding(true);
+        // Adopt the market's problem on the way out, so the file the partners
+        // read says what the crowd said rather than what was pitched.
+        enterCommittee();
         break;
     }
   };
@@ -1334,8 +1056,8 @@ export default function Discover() {
             ) : null
           }
           onJump={(id) => {
-            if (id === "reveal" && marketProblem && pitchedProblem) setShowReveal(true);
-            if (id === "pitch" && marketProblem) setFinding(true);
+            if (id === "listen" && marketProblem && pitchedProblem) setShowReveal(true);
+            if (id === "pitch" && marketProblem) enterCommittee();
           }}
         />
 
@@ -1346,27 +1068,29 @@ export default function Discover() {
             onDotClick={(id) => openCall(Number(id.slice(1)))}
             // Whoever you are talking to waves hello, from the globe or the list.
             selected={focus ? `p${focus}` : null}
-            // Hack the North in view while the idea is split and sent out, then
-            // the council's city. Not dead centre: every great circle through
-            // the point under the camera projects as a straight line, so from
-            // directly above Waterloo the arcs fanned out as a starburst of
-            // rays. From due south they read as the arcs they are, and
-            // Waterloo sits top centre, clear of the panels either side.
+            // Hack the North in view while the idea is split and sent out. Not
+            // dead centre: every great circle through the point under the
+            // camera projects as a straight line, so from directly above
+            // Waterloo the arcs fanned out as a starburst of rays. From due
+            // south they read as the arcs they are, and Waterloo sits top
+            // centre, clear of the panels either side.
             focus={
               // Whoever you are talking to is turned into the upper half of
               // the globe: the call card opens over the lower half, and a
               // hello nobody can see is no hello.
               focused
                 ? { lat: Math.max(-70, focused.lat - 18), lon: focused.lon }
-                : councilPoint
-                ? { lat: councilPoint.lat, lon: councilPoint.lon }
                 : segment === "split" || segment === "deploy"
                   ? { lat: HOME.lat - 28, lon: HOME.lon }
                   : null
             }
-            beacon={councilPoint ? { lat: councilPoint.lat, lon: councilPoint.lon } : null}
+            // Deliberately not turned to the strongest city at the result. The
+            // globe's place labels are laid out against each other, not against
+            // the caption underneath it, so turning a new city into the bottom
+            // of the sphere printed its name straight through the narrator's.
+            // "Where it lands" names the city, in the panel, where it reads.
+            beacon={null}
             arcs={arcs}
-            distance={councilView ? 7.6 : undefined}
             className="h-full w-full"
           />
 
@@ -1398,8 +1122,7 @@ export default function Discover() {
               <ProblemPopup
                 key="problems"
                 loading={problems.length === 0 || problems.length < expecting}
-                progress={panel}
-                provider={provider}
+                step={panel.step}
                 solution={ventureFile?.solution}
                 problem={statedProblem ?? undefined}
                 others={bet ? problems.filter((p) => p.id !== bet.id) : []}
@@ -1417,35 +1140,31 @@ export default function Discover() {
                   done={panel.done}
                   total={panel.total}
                   unit={panel.unit}
-                  round={provider ? `provider ${provider}` : undefined}
                 />
               )}
             </AnimatePresence>
 
-            {/* candidate problems, one at a time */}
             {/* One bet, not four cards. The rivals are still asked about,
-                because the crowd choosing one of them is the pivot. */}
-            {bet && (
+                because the crowd choosing one of them is the pivot.
+
+                Only once the crowd has answered, and only if they claimed
+                something. Earlier it printed the sentence the pop-up had just
+                shown, beside a globe of people who had not been asked yet —
+                two answers to one question, and the second one guesswork. With
+                nobody claiming a problem there is nothing to say they struggle
+                with, so it stays away then too. */}
+            {marketProblem && segment === "result" && (
               <div className="mt-4 space-y-1.5">
-                <p className="label">
-                  {councilView
-                    ? "The problem they're arguing about"
-                    : betIsMarket
-                      ? "What they actually struggle with"
-                      : "The problem your product implies"}
-                </p>
+                <p className="label">What they actually struggle with</p>
                 <Bet
-                  problem={bet}
-                  label={betIsMarket || councilView ? "Their problem, in their words" : undefined}
+                  problem={marketProblem}
+                  label="Their problem, in their words"
                   isMarket={betIsMarket}
-                  vote={verdict?.problemVotes.find((v) => v.problemId === bet.id)}
-                  onRewrite={canRewriteBet ? rewriteBet : undefined}
+                  vote={verdict?.problemVotes.find((v) => v.problemId === marketProblem.id)}
                 />
               </div>
             )}
           </div>
-
-          <SystemPanel />
 
           {/* --------------------------------------------- call one person */}
           <AnimatePresence>
@@ -1517,22 +1236,7 @@ export default function Discover() {
                 </button>
               )}
 
-              {/* Offered from the reveal on, so it can be switched on before
-                  the council convenes rather than halfway through it. */}
-              {marketProblem &&
-                (segment === "result" || segment === "council" || segment === "deliberated") && (
-                  <button
-                    onClick={toggleHear}
-                    title={hear ? "The council is speaking aloud" : "Hear the council argue out loud"}
-                    className={`px-3 py-2 font-mono text-[11px] uppercase tracking-[0.14em] transition ${
-                      hear ? "text-accent" : "text-faint hover:text-ink"
-                    }`}
-                  >
-                    {hear ? "🔊 hearing them" : "🔈 hear them"}
-                  </button>
-                )}
-
-              {segment === "result" && verdict?.mismatch && !councilHub && (
+              {segment === "result" && verdict?.mismatch && (
                 <button
                   onClick={() => void startRefine()}
                   disabled={refining}
@@ -1542,7 +1246,7 @@ export default function Discover() {
                 </button>
               )}
 
-              {(segment === "result" || segment === "scored") && next !== "rerun" && (
+              {segment === "result" && next !== "rerun" && (
                 <button
                   onClick={() => run()}
                   className="px-3 py-2 font-mono text-[11px] uppercase tracking-[0.14em] text-faint transition hover:text-ink"
@@ -1569,9 +1273,7 @@ export default function Discover() {
         {/* Newest stage first: the conclusion, then the evidence under it. */}
         <aside
           ref={asideRef}
-          className={`flex shrink-0 flex-col overflow-y-auto border-l border-edge bg-surface/40 transition-[width] duration-500 ease-out ${
-            councilView ? "w-[min(640px,46vw)]" : "w-96"
-          }`}
+          className="flex w-96 shrink-0 flex-col overflow-y-auto border-l border-edge bg-surface/40"
         >
           {/* ---- what it means: the conclusion, before the evidence ---- */}
           {advice && verdict && (
@@ -1587,80 +1289,27 @@ export default function Discover() {
             </div>
           )}
 
-          {/* ---- the score ---- */}
-          {pvs && (
-            <div className={`border-b border-edge p-4 ${pvs.passed ? "" : "glow-accent"}`}>
-              <div className="flex items-baseline justify-between">
-                <p className="label">
-                  Problem validation
-                  <Hint>
-                    How real and how big the problem is, out of 100: how badly the crowd feels
-                    it and would pay, how much room is left, how the council rated this city,
-                    and how much of that is cited rather than asserted. Below 60 you can still
-                    pitch. The committee is told.
-                  </Hint>
-                </p>
-                <span className="num text-2xl text-ink">{pvs.total}</span>
-              </div>
-              <div className="mt-3 space-y-1.5">
-                <AttentionBar label="Severity" n={pvs.problemSeverity} total={100} tone="accent" />
-                <AttentionBar label="Market gap" n={pvs.marketGap} total={100} tone="muted" />
-                <AttentionBar label="Hub fit" n={pvs.hubFit} total={100} tone="muted" />
-                <AttentionBar label="Evidence" n={pvs.evidenceStrength} total={100} tone="cold" />
-              </div>
-              <p className="mt-3 text-[10px] leading-relaxed text-muted">
-                {pvs.passed
-                  ? `Clears the bar of ${pvs.threshold}. The weak spot the committee will find: ${pvsReason(pvs)}.`
-                  : `Below the bar of ${pvs.threshold}, mostly because ${pvsReason(pvs)}. You can pitch anyway. The committee will be told you did.`}
-              </p>
-            </div>
-          )}
-
-          {/* ---- the council room ---- */}
-          {councilRoster.length > 0 && councilHub && (
-            <div className="border-b border-edge p-4">
-              <CouncilStage
-                city={hubName(councilHub)}
-                roundTitle={councilRound ? COUNCIL_ROUND[councilRound]?.title : undefined}
-                inSession={segment === "council"}
-                seats={councilRoster}
-                stances={councilStances}
-                tasks={councilTasks}
-                messages={councilLog as StageMessage[]}
-                conceded={conceded}
-                voiced={hear ? voiced : undefined}
-              />
-            </div>
-          )}
-
-          {/* ---- pick a city, convene the council ---- */}
+          {/* ---- where the problem lands ---- */}
           {hubRanking.length > 0 && (
             <div className="border-b border-edge p-4">
               <p className="label">
                 Where it lands
                 <Hint>
                   Each city&apos;s fit for the market&apos;s problem, from the crowd alone: how
-                  many people there have this problem, how many would pay to fix it, and
-                  how badly it hurts them. Pick
-                  one and five agents argue about it.
+                  many people there have this problem, how many would pay to fix it, and how
+                  badly it hurts them. The strongest one goes to the committee with you.
                 </Hint>
               </p>
               <div className="mt-3 space-y-1">
-                {hubRanking.slice(0, 6).map((h) => (
-                  <button
+                {hubRanking.slice(0, 6).map((h, i) => (
+                  <div
                     key={h.hubId}
-                    onClick={() => runCouncil(h.hubId)}
-                    disabled={segment === "council"}
-                    className={`w-full p-2 text-left transition disabled:opacity-40 ${
-                      councilHub === h.hubId ? "glow-accent" : "panel hover:panel-bright"
-                    }`}
+                    className={`p-2 ${i === 0 ? "glow-accent" : "panel"}`}
                   >
                     <Meter
                       label={hubName(h.hubId)}
                       value={h.fitScore}
-                      color={
-                        councilHub === h.hubId ? "var(--accent)" : "var(--border-bright)"
-                      }
+                      color={i === 0 ? "var(--accent)" : "var(--border-bright)"}
                     />
                     {/* Spelled out. "2/4 have it · 1 would pay" reads as a
                         score line rather than a sentence about people. */}
@@ -1668,15 +1317,9 @@ export default function Discover() {
                       {h.haveIt} of the {h.asked} we asked here have this problem
                       {h.haveIt > 0 && `, ${h.wouldPay} would pay to fix it`}
                     </p>
-                  </button>
+                  </div>
                 ))}
               </div>
-              {!councilHub && (
-                <p className="mt-2 text-[10px] leading-relaxed text-faint">
-                  Pick a city and five agents will argue about whether the problem is
-                  worth solving there.
-                </p>
-              )}
             </div>
           )}
 
@@ -1941,42 +1584,12 @@ export default function Discover() {
             delta={delta}
             crowd={personas.length}
             problemCount={problems.length}
-            city={hubRanking[0] ? hubName(hubRanking[0].hubId) : null}
             advice={advice}
             refining={refining}
-            onAccept={acceptAndConvene}
+            onAccept={enterCommittee}
             onRefine={() => void startRefine()}
             onClose={() => setShowReveal(false)}
             onAnyway={forceCommittee}
-          />
-        )}
-      </AnimatePresence>
-
-      {/* ------------------------------------------ PART ONE CLOSES HERE */}
-      <AnimatePresence>
-        {finding && marketProblem && verdict && (
-          <Finding
-            pitched={pitchedProblem}
-            walkedInWith={walkedInWith}
-            chosen={marketProblem}
-            crowd={{
-              asked: personas.length,
-              engaged: verdict.attention.full,
-              haveIt: marketVote?.votes ?? 0,
-              payRate: marketVote?.payRate ?? 0,
-            }}
-            city={
-              findingCity
-                ? {
-                    name: hubName(findingCity),
-                    fitScore: hubRanking.find((h) => h.hubId === findingCity)?.fitScore ?? 0,
-                  }
-                : null
-            }
-            pvs={pvs}
-            firmName={firmName}
-            onEnter={enterCommittee}
-            onStay={() => setFinding(false)}
           />
         )}
       </AnimatePresence>
@@ -1989,7 +1602,7 @@ export default function Discover() {
 /**
  * Hub ranking computed on the client from the reactions we already have. No
  * round trip, so the founder can pick a city the instant the crowd lands.
- * Same shape the council route returns, so the two agree.
+ * It is the only place a city score comes from now.
  */
 function rankFromCrowd(crowd: CrowdVerdict, personas: DeployedPersona[]): HubRank[] {
   const hubOf = new Map(personas.map((p) => [p.id, p.hubId]));
@@ -2024,25 +1637,4 @@ function rankFromCrowd(crowd: CrowdVerdict, personas: DeployedPersona[]): HubRan
     // A city where we asked almost nobody is not a finding.
     .filter((h) => h.asked >= 3)
     .sort((a, b) => b.fitScore - a.fitScore);
-}
-
-function AttentionBar({
-  label,
-  n,
-  total,
-  tone,
-}: {
-  label: string;
-  n: number;
-  total: number;
-  tone: "accent" | "muted" | "cold";
-}) {
-  const color =
-    tone === "accent" ? "var(--accent)" : tone === "cold" ? "var(--cold)" : "var(--muted)";
-
-  return (
-    <div>
-      <Meter label={label} value={n} max={total} color={color} />
-    </div>
-  );
 }
