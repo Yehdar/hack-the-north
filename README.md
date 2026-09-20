@@ -196,6 +196,22 @@ Provider selection is automatic. `OPENAI_API_KEY` if present, else
 `ANTHROPIC_API_KEY`, else `GEMINI_API_KEY`, else the demo provider. Force one
 with `LLM_PROVIDER=gemini|openai|anthropic|demo|mock`.
 
+### Deploying your own
+
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fjaineelmodi11%2Fvision&env=GEMINI_API_KEY&envDescription=Free%20Gemini%20key.%20Leave%20blank%20to%20run%20on%20the%20demo%20provider.&envLink=https%3A%2F%2Faistudio.google.com%2Fapikey&project-name=vision&repository-name=vision)
+
+Next.js needs no configuration here. The only environment variable worth setting
+is `GEMINI_API_KEY`, and leaving it blank is a valid deployment that runs on the
+demo provider.
+
+Two deployment details are load-bearing and already handled in the code. The
+discovery run and the committee deliberation both declare `maxDuration = 300`,
+because fifteen sequential model calls do not fit inside a shorter default and
+the stream would simply stop partway through cross-examination. And
+`NEXT_PUBLIC_SITE_URL` is optional, since the link preview falls back to
+`VERCEL_URL`, so preview deployments advertise themselves rather than
+production.
+
 ---
 
 ## 🛡️ Everything degrades
