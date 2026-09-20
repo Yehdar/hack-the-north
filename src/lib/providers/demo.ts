@@ -24,9 +24,17 @@ type Seat =
   | "market" | "founder" | "customer" | "regulatory" | "capital" | "contrarian";
 
 function whoAmI(system: string): Seat {
-  // Investment committee
-  if (system.includes("Devil's Advocate")) return "devil";
-  if (system.includes("Skeptical Partner") || system.includes("Anti-Portfolio")) return "skeptic";
+  // Investment committee. The seats have been renamed twice; a seat this
+  // cannot place says nothing at all in the room, so every name it has ever
+  // had is still listed here. seats.test.ts fails if a new one is added.
+  if (system.includes("Devil's Advocate") || system.includes("Associate")) return "devil";
+  if (
+    system.includes("Skeptical Partner") ||
+    system.includes("Anti-Portfolio") ||
+    system.includes("Operating Partner")
+  ) {
+    return "skeptic";
+  }
   if (system.includes("Principal")) return "principal";
   if (system.includes("Lead Partner") || system.includes("General Partner")) return "gp";
   // Hub council
@@ -127,6 +135,8 @@ export class DemoProvider implements LLMProvider {
 
       case "seat_response":
         return seatResponse(seat, req.user) as T;
+      case "partner_reply":
+        return partnerReply(seat, req.user) as T;
       default:
         return {} as T;
     }
@@ -380,6 +390,98 @@ let turnCounter = 0;
  * should be pushed one level deeper on the thing they offered. With a key set,
  * the partners genuinely respond to what was said.
  */
+/**
+ * A partner pulled aside at the table.
+ *
+ * It cannot read the founder's argument, so it answers the shape of what was
+ * asked, in that seat's voice, and it stays where it stood: being asked
+ * directly is not evidence. Without this the room went quiet, because a seat
+ * with no case here answered with an empty line.
+ */
+function partnerReply(seat: Seat, user: string) {
+  const asked = user.match(/THE FOUNDER ASKS: "([^"]{0,600})"/i)?.[1]?.trim() ?? "";
+  const stance = Number(user.match(/Where you stand right now: (-?\d+(?:\.\d+)?)/)?.[1] ?? 0);
+  const solution =
+    user.match(/THE FOUNDER'S SOLUTION[^:]*:\s*\n?"?([^"\n]{8,200})/i)?.[1]?.trim() ??
+    user.match(/PRODUCT:\s*\n?"([^"]{8,200})"/i)?.[1]?.trim() ??
+    "this";
+  const pitch = readPitch(solution);
+  const it = pitch.short;
+  const market = MARKETS[pitch.domain];
+
+  const q = asked.toLowerCase();
+  const about = {
+    money: /price|pric|pay|paid|revenue|cost|charge|budget|cheque|check|money|unit econ/.test(q),
+    rival: /competitor|incumbent|copy|moat|defensib|different|alternative|versus|vs\b/.test(q),
+    size: /market|big|size|tam|scale|how far|hundred million|billion/.test(q),
+    why: /why|what would|change your mind|convince|what do you need|concern|worried|worry/.test(q),
+    timing: /now|timing|why this year|too early|too late/.test(q),
+  };
+
+  // What this seat is unmoved about, and the one thing that would move it.
+  const bySeat: Record<string, { line: string; note: string }> = {
+    principal: about.money
+      ? {
+          line: `Nobody has paid yet, and that is the whole of it. Bring me one customer who chose to spend on the ${it}, what they paid, and whether they renewed.`,
+          note: "Asked for a paying customer and a renewal, again.",
+        }
+      : about.why
+        ? {
+            line: `One name and one number would move me. Not a pilot somebody expensed, a buyer who owns the budget and came back.`,
+            note: "Named what would change their mind: a real buyer.",
+          }
+        : {
+            line: `I did the homework on this one. The research says people feel it, and feeling it is not the same as spending on it, so I am still where I was.`,
+            note: "Held position: interest is not revenue.",
+          },
+    skeptic: about.rival
+      ? {
+          line: `Say you are right and nobody has built it. What stops ${market.incumbent} shipping it the quarter after you prove it works?`,
+          note: "Pressed on what happens once the idea is proven.",
+        }
+      : about.why
+        ? {
+            line: `Usage in month three would move me. In ${market.category}, ${market.failure}, and every deck I have seen shows me week one instead.`,
+            note: "Named what would change their mind: month-three usage.",
+          }
+        : {
+            line: `I have seen this shape before. ${cap(market.failure)} is the pattern, and nothing you have said yet is the thing that breaks it.`,
+            note: "Held position on the category's failure mode.",
+          },
+    gp: about.size
+      ? {
+          line: `That is the question I actually care about. Walk me from the buyer you named to a hundred million in revenue, and tell me which step you are least sure of.`,
+          note: "Asked for the path to a fund-returning outcome.",
+        }
+      : about.timing
+        ? {
+            line: `Why-now is the part I can be persuaded on. What changed in the last year that makes the ${it} possible today and not in 2022?`,
+            note: "Asked what changed to make now the moment.",
+          }
+        : {
+            line: `I like the problem, I always did. What I cannot see yet is whether this is a company or a feature ${market.incumbent} adds, and that is what the money turns on.`,
+            note: "Held position: a company, or a feature.",
+          },
+    devil: {
+      line: `Everyone is being reasonable, which is usually when a room gets something wrong. If this works, the uncomfortable question is why ${market.incumbent} has not done it already.`,
+      note: "Put the uncomfortable question back to the room.",
+    },
+    chair: {
+      line: `I do not hold a position here, I keep the record. What the room is split on is whether anyone has paid, so that is the thing to answer next.`,
+      note: "Restated what the room is split on.",
+    },
+  };
+
+  const reply = bySeat[seat] ?? bySeat.chair;
+  return {
+    line: reply.line,
+    // Being asked directly is not an argument, so nobody moves on it.
+    stance: round2(stance),
+    moved: false,
+    summary: reply.note,
+  };
+}
+
 function seatResponse(seat: Seat, user: string) {
   const solution =
     user.match(/THE FOUNDER'S SOLUTION[^:]*:\s*\n?"?([^"\n]{8,200})/i)?.[1]?.trim() ??

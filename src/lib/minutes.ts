@@ -75,16 +75,20 @@ export function writeMinutes(input: {
   const { snapshot, verdict } = input;
   const roleOf = (id: string) => snapshot.roster.find((r) => r.id === id)?.role ?? id;
 
+  // The chair sits as "Managing Partner" with no vote, so it is known by its
+  // seat rather than by its title: matching on the word "chair" listed it
+  // twice, once from the roster and once appended here.
+  const chaired = (r: { id: string; role: string }) => r.id === "chair" || /chair/i.test(r.role);
   const seated = snapshot.roster.map((r) => ({
     role: r.role,
-    note: /chair/i.test(r.role)
+    note: chaired(r)
       ? "chairs, keeps these minutes, does not vote"
       : r.weight > 0
         ? `votes · ${Math.round(r.weight * 100)}% of the vote`
         : "argues, does not vote",
   }));
   // The chair is in the room even when it is not on the roster the room votes with.
-  const present = seated.some((p) => /chair/i.test(p.role))
+  const present = snapshot.roster.some(chaired)
     ? seated
     : [...seated, { role: CHAIR, note: "chairs, keeps these minutes, does not vote" }];
 

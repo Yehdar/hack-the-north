@@ -65,6 +65,25 @@ describe("the minutes", () => {
     expect(minutes.keptBy).toBe("Managing Partner (chair)");
   });
 
+  it("seats the chair once, whatever its title is", () => {
+    // The chair sits as "Managing Partner" with no vote. Recognising it by
+    // the word "chair" listed it twice: once from the roster, once appended.
+    const withChair = writeMinutes({
+      firm: SNAPSHOT.firm,
+      snapshot: {
+        ...SNAPSHOT,
+        roster: [...SNAPSHOT.roster, { id: "chair", role: "Managing Partner", weight: 0 }],
+      },
+      verdict: DECISION,
+      now: 0,
+    });
+
+    const chairs = withChair.present.filter((p) => /managing partner/i.test(p.role));
+    expect(chairs).toHaveLength(1);
+    expect(chairs[0].note).toMatch(/keeps these minutes/);
+    expect(new Set(withChair.present.map((p) => p.role)).size).toBe(withChair.present.length);
+  });
+
   it("gives each partner's view and says who moved", () => {
     const gp = minutes.views.find((v) => v.role === "Lead Partner")!;
     expect(gp.view).toBe("I like the problem.");

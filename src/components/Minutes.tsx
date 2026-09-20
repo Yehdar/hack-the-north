@@ -54,8 +54,8 @@ export function Minutes({ minutes, size = "sm" }: { minutes: MinutesDoc; size?: 
 
       <Part title="Where each partner stood">
         <ul className="space-y-2">
-          {minutes.views.map((v) => (
-            <li key={v.role}>
+          {minutes.views.map((v, i) => (
+            <li key={`${v.role}:${i}`}>
               <p>
                 <span className="text-ink">{v.role}</span>
                 <span className="ml-2 inline-flex items-center gap-1 text-[11px]" style={{ color: LEAN[v.lean].color }}>
@@ -117,8 +117,8 @@ export function Minutes({ minutes, size = "sm" }: { minutes: MinutesDoc; size?: 
 
       <Part title="In the room">
         <ul className="space-y-0.5">
-          {minutes.present.map((p) => (
-            <li key={p.role}>
+          {minutes.present.map((p, i) => (
+            <li key={`${p.role}:${i}`}>
               <span className="text-ink/85">{p.role}</span> <span className="text-faint">— {p.note}</span>
             </li>
           ))}
@@ -140,8 +140,8 @@ function Part({ title, children }: { title: string; children: React.ReactNode })
 function List({ items }: { items: string[] }) {
   return (
     <ul className="space-y-1">
-      {items.map((t) => (
-        <li key={t} className="flex gap-2">
+      {items.map((t, i) => (
+        <li key={`${i}:${t.slice(0, 32)}`} className="flex gap-2">
           <span className="text-faint">·</span>
           <span>{t}</span>
         </li>
