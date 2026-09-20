@@ -14,13 +14,6 @@ const EXAMPLES = [
   "Software that reconciles invoices across three ERPs automatically.",
 ];
 
-// The whole product in three lines, before anyone presses anything.
-const HOW = [
-  { n: "01", name: "The market", line: "120 people across 20 cities tell you which problem they actually have." },
-  { n: "02", name: "The council", line: "Five agents argue about whether it is worth solving, and where." },
-  { n: "03", name: "The committee", line: "Pitch a real firm's partners out loud. They interrupt, then vote." },
-];
-
 type Props = {
   /** Called with the saved text. The venture file is already written by then. */
   onDone: (solution: string) => void;
@@ -86,7 +79,10 @@ export function Intake({ onDone, onCancel, cta = "Take it to the committee", ref
           value={text}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) submit();
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              submit();
+            }
             if (e.key === "Escape") onCancel?.();
           }}
           rows={refine ? 5 : 4}
@@ -95,16 +91,19 @@ export function Intake({ onDone, onCancel, cta = "Take it to the committee", ref
         />
 
         {!refine && (
-          <div className="mt-3 flex flex-wrap gap-2">
-            {EXAMPLES.map((ex) => (
-              <button
-                key={ex}
-                onClick={() => setText(ex)}
-                className="border border-edge px-2 py-1 text-left font-mono text-[10px] text-faint transition hover:border-edge-bright hover:text-muted"
-              >
-                {ex.slice(0, 44)}…
-              </button>
-            ))}
+          <div className="mt-4">
+            <p className="label">Suggestions</p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {EXAMPLES.map((ex) => (
+                <button
+                  key={ex}
+                  onClick={() => setText(ex)}
+                  className="border border-edge px-2 py-1 text-left font-mono text-[10px] text-faint transition hover:border-edge-bright hover:text-muted"
+                >
+                  {ex.slice(0, 44)}…
+                </button>
+              ))}
+            </div>
           </div>
         )}
 
@@ -126,21 +125,10 @@ export function Intake({ onDone, onCancel, cta = "Take it to the committee", ref
               Cancel
             </button>
           )}
-          <span className="ml-auto font-mono text-[10px] text-faint">⌘↵</span>
+          <span className="ml-auto font-mono text-[10px] text-faint">
+            ↵ to send · ⇧↵ for a new line
+          </span>
         </div>
-
-        {!refine && (
-          <ol className="mt-10 grid gap-5 border-t border-edge pt-5 sm:grid-cols-3">
-            {HOW.map((h) => (
-              <li key={h.n}>
-                <p className="label">
-                  <span style={{ color: "var(--accent)" }}>{h.n}</span> · {h.name}
-                </p>
-                <p className="mt-1.5 text-[12px] leading-relaxed text-muted">{h.line}</p>
-              </li>
-            ))}
-          </ol>
-        )}
       </div>
     </motion.div>
   );

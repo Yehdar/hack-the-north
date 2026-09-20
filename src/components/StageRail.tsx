@@ -29,33 +29,69 @@ export type StageId =
 export type StageState = "todo" | "active" | "done";
 
 const STAGES: { id: StageId; part: 1 | 2; name: string; blurb: string }[] = [
-  { id: "intake", part: 1, name: "The product", blurb: "What you built, in your words." },
-  { id: "split", part: 1, name: "Problem split", blurb: "Every problem this could be solving." },
-  { id: "deploy", part: 1, name: "Deploy", blurb: "Who in the world should see it." },
-  { id: "listen", part: 1, name: "Listen", blurb: "Which problem do they actually have." },
-  { id: "reveal", part: 1, name: "The reveal", blurb: "Yours against theirs." },
-  { id: "council", part: 1, name: "Hub council", blurb: "Five agents argue about one city." },
-  { id: "score", part: 1, name: "Validation", blurb: "Is the problem big enough." },
-  { id: "pitch", part: 2, name: "The committee", blurb: "Defend it to investors, out loud." },
+  { id: "intake", part: 1, name: "Product", blurb: "What you built, in your own words." },
+  { id: "split", part: 1, name: "Problem", blurb: "The problem your product implies." },
+  { id: "deploy", part: 1, name: "Sample", blurb: "Who gets asked, and where they work." },
+  { id: "listen", part: 1, name: "Responses", blurb: "Which problem each of them has." },
+  { id: "reveal", part: 1, name: "Result", blurb: "What the market's answer means." },
+  { id: "council", part: 1, name: "Council", blurb: "Five analysts assess one city." },
+  { id: "score", part: 1, name: "Validation", blurb: "Whether the problem is big enough." },
+  { id: "pitch", part: 2, name: "Committee", blurb: "Defend it to a firm's partners." },
 ];
 
 export function StageRail({
   state,
+  solution,
+  rerun,
+  under,
+  onReset,
   onJump,
 }: {
   state: Record<StageId, StageState>;
+  /** The pitch being tested, kept beside the steps it is being put through. */
+  solution?: string;
+  rerun?: boolean;
+  /** Anything that belongs with the solution, such as the problems it could
+   *  be sold against. */
+  under?: React.ReactNode;
+  /** Start again with a different product. */
+  onReset?: () => void;
   onJump?: (id: StageId) => void;
 }) {
   return (
-    <nav className="flex h-full w-[212px] shrink-0 flex-col border-r border-edge bg-surface/40">
-      <div className="p-4">
+    <nav className="flex h-full w-[248px] shrink-0 flex-col border-r border-edge bg-surface/40">
+      <div className="px-4 pb-3 pt-4">
         <Wordmark size={18} />
         <p className="label mt-1">see it · defend it</p>
       </div>
 
+      {solution && (
+        <>
+          <div className="rule mx-4" />
+          <div className="px-4 py-2.5">
+            <div className="flex items-baseline justify-between gap-2">
+              <p className="label" style={rerun ? { color: "var(--accent)" } : undefined}>
+                {rerun ? "Solution · rewritten" : "Solution"}
+              </p>
+              {onReset && (
+                <button
+                  onClick={onReset}
+                  title="Start again with a different product"
+                  className="label underline-offset-4 hover:text-ink hover:underline"
+                >
+                  Change
+                </button>
+              )}
+            </div>
+            <p className="mt-1 text-[12px] leading-relaxed text-ink/85">&ldquo;{solution}&rdquo;</p>
+            {under && <div className="mt-2.5">{under}</div>}
+          </div>
+        </>
+      )}
+
       <div className="rule mx-4" />
 
-      <ol className="flex-1 overflow-y-auto p-3">
+      <ol className="min-h-0 flex-1 overflow-y-auto px-3 py-2">
         {STAGES.map((stage, i) => {
           const s = state[stage.id];
           const prev = i > 0 ? STAGES[i - 1] : null;
@@ -63,31 +99,21 @@ export function StageRail({
 
           return (
             <li key={stage.id}>
-              {partBreak && (
-                <div className="my-3 flex items-center gap-2 px-1">
-                  <span className="label">Part two</span>
-                  <span className="h-px flex-1 bg-edge" />
-                </div>
-              )}
-              {i === 0 && (
-                <div className="mb-3 flex items-center gap-2 px-1">
-                  <span className="label">Part one</span>
-                  <span className="h-px flex-1 bg-edge" />
-                </div>
-              )}
+              {/* The two halves are separated by a rule, not announced. */}
+              {partBreak && <div className="my-2 h-px bg-edge" />}
 
               <button
                 disabled={!onJump || s === "todo"}
                 onClick={() => onJump?.(stage.id)}
-                className={`group relative flex w-full gap-2.5 rounded-[3px] px-2 py-2 text-left transition ${
+                className={`group relative flex w-full gap-3 rounded-[3px] px-2 py-2 text-left transition ${
                   s === "active" ? "bg-surface-2" : "hover:bg-surface-2/60"
                 } ${s === "todo" ? "cursor-default" : ""}`}
               >
                 {/* spine */}
-                <span className="relative flex w-4 shrink-0 justify-center">
+                <span className="relative flex w-5 shrink-0 justify-center">
                   {i < STAGES.length - 1 && (
                     <span
-                      className="absolute left-1/2 top-4 h-[calc(100%+12px)] w-px -translate-x-1/2"
+                      className="absolute left-1/2 top-5 h-[calc(100%+14px)] w-px -translate-x-1/2"
                       style={{ background: s === "done" ? "var(--accent)" : "var(--border)" }}
                     />
                   )}
@@ -97,7 +123,7 @@ export function StageRail({
                       screen. The number stays visible in every state so the
                       rail reads as a list of steps at a glance. */}
                   <span
-                    className="relative z-10 mt-0.5 flex h-[18px] w-[18px] items-center justify-center rounded-full border font-mono text-[10px] font-semibold tabular-nums"
+                    className="relative z-10 mt-0.5 flex h-[22px] w-[22px] items-center justify-center rounded-full border font-mono text-[11px] font-semibold tabular-nums"
                     style={{
                       borderColor: s === "todo" ? "var(--border)" : "var(--accent)",
                       background: s === "done" ? "var(--accent)" : "var(--ground)",
@@ -123,14 +149,14 @@ export function StageRail({
 
                 <span className="min-w-0 flex-1">
                   <span
-                    className={`block text-[11px] leading-tight ${
+                    className={`block text-[15px] leading-tight ${
                       s === "todo" ? "text-faint" : s === "active" ? "text-accent" : "text-ink/85"
                     }`}
                   >
                     {stage.name}
                   </span>
                   <span
-                    className={`mt-0.5 block text-[10px] leading-snug ${
+                    className={`mt-1 block text-[12px] leading-snug ${
                       s === "active" ? "text-muted" : "text-faint"
                     }`}
                   >

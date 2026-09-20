@@ -54,10 +54,21 @@ export function voiceFor(agentId: string): VoiceProfile {
  * pace of the argument rather than the pace of the network. Which is the
  * reason Phase 2 felt like it happened all at once.
  */
+type Line = {
+  id: string;
+  agentId: string;
+  text: string;
+  /** Overrides the speaker's usual voice, for a crowd persona on a call. */
+  voice?: VoiceProfile;
+  /** Resolved when the line has been said, or dropped. */
+  done?: () => void;
+};
+
 export class SpeechQueue {
-  private queue: { id: string; agentId: string; text: string }[] = [];
+  private queue: Line[] = [];
   private running = false;
   private stopped = false;
+  private held = false;
   private current: string | null = null;
 
   constructor(
@@ -78,6 +89,7 @@ export class SpeechQueue {
    */
   replace(id: string, agentId: string, text: string) {
     if (this.stopped || !text.trim()) return;
+    for (const line of this.queue.filter((q) => q.agentId === agentId)) line.done?.();
     this.queue = this.queue.filter((q) => q.agentId !== agentId);
     if (this.current === agentId) stopSpeaking();
     this.push(id, agentId, text);
@@ -85,23 +97,53 @@ export class SpeechQueue {
 
   /** Drop what one speaker still has queued, leaving everyone else's lines. */
   drop(agentId: string) {
+    for (const line of this.queue.filter((q) => q.agentId === agentId)) line.done?.();
     this.queue = this.queue.filter((q) => q.agentId !== agentId);
     if (this.current === agentId) stopSpeaking();
   }
 
+  /**
+   * Say this line and resolve when it has been said. Anything with its own
+   * voice, like the person on a call, still goes through this queue: two
+   * voices on one page must never start at the same moment.
+   */
+  say(id: string, agentId: string, text: string, voice?: VoiceProfile): Promise<void> {
+    return new Promise((resolve) => {
+      if (this.stopped || !text.trim()) return resolve();
+      this.queue.push({ id, agentId, text, voice, done: resolve });
+      void this.drain();
+    });
+  }
+
+  /**
+   * Give the floor to something else. Used when a call opens: the person on
+   * the other end speaks through their own voice, not this queue, and nothing
+   * here may talk over them. Anything queued while held waits for release().
+   */
+  hold() {
+    this.held = true;
+    this.clear();
+  }
+
+  release() {
+    this.held = false;
+    void this.drain();
+  }
+
   private async drain() {
-    if (this.running) return;
+    if (this.running || this.held) return;
     this.running = true;
 
-    while (this.queue.length > 0 && !this.stopped) {
+    while (this.queue.length > 0 && !this.stopped && !this.held) {
       const next = this.queue.shift()!;
       this.current = next.agentId;
       this.onSpeaking?.(next.agentId, next.id);
       try {
-        await this.speak(next.text, voiceFor(next.agentId));
+        await this.speak(next.text, next.voice ?? voiceFor(next.agentId));
       } catch {
         // A voice failing must not stall the rest of the room.
       }
+      next.done?.();
       this.current = null;
       // A breath between speakers. Without it the room sounds like one person
       // reading a list.
@@ -124,7 +166,9 @@ export class SpeechQueue {
 
   /** Silence the room but keep listening. Used when the founder skips ahead. */
   clear() {
+    const dropped = this.queue;
     this.queue = [];
+    for (const line of dropped) line.done?.();
     stopSpeaking();
   }
 

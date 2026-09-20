@@ -14,6 +14,7 @@ import {
   type VoiceTier,
 } from "@/lib/voice/client";
 import type { CrowdReaction, FigureKind } from "@/lib/discovery/types";
+import type { SpeechQueue } from "@/lib/voice/agentVoices";
 import { FigureAvatar } from "@/components/FigureAvatar";
 import { figureLook, shirtColor } from "@/components/globe/figures";
 import type { ProblemStatement } from "@/lib/types";
@@ -47,6 +48,9 @@ type Props = {
   solution: string;
   problems: ProblemStatement[];
   onClose: () => void;
+  /** Reaches the page's speech queue. The person on the call speaks through
+   *  it, so they and the narrator can never start at the same moment. */
+  queue?: () => SpeechQueue;
   /** Where to centre the card, when something else owns the left of the screen. */
   centre?: string;
 };
@@ -63,7 +67,14 @@ const WHO_PAYS = {
   business: "Who in your company would actually sign for this?",
 };
 
-export function PersonaCall({ persona, reaction, solution, problems, onClose, centre = "50%" }: Props) {
+export function PersonaCall({ persona, reaction, solution, problems, onClose, queue, centre = "50%" }: Props) {
+  /** Says a line in this person's voice, waiting its turn behind anything the
+   *  page is already saying. */
+  const voiced = useCallback(
+    (id: string, text: string, voice: VoiceProfile, tier: VoiceTier) =>
+      queue ? queue().say(id, "call", text, voice) : speak(text, voice, tier),
+    [queue]
+  );
   const [tier, setTier] = useState<VoiceTier | null>(null);
   const [turns, setTurns] = useState<Turn[]>([]);
   // The call opens ringing: they pick up and say hello before anything else.
@@ -86,6 +97,8 @@ export function PersonaCall({ persona, reaction, solution, problems, onClose, ce
   // is hung up on and dropped, so it is still said once.)
   useEffect(() => {
     let hungUp = false;
+    // Whatever the page was saying, the call has the floor now.
+    stopSpeaking();
 
     void Promise.all([
       fetch("/api/discovery/persona", {
@@ -102,7 +115,7 @@ export function PersonaCall({ persona, reaction, solution, problems, onClose, ce
         setTurns([{ speaker: "persona", text: json.line }]);
         setVoice(json.voice);
         setSpeaking(true);
-        await speak(json.line, json.voice as VoiceProfile, t);
+        await voiced(`call:${persona.id}:hello`, json.line, json.voice as VoiceProfile, t);
         if (!hungUp) setSpeaking(false);
       })
       .catch(() => !hungUp && setThinking(false));
@@ -149,13 +162,13 @@ export function PersonaCall({ persona, reaction, solution, problems, onClose, ce
         setThinking(false);
 
         setSpeaking(true);
-        await speak(json.line, json.voice as VoiceProfile, tier ?? "text");
+        await voiced(`call:${persona.id}:${turns.length}`, json.line, json.voice as VoiceProfile, tier ?? "text");
         setSpeaking(false);
       } catch {
         setThinking(false);
       }
     },
-    [persona.id, solution, problems, reaction, turns, tier]
+    [persona.id, solution, problems, reaction, turns, tier, voiced]
   );
 
   const pushToTalk = useCallback(async () => {

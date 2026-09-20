@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence } from "framer-motion";
 import {
   Globe,
   type GlobeArc,
@@ -13,10 +13,9 @@ import { Narrator } from "@/components/Narrator";
 import { Hint } from "@/components/Hint";
 import { AgentBoot, MARKET_STEPS } from "@/components/hud/AgentBoot";
 import { ProcessingPanel } from "@/components/hud/ProcessingPanel";
-import { AgentFeed, type FeedItem } from "@/components/hud/AgentFeed";
 import { Intake } from "@/components/Intake";
 import { SystemPanel } from "@/components/hud/SystemPanel";
-import { Light, LightRow } from "@/components/Light";
+import { LightRow } from "@/components/Light";
 import { Meter } from "@/components/Progress";
 import { PersonaCall } from "@/components/PersonaCall";
 import { StageRail, deriveStages, type Segment } from "@/components/StageRail";
@@ -37,6 +36,11 @@ import type { Attention, CrowdReaction, CrowdVerdict, FigureKind } from "@/lib/d
 import type { CrowdSignals } from "@/lib/discovery/signals";
 import { pvsReason } from "@/lib/pvs";
 import { CouncilStage, type StageMessage, type StageTask } from "@/components/CouncilStage";
+import { assess, diagnoseNoMarket } from "@/lib/advice";
+import { Assessment } from "@/components/Assessment";
+import { Bet } from "@/components/Bet";
+import { OtherProblems } from "@/components/OtherProblems";
+import { ProblemPopup } from "@/components/ProblemPopup";
 
 // ============================================================================
 // PART 1, DISCOVERY, in segments.
@@ -77,7 +81,7 @@ type CouncilMsg = {
   round: number;
   from: string;
   to: string;
-  kind: FeedItem["kind"];
+  kind: StageMessage["kind"];
   text: string;
   /** The challenge this answers, when it is an answer. */
   inReplyTo?: string;
@@ -190,10 +194,12 @@ export default function Discover() {
   const [consumer, setConsumer] = useState(false);
   const [reactions, setReactions] = useState<Map<number, CrowdReaction>>(new Map());
   const [progress, setProgress] = useState({ done: 0, total: 0 });
-  const [feed, setFeed] = useState<FeedItem[]>([]);
   const [verdict, setVerdict] = useState<CrowdVerdict | null>(null);
   const [signals, setSignals] = useState<CrowdSignals | null>(null);
   const [showReveal, setShowReveal] = useState(false);
+  /** Step two opens as a pop-up: the reading, then the problems. Closing it
+   *  puts the other framings in the corner of the globe. */
+  const [problemPopup, setProblemPopup] = useState(true);
   const [focus, setFocus] = useState<number | null>(null);
   const [onlyEngaged, setOnlyEngaged] = useState(false);
   /** Click a light to see only those people. Null shows everyone. */
@@ -320,10 +326,6 @@ export default function Discover() {
 
   const intakeOpen = !booting && (!ventureFile || refine !== null);
 
-  const dismiss = useCallback((id: string) => {
-    setFeed((f) => f.filter((i) => i.id !== id));
-  }, []);
-
   useEffect(() => {
     void detectTier().then(setTier);
     return () => speech.current?.stop();
@@ -386,10 +388,11 @@ export default function Discover() {
     personasRef.current = [];
 
     setSegment("split");
+    setProblemPopup(true);
     setExpecting(0);
     setDeployReady(false);
     setProblems([]); setPersonas([]); setReactions(new Map());
-    setFeed([]); setVerdict(null); setSignals(null); setShowReveal(false); setFocus(null);
+    setVerdict(null); setSignals(null); setShowReveal(false); setFocus(null);
     setProgress({ done: 0, total: 0 });
     setHubRanking([]); setCouncilHub(null); setCouncilLog([]); setCouncilRoster([]); setCouncilTasks([]);
     setCouncilStances({}); setCouncilRound(0); setPvs(null);
@@ -475,22 +478,6 @@ export default function Discover() {
         for (const r of batch) next.set(r.personaId, r);
         return next;
       });
-      // One voice at a time: the strongest thing anyone in this group said.
-      const loudest = batch
-        .filter((r) => r.reason && r.attention !== "ignore")
-        .sort((a, b) => b.problemSeverity - a.problemSeverity)[0];
-      setFeed(
-        loudest
-          ? [
-              {
-                id: `r${loudest.personaId}`,
-                agent: personaName(personasRef.current, loudest.personaId),
-                message: loudest.reason,
-                kind: (loudest.sentiment > 0.6 ? "concession" : "challenge") as FeedItem["kind"],
-              },
-            ]
-          : []
-      );
     };
 
     // Progress is anything new on screen. Waiting on the founder is not a
@@ -562,7 +549,6 @@ export default function Discover() {
           nextAt.current = now + (quick ? 90 : PACE.batch);
         } else if (bufVerdict.current) {
           skipping.current = false;
-          setFeed([]);
           setSegment("heard");
         } else {
           starved(now);
@@ -668,7 +654,9 @@ export default function Discover() {
     setDelta(mine && parent ? diffSessions(parent, mine) : null);
 
     setSegment("result");
-    if (v.marketProblemId) setTimeout(() => setShowReveal(true), 200);
+    // Nobody claiming a problem is an outcome with plenty to say, not a reason
+    // to show nothing.
+    setTimeout(() => setShowReveal(true), 200);
   }, []);
 
   /** Convene the five-agent council on one city. Same engine as the
@@ -863,7 +851,6 @@ export default function Discover() {
           sessionRef.current
         );
       }
-      setFeed([]);
       revealResult();
       return;
     }
@@ -940,22 +927,66 @@ export default function Discover() {
 
   const stages = deriveStages(segment, Boolean(ventureFile));
 
+  // What the run means, in words. It was written for the report and rendered
+  // only there, after the committee. A founder needs it the moment the crowd
+  // has answered, which is here.
+  const advice = useMemo(
+    () =>
+      verdict
+        ? assess(verdict, signals, pvs ?? undefined, Object.values(councilStances), (id) =>
+            councilRoster.find((r) => r.id === id)?.role ?? id
+          )
+        : null,
+    [verdict, signals, pvs, councilStances, councilRoster]
+  );
+
+  // The bet on screen: what was pitched until the crowd answers, then what
+  // they actually said they have.
   const marketProblem = problems.find((p) => p.id === verdict?.marketProblemId);
   const pitchedProblem = problems.find((p) => p.id === verdict?.pitchedProblemId);
   const marketVote = verdict?.problemVotes.find((v) => v.problemId === verdict.marketProblemId);
+  const bet = marketProblem ?? problems.find((p) => p.id === verdict?.pitchedProblemId) ?? problems[0];
+  const betIsMarket = Boolean(marketProblem && marketProblem.id !== verdict?.pitchedProblemId);
+  /** Only before anyone has answered: after that, an edit would be a new run. */
+  const canRewriteBet = problems.length > 0 && !verdict && reactions.size === 0;
+
+  /** Opening a call hands the floor to the person on it: the narrator stops
+   *  mid-sentence rather than talking over their hello. */
+  const openCall = useCallback(
+    (personaId: number) => {
+      // The narrator stops mid sentence rather than talking under a hello.
+      ensureSpeech().drop("narrator");
+      setFocus(personaId);
+    },
+    [ensureSpeech]
+  );
+
+  const endCall = useCallback(() => {
+    speech.current?.drop("call");
+    setFocus(null);
+  }, []);
+
+  /** One of the other framings, tested in place of the current one. */
+  const useProblem = useCallback(
+    (chosen: { id: string }) => {
+      const rest = problems.filter((p) => p.id !== chosen.id);
+      const picked = problems.find((p) => p.id === chosen.id);
+      if (picked) run({ problems: [picked, ...rest] });
+    },
+    [problems, run]
+  );
+
   const focused = focus ? personas.find((p) => p.id === focus) : null;
   // While a council sits, the argument is the main thing on screen: the side
   // panel widens into it and the globe steps back.
   const councilView =
     councilHub !== null && (segment === "council" || segment === "deliberated" || segment === "scored");
-  // The column of problem cards runs down the left edge; centred on the whole
-  // globe, the caption and buttons slid underneath it. Centre them on what is
-  // left. During a council only one card remains, at the top, so no offset.
-  const leftColumn = problems.length > 1 && !councilView;
-  const centreClear = {
-    left: leftColumn ? "calc(50% + 162px)" : "50%",
-    maxWidth: leftColumn ? "calc(100% - 372px)" : "calc(100% - 48px)",
-  };
+  /** Step two: the problem, centred on the globe. Nothing else is on screen. */
+  const splitView = segment === "split";
+  // Centred on the globe. The column that used to sit under the caption was
+  // four problem cards deep; it is one card at the top now, so nothing is in
+  // the way and the line belongs in the middle.
+  const centreClear = { left: "50%", maxWidth: "calc(100% - 48px)" };
   const councilPoint = councilHub ? hubById(councilHub) : undefined;
   const findingCity = councilHub ?? hubRanking[0]?.hubId ?? null;
   const firmName = FIRMS[firmId]?.name ?? "the firm";
@@ -990,8 +1021,8 @@ export default function Discover() {
     if (!ventureFile) {
       return {
         step: 1,
-        title: "The product",
-        line: "Tell us what you made. We'll find out what people actually need it for.",
+        title: "Product",
+        line: "Describe what you built. The market decides which problem it solves.",
       };
     }
     switch (segment) {
@@ -999,39 +1030,39 @@ export default function Discover() {
         return expecting > 0 && problems.length >= expecting
           ? {
               step: 2,
-              title: "Problem split",
-              line: `Here are ${expecting} problems this could be fixing. The top one is yours. See if the crowd agrees.`,
+              title: "Problem",
+              line: "This is the problem your product implies. Rewrite it if it is not your claim, then choose who to ask.",
             }
           : {
               step: 2,
-              title: "Problem split",
-              line: "Working out what this could actually be fixing…",
+              title: "Problem",
+              line: "Reading the pitch for the problem it claims somebody has.",
             };
       case "deploy":
         return deployReady
           ? {
               step: 3,
-              title: "Deploy",
+              title: "Sample",
               line: consumer
-                ? `${personas.length} real-ish people in ${cities} cities. Tap anyone to hear them out.`
-                : `${personas.length} people in ${cities} cities who work in this space. Plenty can actually sign. Tap anyone to hear them out.`,
+                ? `${personas.length} people across ${cities} cities, asked as themselves rather than in their job. Select anyone to speak with them.`
+                : `${personas.length} people across ${cities} cities whose work touches this, many with budget authority. Select anyone to speak with them.`,
             }
           : {
               step: 3,
-              title: "Deploy",
-              line: "Picking who should see this…",
+              title: "Sample",
+              line: "Selecting who should be asked.",
             };
       case "listen":
         return {
           step: 4,
-          title: "Listen",
-          line: `We're asking which problem they have. Not whether they like it. ${progress.done} of ${progress.total || personas.length} back so far.`,
+          title: "Responses",
+          line: `Each person is asked which problem they have, not whether they like the product. ${progress.done} of ${progress.total || personas.length} have answered.`,
         };
       case "heard":
         return {
           step: 4,
-          title: "Listen",
-          line: "That's everyone. Want to see what they actually said?",
+          title: "Responses",
+          line: "Everyone has answered. Ready to see what the market said.",
         };
       case "council":
         return councilRound && COUNCIL_ROUND[councilRound]
@@ -1042,14 +1073,14 @@ export default function Discover() {
             }
           : {
               step: 6,
-              title: `Hub council · ${hubName(councilHub ?? "")}`,
-              line: "Five people are about to argue about whether this is worth doing here.",
+              title: `Council · ${hubName(councilHub ?? "")}`,
+              line: "Five analysts are about to assess whether this problem is worth solving here.",
             };
       case "deliberated":
         return {
           step: 6,
-          title: "The council has spoken",
-          line: "That's the argument. Here's what it adds up to.",
+          title: "Council",
+          line: "The council has finished. Next, what it adds up to.",
         };
       case "scored":
         return pvs
@@ -1057,40 +1088,40 @@ export default function Discover() {
               step: 7,
               title: "Validation",
               line: pvs.passed
-                ? `${pvs.total} out of 100. That clears the bar. Investors are ready when you are.`
-                : `${pvs.total} out of 100, under the ${pvs.threshold} bar, mostly because ${pvsReason(pvs)}. Pitch it anyway if you like; they will know.`,
+                ? `${pvs.total} out of 100, which clears the bar of ${pvs.threshold}. A committee is ready to test it.`
+                : `${pvs.total} out of 100, below the bar of ${pvs.threshold}, mostly because ${pvsReason(pvs)}. You may still pitch; the committee will be told.`,
             }
           : {
               step: 7,
               title: "Validation",
-              line: "The council stopped early, so there's no score this time. You can still pitch it.",
+              line: "The council ended early, so there is no score for this run. You may still pitch it.",
             };
       case "result":
         if (!verdict?.marketProblemId) {
           return {
             step: 5,
-            title: "The result",
-            line: "Nobody here has any of these problems. That's worth knowing. Try saying it another way.",
+            title: "Result",
+            line: "Nobody we asked claimed any of these problems. That is a finding in itself.",
           };
         }
         return verdict.mismatch
           ? {
               step: 5,
-              title: "The reveal",
+              title: "Result",
               // In words. "You pitched p1. The market has p2" read out schema
               // ids to an audience that has never seen the schema.
-              line: `The market has a different problem from the one you pitched, and ${Math.round((marketVote?.payRate ?? 0) * 100)}% of the people who have it would pay to fix it. Next: is it worth solving, and where?`,
+              line: `The market has a different problem from the one you pitched, and ${Math.round((marketVote?.payRate ?? 0) * 100)}% of those who have it would pay to fix it. Next, whether it is worth solving, and where.`,
             }
           : {
               step: 5,
-              title: isRerun ? "Run two · aligned" : "The reveal",
-              line: "The market has the problem you pitched. Next: is it worth solving, and where?",
+              title: isRerun ? "Result · run two" : "Result",
+              line: "The market has the problem you pitched. Next, whether it is worth solving, and where.",
             };
       default:
         return {
           step: 1,
           title: "Ready",
-          line: "We will split your idea into the problems it could solve, then ask 120 people which one they actually have. One step at a time.",
+          line: "Your idea is read for the problem it implies, then 120 people are asked which problem they actually have.",
         };
     }
   })();
@@ -1123,7 +1154,7 @@ export default function Discover() {
 
   const nextLabel: Record<NextStep, string> = {
     run: "Ask the market",
-    splitting: "Splitting your idea…",
+    splitting: "Reading your idea…",
     choose: "Next: choose who to ask →",
     choosing: "Choosing who to ask…",
     ask: "Next: ask them →",
@@ -1203,7 +1234,7 @@ export default function Discover() {
 
   const panel =
     segment === "split"
-      ? { step: "Splitting your idea", unit: "Problems found", done: problems.length, total: expecting || 4 }
+      ? { step: "Reading your idea", unit: "Framings weighed", done: problems.length, total: expecting || 4 }
       : segment === "deploy"
         ? { step: "Choosing who to ask", unit: "People chosen", done: personas.length, total: personas.length || 120 }
         : segment === "listen"
@@ -1266,6 +1297,17 @@ export default function Discover() {
       <div className="flex h-full">
         <StageRail
           state={stages}
+          solution={ventureFile?.solution}
+          rerun={isRerun}
+          onReset={() => resetVenture()}
+          under={
+            bet && problems.length > 1 ? (
+              <OtherProblems
+                problems={problems.filter((p) => p.id !== bet.id)}
+                onUse={canRewriteBet ? useProblem : undefined}
+              />
+            ) : null
+          }
           onJump={(id) => {
             if (id === "reveal" && marketProblem && pitchedProblem) setShowReveal(true);
             if (id === "pitch" && marketProblem) setFinding(true);
@@ -1276,7 +1318,7 @@ export default function Discover() {
           <Globe
             dots={dots}
             places={places}
-            onDotClick={(id) => setFocus(Number(id.slice(1)))}
+            onDotClick={(id) => openCall(Number(id.slice(1)))}
             // Whoever you are talking to waves hello, from the globe or the list.
             selected={focus ? `p${focus}` : null}
             // Hack the North in view while the idea is split and sent out, then
@@ -1326,9 +1368,23 @@ export default function Discover() {
           )}
 
           {/* ---------------------------------------------------- top left */}
+          <AnimatePresence>
+            {splitView && problemPopup && panel && (
+              <ProblemPopup
+                key="problems"
+                loading={problems.length === 0 || problems.length < expecting}
+                progress={panel}
+                provider={provider}
+                solution={ventureFile?.solution}
+                others={bet ? problems.filter((p) => p.id !== bet.id) : []}
+                onClose={() => setProblemPopup(false)}
+              />
+            )}
+          </AnimatePresence>
+
           <div className="absolute left-6 top-6 z-40 w-[300px]">
             <AnimatePresence mode="wait">
-              {panel ? (
+              {panel && !splitView && (
                 <ProcessingPanel
                   key="proc"
                   step={panel.step}
@@ -1337,116 +1393,27 @@ export default function Discover() {
                   unit={panel.unit}
                   round={provider ? `provider ${provider}` : undefined}
                 />
-              ) : (
-                <motion.div key="idle" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-                  {ventureFile ? (
-                    <>
-                      {isRerun && (
-                        <p className="label" style={{ color: "var(--accent)" }}>
-                          Run two · rewritten
-                        </p>
-                      )}
-                      <p className="mt-2 text-xs leading-relaxed text-muted">
-                        &ldquo;{ventureFile.solution}&rdquo;
-                      </p>
-                      <button
-                        onClick={() => resetVenture()}
-                        className="label mt-2 underline-offset-4 hover:text-ink hover:underline"
-                      >
-                        Different idea
-                      </button>
-                    </>
-                  ) : (
-                    <p className="mt-2 text-xs leading-relaxed text-muted">
-                      Submit a product. The market tells you which problem it actually solves.
-                    </p>
-                  )}
-                </motion.div>
               )}
             </AnimatePresence>
 
             {/* candidate problems, one at a time */}
-            {problems.length > 0 && (
+            {/* One bet, not four cards. The rivals are still asked about,
+                because the crowd choosing one of them is the pivot. */}
+            {bet && (betIsMarket || councilView) && (
               <div className="mt-4 space-y-1.5">
-                <p className="label">{councilView ? "The problem they're arguing about" : "Candidate problems"}</p>
-                <AnimatePresence initial={false}>
-                  {problems
-                    .filter((p) => !councilView || p.id === verdict?.marketProblemId)
-                    .map((p) => {
-                    const i = problems.indexOf(p);
-                    const vote = verdict?.problemVotes.find((v) => v.problemId === p.id);
-                    const isMarket = verdict?.marketProblemId === p.id;
-                    return (
-                      <motion.div
-                        key={p.id}
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.35 }}
-                        className={`panel p-3 ${isMarket ? "glow-accent" : ""}`}
-                      >
-                        {/* A light, a plain label and a headcount. "p2 · 57 ·
-                            86% pay" is a database row; this is a sentence. */}
-                        <div className="flex items-start justify-between gap-2">
-                          <span className="text-[11px] font-medium text-ink">
-                            {isMarket
-                              ? "What they actually struggle with"
-                              : i === 0
-                                ? "What you said you solve"
-                                : "Another possibility"}
-                          </span>
-                          {vote && (
-                            <Light
-                              signal={
-                                vote.votes === 0
-                                  ? "off"
-                                  : vote.payRate >= 0.55
-                                    ? "go"
-                                    : vote.payRate >= 0.3
-                                      ? "caution"
-                                      : "stop"
-                              }
-                              label=""
-                              size={9}
-                            />
-                          )}
-                        </div>
-
-                        <p className="mt-1.5 text-[12px] leading-relaxed text-ink/90">
-                          {p.statement}
-                        </p>
-
-                        {vote && (
-                          <p className="mt-2 border-t border-edge pt-1.5 text-[10px] leading-relaxed text-muted">
-                            <span className="text-ink">{vote.votes} people</span> have this
-                            {vote.votes > 0 && (
-                              <>
-                                {" · "}
-                                <span
-                                  style={{
-                                    color:
-                                      vote.payRate >= 0.55
-                                        ? "var(--go)"
-                                        : vote.payRate >= 0.3
-                                          ? "var(--caution)"
-                                          : "var(--stop)",
-                                  }}
-                                >
-                                  {(vote.payRate * 100).toFixed(0)}% would pay
-                                </span>
-                              </>
-                            )}
-                          </p>
-                        )}
-                      </motion.div>
-                    );
-                  })}
-                </AnimatePresence>
+                <p className="label">
+                  {councilView ? "The problem they're arguing about" : "What they actually struggle with"}
+                </p>
+                <Bet
+                  problem={bet}
+                  label="Their problem, in their words"
+                  isMarket={betIsMarket}
+                  vote={verdict?.problemVotes.find((v) => v.problemId === bet.id)}
+                />
               </div>
             )}
           </div>
 
-          {/* One voice at a time, and only while people are answering. */}
-          {listening && <AgentFeed items={feed} onDismiss={dismiss} />}
           <SystemPanel />
 
           {/* --------------------------------------------- call one person */}
@@ -1459,7 +1426,8 @@ export default function Discover() {
                 solution={ventureFile.solution}
                 problems={problems}
                 centre={centreClear.left}
-                onClose={() => setFocus(null)}
+                queue={ensureSpeech}
+                onClose={endCall}
               />
             )}
           </AnimatePresence>
@@ -1568,6 +1536,20 @@ export default function Discover() {
             councilView ? "w-[min(640px,46vw)]" : "w-96"
           }`}
         >
+          {/* ---- what it means: the conclusion, before the evidence ---- */}
+          {advice && verdict && (
+            <div className="border-b border-edge p-4">
+              <Assessment
+                advice={advice}
+                bet={marketProblem ?? pitchedProblem}
+                asked={verdict.reactions.length}
+                have={marketVote?.votes ?? 0}
+                payRate={marketVote?.payRate ?? 0}
+                severity={marketVote?.meanSeverity ?? 0}
+              />
+            </div>
+          )}
+
           {/* ---- the score ---- */}
           {pvs && (
             <div className={`border-b border-edge p-4 ${pvs.passed ? "" : "glow-accent"}`}>
@@ -1816,7 +1798,7 @@ export default function Discover() {
                     return (
                       <button
                         key={r.personaId}
-                        onClick={() => setFocus(r.personaId)}
+                        onClick={() => openCall(r.personaId)}
                         className="block w-full rounded-[3px] px-2 py-1.5 text-left transition hover:bg-surface-2"
                       >
                         {/* A light, then a name in sentence case. The old row
@@ -1864,7 +1846,7 @@ export default function Discover() {
               ) : (
                 <p className="text-xs leading-relaxed text-faint">
                   {listening
-                    ? "Every answer is collected here once everyone has spoken. For now, one voice at a time, top right."
+                    ? "Every answer is collected here once everyone has spoken."
                     : "Answers appear here once the crowd has spoken."}
                 </p>
               )}
@@ -1875,20 +1857,23 @@ export default function Discover() {
 
       {/* ------------------------------------------------------- THE REVEAL */}
       <AnimatePresence>
-        {showReveal && marketProblem && pitchedProblem && verdict && (
+        {showReveal && pitchedProblem && verdict && (
           <Reveal
             pitched={pitchedProblem}
-            market={marketProblem}
+            market={marketProblem ?? null}
+            noMarket={marketProblem ? null : diagnoseNoMarket(verdict, pitchedProblem)}
             aligned={!verdict.mismatch}
             votes={verdict.problemVotes}
             delta={delta}
             crowd={personas.length}
             problemCount={problems.length}
             city={hubRanking[0] ? hubName(hubRanking[0].hubId) : null}
+            advice={advice}
             refining={refining}
             onAccept={acceptAndConvene}
             onRefine={() => void startRefine()}
             onClose={() => setShowReveal(false)}
+            onAnyway={forceCommittee}
           />
         )}
       </AnimatePresence>
@@ -1986,9 +1971,4 @@ function AttentionBar({
       <Meter label={label} value={n} max={total} color={color} />
     </div>
   );
-}
-
-function personaName(personas: DeployedPersona[], id: number) {
-  const p = personas.find((x) => x.id === id);
-  return p ? `${p.name} · ${p.label ?? p.title}` : `persona ${id}`;
 }

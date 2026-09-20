@@ -1,6 +1,6 @@
 import type { CrowdVerdict } from "@/lib/discovery/types";
 import type { CrowdSignals } from "@/lib/discovery/signals";
-import type { AgentVerdict, ICVerdict, Objection, PVSBreakdown } from "@/lib/types";
+import type { AgentVerdict, ICVerdict, Objection, ProblemStatement, PVSBreakdown } from "@/lib/types";
 
 // ============================================================================
 // ADVICE. Pure, and specific to this run.
@@ -164,7 +164,7 @@ export function assess(
 
   const callToAction =
     verdict === "fail"
-      ? `Do not build more of this yet. ${findings[0].headline.toLowerCase()}. That is disqualifying on its own.`
+      ? `Do not build more of this yet. ${findings[0].headline}. That is disqualifying on its own.`
       : verdict === "weak"
         ? "There is something here, but not the thing you are currently pitching."
         : verdict === "promising"
@@ -176,6 +176,68 @@ export function assess(
     callToAction,
     findings,
     nextStep: findings[0]?.action ?? "Get a paying design partner and come back with the contract.",
+  };
+}
+
+export type NoMarket = {
+  /** Why nobody claimed a problem. Three different things to do about it. */
+  kind: "solved" | "early" | "preference";
+  headline: string;
+  /** The measurement behind the reading. */
+  evidence: string;
+  /** What they do instead, in the founder's own words for it. */
+  instead?: string;
+  action: string;
+};
+
+/**
+ * Nobody has this problem.
+ *
+ * The most interesting outcome in the product, and the one that used to render
+ * as an empty panel. It is never "no data": a room of people who were selected
+ * as relevant and still claimed nothing has told you something specific, and
+ * which of the three it is decides what the founder does on Monday.
+ */
+export function diagnoseNoMarket(crowd: CrowdVerdict, pitched?: ProblemStatement): NoMarket {
+  const asked = crowd.reactions.length || 1;
+  const ignored = crowd.attention.ignore / asked;
+  const engaged = crowd.attention.full / asked;
+  const wouldPay = crowd.reactions.filter((r) => r.wouldPay).length;
+  const instead = pitched?.currentWorkaround?.trim();
+
+  // They looked, and it was fine as it is: the job is already being done well
+  // enough by whatever they use now.
+  if (ignored < 0.5 && wouldPay <= asked * 0.05) {
+    return {
+      kind: "solved",
+      headline: "They looked, and they are fine as they are",
+      evidence: `${crowd.attention.ignore} of ${asked} ignored it outright, but ${crowd.attention.partial + crowd.attention.full} read it and still claimed none of these problems. Only ${wouldPay} would pay for any of them.`,
+      instead,
+      action:
+        "Whatever they use today is good enough, so find where it breaks. Ask ten of them what they did the last time it failed. If nobody can remember it failing, this market is closed and a different one is not.",
+    };
+  }
+
+  // A room this indifferent is not a market yet, whatever the idea.
+  if (ignored >= 0.5) {
+    return {
+      kind: "early",
+      headline: "Nobody was paying attention",
+      evidence: `${crowd.attention.ignore} of ${asked} paid no attention at all, ${Math.round(ignored * 100)}%, and these were people picked as relevant.`,
+      instead,
+      action:
+        "Either you are early or you are asking the wrong room. Name the one person whose week this ruins, and re-run against them. If you cannot name them, you are early, and the honest move is to wait or to sell to the few who feel it now.",
+    };
+  }
+
+  // They engaged, they just do not want it enough to call it a problem.
+  return {
+    kind: "preference",
+    headline: "They liked it. They do not need it",
+    evidence: `${crowd.attention.full} of ${asked} paid full attention and ${wouldPay} would pay, yet none of them claimed a problem it solves. ${Math.round(engaged * 100)}% interest with no problem behind it is a preference.`,
+    instead,
+    action:
+      "Preferences do not become purchases. Find the version of this that somebody is already paying to solve badly, and pitch that instead.",
   };
 }
 

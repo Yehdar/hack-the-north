@@ -22,8 +22,11 @@ export const PERSONAS = raw as Persona[];
  *  should surface both fintech and healthcare people, not force a single
  *  bucket the way a one-winner classifier would. */
 const INDUSTRY_HINTS: Record<Industry, string[]> = {
-  software: ["code", "repo", "engineer", "developer", "api", "deploy", "test", "ci", "devops", "sdk", "software", "app", "platform", "infrastructure", "observability", "bug"],
-  fintech: ["payment", "invoice", "bank", "ledger", "fraud", "lending", "credit", "treasury", "accounting", "compliance", "kyc", "financial", "reconcil"],
+  // "software", "app" and "platform" are shapes a product takes, not the
+  // industry its buyers work in: they put a room of SREs in front of a
+  // finance product. The words that mean developers are the work itself.
+  software: ["code", "repo", "engineer", "developer", "api", "deploy", "test", "ci", "devops", "sdk", "infrastructure", "observability", "bug"],
+  fintech: ["payment", "invoice", "bank", "ledger", "fraud", "lending", "credit", "treasury", "accounting", "compliance", "kyc", "financial", "reconcil", "erp", "receivable", "payable", "month-end", "close the books"],
   healthcare: ["patient", "clinic", "hospital", "health", "medical", "ehr", "care", "diagnos", "pharma", "therap"],
   commerce: ["shop", "retail", "ecommerce", "marketplace", "cart", "merchandis", "inventory", "storefront", "seller", "buyer"],
   manufacturing: ["factory", "plant", "assembly", "machine", "production line", "quality control", "industrial", "hardware", "supply chain"],

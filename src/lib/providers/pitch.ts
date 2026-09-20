@@ -41,9 +41,9 @@ export type Pitch = {
 
 const DOMAIN_WORDS: Record<Exclude<Domain, "general">, RegExp> = {
   pets: /\b(cats?|dogs?|pets?|kittens?|pupp(?:y|ies)|vets?|litter|leash|aquarium|hamsters?|birds?|feeder)\b/i,
-  software: /\b(code|repo|developers?|devops|api|apis|deploy|software|saas|github|bugs?|tests?|engineers?|codebase|kubernetes|ci)\b/i,
+  software: /\b(code|repo|developers?|devops|api|apis|deploy|github|bugs?|tests?|engineers?|codebase|kubernetes|ci|pull requests?|staging|incidents?)\b/i,
   health: /\b(health|patients?|clinics?|doctors?|nurses?|hospitals?|medic\w*|therap\w*|fitness|sleep|symptoms?|mental|pharmac\w*|wellness)\b/i,
-  money: /\b(bank\w*|payments?|invoices?|financ\w*|budget\w*|loans?|credit|tax(?:es)?|accounting|expenses?|invest\w*|savings?|wallet|crypto|bills?)\b/i,
+  money: /\b(bank\w*|payments?|invoices?|financ\w*|budget\w*|loans?|credit|tax(?:es)?|accounting|expenses?|invest\w*|savings?|wallet|crypto|bills?|erps?|reconcil\w*|ledgers?|receivables?|payables?|bookkeep\w*)\b/i,
   food: /\b(food|meals?|recipes?|grocer\w*|restaurants?|cook\w*|kitchen|coffee|snacks?|nutrition|takeaway|dining)\b/i,
   learning: /\b(students?|school|learn\w*|teachers?|course\w*|tutor\w*|study|exams?|class(?:room)?|homework|universit\w*)\b/i,
   home: /\b(home|house\w*|apartments?|rent\w*|cleaning|laundry|furniture|fridges?|roommates?|housemates?|landlords?|tenants?|appliances?)\b/i,
@@ -52,6 +52,15 @@ const DOMAIN_WORDS: Record<Exclude<Domain, "general">, RegExp> = {
   retail: /\b(shops?|stores?|e-?commerce|sellers?|inventory|marketplace|retail\w*|merchants?|customers?)\b/i,
   travel: /\b(travel\w*|trips?|flights?|hotels?|commut\w*|cars?|bikes?|parking|transport\w*|rides?|luggage)\b/i,
 };
+
+/**
+ * The shape a product takes, not the market it sits in. A pitch that opens
+ * "software that reconciles invoices across three ERPs" is a finance product;
+ * scoring the word "software" made it a developer tools product and handed the
+ * founder back a problem about code breaking.
+ */
+const SHAPES =
+  /\b(software|saas|apps?|platforms?|tools?|systems?|services?|devices?|websites?|sites?|dashboards?|portals?|widgets?|plugins?|extensions?|bots?|products?|solutions?|machines?|gadgets?|hardware|marketplaces?)\b/gi;
 
 // Order matters when two markets both match: the more specific one wins.
 const DOMAIN_ORDER: Exclude<Domain, "general">[] = [
@@ -65,7 +74,7 @@ const ANIMALS: Record<string, string> = {
 };
 
 const GROUPS =
-  /\b(students?|parents?|teachers?|developers?|engineers?|teams?|doctors?|nurses?|patients?|restaurants?|landlords?|tenants?|freelancers?|creators?|seniors?|kids|children|families|founders?|designers?|musicians?|athletes?|drivers?|farmers?|artists?|shops?|retailers?|small businesses|homeowners?|renters?|commuters?|travellers?|travelers?)\b/i;
+  /\b(students?|parents?|teachers?|developers?|engineers?|teams?|doctors?|nurses?|patients?|hospitals?|clinics?|schools?|restaurants?|landlords?|tenants?|freelancers?|creators?|seniors?|kids|children|families|founders?|designers?|musicians?|athletes?|drivers?|farmers?|artists?|shops?|retailers?|small businesses|homeowners?|renters?|commuters?|travellers?|travelers?)\b/i;
 
 const BUSINESS =
   /\b(teams?|compan(?:y|ies)|business(?:es)?|enterprise|developers?|engineers?|clinics?|hospitals?|restaurants?|stores?|shops?|landlords?|b2b|saas|invoices?|payroll|crm|repo|codebase|api|merchants?|retailers?|sellers?)\b/i;
@@ -106,15 +115,19 @@ export function readPitch(raw: string): Pitch {
   const short = thing.split(/\s+for\s+/)[0].split(/\s+/).slice(0, 4).join(" ");
 
   // Who it is for: "for cats" → cat owners, "for student housing" → students.
-  const forWhom = solution.match(/\bfor\s+([a-z][a-z\s-]{1,40}?)(?=\s+(?:that|which|who|so|because|and|with|to|in|on|at|by)\b|[.,!?;]|$)/i)?.[1];
+  const forWhom = solution.match(/\bfor\s+([a-z][a-z\s-]{1,40}?)(?=\s+(?:that|which|who|where|when|while|so|because|and|with|to|in|on|at|by)\b|[.,!?;]|$)/i)?.[1];
 
-  // What the thing is and who it is for outweigh what it happens to mention: a
-  // fridge for corner shops that "keeps milk and medicine cold" is a shop
-  // product, not a health one.
+  // What the thing acts on, and who it is for, outweigh what it happens to
+  // mention: a fridge for corner shops that "keeps milk and medicine cold" is a
+  // shop product, not a health one. When the noun phrase is only a shape
+  // ("software", "an app"), the market is in what follows it.
+  const subject = thing.replace(SHAPES, " ").trim();
+  const object = subject || stripped.slice(head.length);
+
   const count = (text: string | undefined, d: Exclude<Domain, "general">) =>
     text ? (text.match(new RegExp(DOMAIN_WORDS[d], "gi")) ?? []).length : 0;
   const scores = DOMAIN_ORDER.map(
-    (d) => [d, count(solution, d) + 2 * count(thing, d) + 3 * count(forWhom, d)] as const
+    (d) => [d, count(solution, d) + 2 * count(object, d) + 3 * count(forWhom, d)] as const
   );
   const best = scores.reduce((a, b) => (b[1] > a[1] ? b : a), ["general", 0] as readonly [Domain, number]);
   const domain: Domain = best[1] > 0 ? best[0] : "general";

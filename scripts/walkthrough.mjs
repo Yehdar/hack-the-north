@@ -55,7 +55,7 @@ await page.addInitScript(() => {
     value: {
       getVoices: () => voices,
       speak(u) {
-        if (speaking) window.__spoken.push({ overlap: true, text: u.text });
+        if (speaking) window.__spoken.push({ overlap: true, text: u.text, over: speaking.text });
         speaking = u;
         window.__spoken.push({ text: u.text, voice: u.voice?.name ?? null, pitch: +u.pitch.toFixed(2), rate: +u.rate.toFixed(2) });
         setTimeout(() => { if (speaking === u) { speaking = null; u.onend?.(); } }, 250);
@@ -174,7 +174,11 @@ await shot("14-dashboard", true);
 // ---- what it found -------------------------------------------------------
 console.log(`\n=== SPOKEN (${spoken.length})`);
 for (const s of spoken) {
-  console.log(s.overlap ? `!! TALKED OVER: ${s.text}` : `${(s.voice ?? "default").padEnd(22)} ${s.text.slice(0, 110)}`);
+  console.log(
+    s.overlap
+      ? `!! "${s.text.slice(0, 60)}" STARTED OVER "${(s.over ?? "").slice(0, 60)}"`
+      : `${(s.voice ?? "default").padEnd(22)} ${s.text.slice(0, 110)}`
+  );
 }
 
 // Headings render uppercase, so compare case-insensitively.
