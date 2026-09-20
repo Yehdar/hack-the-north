@@ -836,7 +836,7 @@ function demoProblems(user: string) {
     problems: [
       {
         statement: founderFraming(solution, pitch.consumer),
-        whoHasIt: `The ${pitch.audience} you pictured when you started building.`,
+        whoHasIt: `${cap(pitch.audience)}, as you pictured them.`,
         severity: 44,
         frequency: "All the time",
         currentWorkaround: "They cope, and grumble about it.",

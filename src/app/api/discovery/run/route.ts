@@ -3,6 +3,7 @@ import { aggregate, runCrowd } from "@/lib/discovery/crowd";
 import { analyseSignals } from "@/lib/discovery/signals";
 import { inferIndustries, selectByIds, selectRelevant } from "@/data/personas";
 import { getLLM } from "@/lib/llm";
+import { checkIdea } from "@/lib/idea";
 import type { ProblemStatement, VentureFile } from "@/lib/types";
 import { readPitch } from "@/lib/providers/pitch";
 import type { Persona } from "@/lib/discovery/types";
@@ -35,6 +36,8 @@ type RunRequest = {
   problems?: ProblemStatement[];
   /** Ask exactly these people again — also the refine loop. */
   personaIds?: number[];
+  /** The founder's own words for the problem, from the intake box. */
+  founderProblem?: string;
 };
 
 export async function POST(req: Request) {
@@ -43,6 +46,17 @@ export async function POST(req: Request) {
 
   if (!solution) {
     return new Response(JSON.stringify({ error: "solution required" }), {
+      status: 400,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
+  // The screen checks this too. Here as well, because everything downstream is
+  // only as honest as this sentence, and a crowd asked about keyboard mash
+  // produces a confident answer about nothing.
+  const idea = checkIdea(solution);
+  if (!idea.ok) {
+    return new Response(JSON.stringify({ error: idea.message }), {
       status: 400,
       headers: { "Content-Type": "application/json" },
     });
@@ -70,7 +84,7 @@ export async function POST(req: Request) {
         send({ type: "phase", phase: "problems", label: "Splitting the solution" });
         const problems = body?.problems?.length
           ? body.problems
-          : await extractProblems(solution);
+          : await extractProblems(solution, body?.founderProblem);
 
         if (problems.length === 0) throw new Error("no problems extracted");
         send({ type: "problems", problems });

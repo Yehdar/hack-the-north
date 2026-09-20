@@ -59,7 +59,14 @@ Rules that matter:
 - Severity is how much it hurts the person who has it, not how interesting the
   market is.`;
 
-export async function extractProblems(solution: string): Promise<ProblemStatement[]> {
+export async function extractProblems(
+  solution: string,
+  /** The founder's own words for the problem, if they gave them at intake.
+   *  Index 0 is their framing by definition, so when they state it there is
+   *  nothing to infer: it is used verbatim and the rivals are built around it. */
+  founderProblem?: string
+): Promise<ProblemStatement[]> {
+  const stated = founderProblem?.trim();
   const res = await getLLM().completeJSON<{
     problems: Omit<ProblemStatement, "id" | "evidence">[];
   }>({
@@ -67,7 +74,7 @@ export async function extractProblems(solution: string): Promise<ProblemStatemen
     user: `The founder says they built:
 
 "${solution}"
-
+${stated ? `\nThey say the problem it solves is:\n\n"${stated}"\n\nUse that, in their words, as the first problem.\n` : ""}
 Return four or five problems this could be solving. First one is their own framing.`,
     schema: { name: "problem_split", schema: SCHEMA as unknown as Record<string, unknown> },
     temperature: 0.8,
@@ -77,7 +84,10 @@ Return four or five problems this could be solving. First one is their own frami
 
   return (res.problems ?? []).slice(0, 5).map((p, i) => ({
     id: `p${i + 1}`,
-    statement: p.statement?.trim() || "Unstated problem.",
+    // Their sentence wins outright for index 0. A model asked to "use their
+    // words" still tidies them, and a founder who typed the bet should read
+    // their own bet back.
+    statement: (i === 0 && stated) || p.statement?.trim() || "Unstated problem.",
     whoHasIt: p.whoHasIt?.trim() || "Unspecified.",
     severity: clamp(Number(p.severity) || 0, 0, 100),
     frequency: p.frequency?.trim() || "Unknown",

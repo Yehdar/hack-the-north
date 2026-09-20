@@ -95,6 +95,8 @@ type Batch = { done: number; total: number; batch: CrowdReaction[] };
 type RunOptions = {
   problems?: ProblemStatement[];
   personaIds?: number[];
+  /** The founder's own problem, typed at intake. */
+  founderProblem?: string;
   parentId?: string;
   walkedInWith?: string | null;
 };
@@ -204,6 +206,10 @@ export default function Discover() {
   /** Step two opens as a pop-up: the reading, then the problems. Closing it
    *  puts the other framings in the corner of the globe. */
   const [problemPopup, setProblemPopup] = useState(true);
+  /** What the founder typed in the optional problem box at intake, kept so the
+   *  pop-up can show it back to them. Null when they left it blank, which is
+   *  most runs. */
+  const [statedProblem, setStatedProblem] = useState<string | null>(null);
   const [focus, setFocus] = useState<number | null>(null);
   const [onlyEngaged, setOnlyEngaged] = useState(false);
   /** Click a light to see only those people. Null shows everyone. */
@@ -416,6 +422,7 @@ export default function Discover() {
         crowdSize: 120,
         problems: opts.problems,
         personaIds: opts.personaIds,
+        founderProblem: opts.founderProblem,
       },
       (ev) => {
         if (token !== runToken.current) return;
@@ -971,6 +978,17 @@ export default function Discover() {
   }, []);
 
   /** One of the other framings, tested in place of the current one. */
+  /** The founder's own wording for their claim. Same run, same people, their
+   *  sentence: the test is only fair if the bet is theirs. */
+  const rewriteBet = useCallback(
+    (statement: string) => {
+      const [first, ...rest] = problems;
+      if (!first || !statement.trim()) return;
+      run({ problems: [{ ...first, statement: statement.trim() }, ...rest] });
+    },
+    [problems, run]
+  );
+
   const useProblem = useCallback(
     (chosen: { id: string }) => {
       const rest = problems.filter((p) => p.id !== chosen.id);
@@ -1280,9 +1298,12 @@ export default function Discover() {
                   }
                 : undefined
             }
-            onDone={() => {
+            onDone={(_solution, founderProblem) => {
               const r = refine;
               setRefine(null);
+              // Refine mode has no problem box, so leave run one's answer alone
+              // rather than blanking it with an undefined.
+              if (!r) setStatedProblem(founderProblem?.trim() || null);
               run(
                 r
                   ? {
@@ -1291,7 +1312,7 @@ export default function Discover() {
                       parentId: r.parentId,
                       walkedInWith: r.walkedInWith,
                     }
-                  : {}
+                  : { founderProblem }
               );
             }}
           />
@@ -1380,6 +1401,7 @@ export default function Discover() {
                 progress={panel}
                 provider={provider}
                 solution={ventureFile?.solution}
+                problem={statedProblem ?? undefined}
                 others={bet ? problems.filter((p) => p.id !== bet.id) : []}
                 onClose={() => setProblemPopup(false)}
               />
@@ -1403,16 +1425,21 @@ export default function Discover() {
             {/* candidate problems, one at a time */}
             {/* One bet, not four cards. The rivals are still asked about,
                 because the crowd choosing one of them is the pivot. */}
-            {bet && (betIsMarket || councilView) && (
+            {bet && (
               <div className="mt-4 space-y-1.5">
                 <p className="label">
-                  {councilView ? "The problem they're arguing about" : "What they actually struggle with"}
+                  {councilView
+                    ? "The problem they're arguing about"
+                    : betIsMarket
+                      ? "What they actually struggle with"
+                      : "The problem your product implies"}
                 </p>
                 <Bet
                   problem={bet}
-                  label="Their problem, in their words"
+                  label={betIsMarket || councilView ? "Their problem, in their words" : undefined}
                   isMarket={betIsMarket}
                   vote={verdict?.problemVotes.find((v) => v.problemId === bet.id)}
+                  onRewrite={canRewriteBet ? rewriteBet : undefined}
                 />
               </div>
             )}

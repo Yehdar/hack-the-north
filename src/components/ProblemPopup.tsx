@@ -19,6 +19,7 @@ export function ProblemPopup({
   progress,
   provider,
   solution,
+  problem,
   others,
   onClose,
 }: {
@@ -27,6 +28,9 @@ export function ProblemPopup({
   provider?: string;
   /** The founder's own words for what they built. */
   solution?: string;
+  /** The problem they said they were solving, if they said. Optional at
+   *  intake, so most runs do not have one. */
+  problem?: string;
   others: ProblemStatement[];
   onClose: () => void;
 }) {
@@ -49,6 +53,7 @@ export function ProblemPopup({
           total={progress.total}
           unit={progress.unit}
           round={provider ? `provider ${provider}` : undefined}
+          live={loading}
         />
 
         {solution && (
@@ -58,16 +63,29 @@ export function ProblemPopup({
           </div>
         )}
 
+        {problem && (
+          <div className="mt-4 border-t border-edge pt-4">
+            <p className="label">The problem you said it solves:</p>
+            <p className="mt-1.5 text-[13px] leading-relaxed text-ink">{problem}</p>
+          </div>
+        )}
+
         {others.length > 0 && (
           <div className="mt-4 flex min-h-0 flex-col border-t border-edge pt-4">
             <p className="label">Real world problems that could use your solution</p>
-            <ul className="mt-2 min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
+            <ul className="mt-2 min-h-0 flex-1 space-y-1 overflow-y-auto pr-1">
               {others.map((p) => (
-                <li key={p.id} className="border-l-2 border-edge pl-3">
-                  <p className="text-[12px] leading-relaxed text-ink/90">{p.statement}</p>
-                  {p.whoHasIt && (
-                    <p className="mt-1 text-[10px] leading-relaxed text-muted">Felt by {lower(p.whoHasIt)}</p>
-                  )}
+                <li
+                  key={p.id}
+                  className="group flex gap-2.5 rounded px-2 py-1.5 transition-colors hover:bg-surface-2"
+                >
+                  <span
+                    aria-hidden
+                    className="mt-[7px] h-1 w-1 shrink-0 rounded-full bg-faint transition-colors group-hover:bg-accent"
+                  />
+                  <p className="text-[12px] leading-relaxed text-ink/90 transition-colors group-hover:text-ink">
+                    {p.statement}
+                  </p>
                 </li>
               ))}
             </ul>
@@ -89,9 +107,4 @@ export function ProblemPopup({
       </motion.div>
     </motion.div>
   );
-}
-
-function lower(t: string): string {
-  const s = t.trim().replace(/[.]$/, "");
-  return /^[A-Z][a-z]/.test(s) ? s.charAt(0).toLowerCase() + s.slice(1) : s;
 }
