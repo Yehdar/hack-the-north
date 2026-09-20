@@ -190,6 +190,10 @@ export default function Discover() {
   const [deployReady, setDeployReady] = useState(false);
   const [problems, setProblems] = useState<ProblemStatement[]>([]);
   const [personas, setPersonas] = useState<DeployedPersona[]>([]);
+  /** What came out of each call, newest first. */
+  const [callReport, setCallReport] = useState<
+    { personaId: number; name: string; role: string; summary: string; takeaway: string; at: number }[]
+  >([]);
   /** Bought by people for themselves, so the crowd was asked as consumers. */
   const [consumer, setConsumer] = useState(false);
   const [reactions, setReactions] = useState<Map<number, CrowdReaction>>(new Map());
@@ -392,7 +396,7 @@ export default function Discover() {
     setExpecting(0);
     setDeployReady(false);
     setProblems([]); setPersonas([]); setReactions(new Map());
-    setVerdict(null); setSignals(null); setShowReveal(false); setFocus(null);
+    setVerdict(null); setSignals(null); setShowReveal(false); setFocus(null); setCallReport([]);
     setProgress({ done: 0, total: 0 });
     setHubRanking([]); setCouncilHub(null); setCouncilLog([]); setCouncilRoster([]); setCouncilTasks([]);
     setCouncilStances({}); setCouncilRound(0); setPvs(null);
@@ -1427,6 +1431,12 @@ export default function Discover() {
                 problems={problems}
                 centre={centreClear.left}
                 queue={ensureSpeech}
+                onSummarise={(entry) =>
+                  setCallReport((r) => [
+                    { ...entry, at: Date.now() },
+                    ...r.filter((e) => e.personaId !== entry.personaId),
+                  ])
+                }
                 onClose={endCall}
               />
             )}
@@ -1766,6 +1776,43 @@ export default function Discover() {
             </div>
           )}
 
+          {/* ---- what the calls turned up ---- */}
+          <div className="border-b border-edge p-4">
+            <div className="flex items-baseline justify-between gap-2">
+              <p className="label">
+                Report
+                <Hint>
+                  What came out of the calls you made. Talk to anyone in the crowd, then
+                  summarise the conversation and it is kept here with the run.
+                </Hint>
+              </p>
+              {callReport.length > 0 && (
+                <span className="num text-[10px] text-faint">
+                  {callReport.length} {callReport.length === 1 ? "call" : "calls"}
+                </span>
+              )}
+            </div>
+            {callReport.length === 0 ? (
+              <p className="mt-2 text-xs leading-relaxed text-faint">
+                Call someone from the crowd and summarise it, and the notes land here.
+              </p>
+            ) : (
+              <div className="mt-3 max-h-64 space-y-3 overflow-y-auto pr-1">
+                {callReport.map((entry) => (
+                  <div key={entry.personaId} className="border-l-2 border-edge pl-3">
+                    <p className="text-[11px] text-ink">
+                      {entry.name} <span className="text-muted">· {entry.role}</span>
+                    </p>
+                    <p className="mt-1 text-[11px] leading-relaxed text-ink/80">{entry.summary}</p>
+                    {entry.takeaway && (
+                      <p className="mt-1 text-[10px] leading-relaxed text-muted">{entry.takeaway}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
           <div className="p-4">
             <div className="flex items-baseline justify-between gap-2">
               <p className="label">
@@ -1775,7 +1822,7 @@ export default function Discover() {
                     ? "Unsure"
                     : stanceFilter === "ignore"
                       ? "Rejected"
-                      : "What they said"}
+                      : "Community reactions"}
               </p>
               {stanceFilter && (
                 <button
@@ -1786,7 +1833,7 @@ export default function Discover() {
                 </button>
               )}
             </div>
-            <div className="mt-3 space-y-2">
+            <div className="mt-3 max-h-[420px] space-y-2 overflow-y-auto pr-1">
               {answered ? (
                 [...reactions.values()]
                   .filter((r) => r.reason)

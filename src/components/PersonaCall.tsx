@@ -48,6 +48,8 @@ type Props = {
   solution: string;
   problems: ProblemStatement[];
   onClose: () => void;
+  /** Keeps what came out of this call, for the report in the side panel. */
+  onSummarise?: (entry: { personaId: number; name: string; role: string; summary: string; takeaway: string }) => void;
   /** Reaches the page's speech queue. The person on the call speaks through
    *  it, so they and the narrator can never start at the same moment. */
   queue?: () => SpeechQueue;
@@ -67,7 +69,18 @@ const WHO_PAYS = {
   business: "Who in your company would actually sign for this?",
 };
 
-export function PersonaCall({ persona, reaction, solution, problems, onClose, queue, centre = "50%" }: Props) {
+export function PersonaCall({
+  persona,
+  reaction,
+  solution,
+  problems,
+  onClose,
+  onSummarise,
+  queue,
+  centre = "50%",
+}: Props) {
+  const [summarising, setSummarising] = useState(false);
+  const [summarised, setSummarised] = useState(false);
   /** Says a line in this person's voice, waiting its turn behind anything the
    *  page is already saying. */
   const voiced = useCallback(
@@ -112,7 +125,9 @@ export function PersonaCall({ persona, reaction, solution, problems, onClose, qu
         if (hungUp) return;
         setThinking(false);
         if (!json?.line) return;
-        setTurns([{ speaker: "persona", text: json.line }]);
+        // Prepended, not assigned: a founder who typed while the line was
+        // still connecting would otherwise watch their question disappear.
+        setTurns((t) => [{ speaker: "persona", text: json.line }, ...t]);
         setVoice(json.voice);
         setSpeaking(true);
         await voiced(`call:${persona.id}:hello`, json.line, json.voice as VoiceProfile, t);
@@ -170,6 +185,34 @@ export function PersonaCall({ persona, reaction, solution, problems, onClose, qu
     },
     [persona.id, solution, problems, reaction, turns, tier, voiced]
   );
+
+  /** What came out of the call, kept in the report on the right. */
+  const summarise = useCallback(async () => {
+    if (turns.length === 0) return;
+    setSummarising(true);
+    try {
+      const res = await fetch("/api/discovery/summary", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ personaId: persona.id, solution, turns, reaction }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? "summary failed");
+
+      onSummarise?.({
+        personaId: persona.id,
+        name: persona.name,
+        role: persona.label ?? persona.title,
+        summary: json.summary ?? "",
+        takeaway: json.takeaway ?? "",
+      });
+      setSummarised(true);
+    } catch {
+      /* the call is still on screen; nothing to recover */
+    } finally {
+      setSummarising(false);
+    }
+  }, [turns, persona, solution, reaction, onSummarise]);
 
   const pushToTalk = useCallback(async () => {
     unlockAudio();
@@ -331,6 +374,18 @@ export function PersonaCall({ persona, reaction, solution, problems, onClose, qu
           />
         </form>
       </div>
+
+      {onSummarise && turns.some((t) => t.speaker === "founder") && (
+        <div className="mt-3 flex justify-end">
+          <button
+            onClick={() => void summarise()}
+            disabled={summarising}
+            className="border border-edge px-2.5 py-1.5 font-mono text-[10px] uppercase tracking-[0.12em] text-muted transition hover:border-edge-bright hover:text-ink disabled:opacity-50"
+          >
+            {summarising ? "Summarising…" : summarised ? "Summarise again →" : "Summarise conversation →"}
+          </button>
+        </div>
+      )}
 
       <p className="label mt-2">
         selected because {persona.why.join(", ") || "—"} · voice {tier ?? "…"}
