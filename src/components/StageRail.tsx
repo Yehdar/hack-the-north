@@ -18,26 +18,21 @@ import { Wordmark } from "@/components/Logo";
 // the product runs.
 // ============================================================================
 
-export type StageId =
-  | "intake"
-  | "split"
-  | "deploy"
-  | "listen"
-  | "reveal"
-  | "council"
-  | "score"
-  | "pitch";
+export type StageId = "intake" | "split" | "deploy" | "listen" | "pitch";
 
 export type StageState = "todo" | "active" | "done";
 
+// Four steps to ask the market, then the room where the answer is defended.
+// Three more used to sit between them — a council of analysts arguing about
+// one city, a 0-100 score off the back of it, and a Result screen to read them
+// on. All three stood between the founder and the only judgement that decides
+// anything. What the market said is now the last thing step four does, said in
+// a card that hands straight to the partners.
 const STAGES: { id: StageId; part: 1 | 2; name: string; blurb: string }[] = [
   { id: "intake", part: 1, name: "Product", blurb: "What you built, in your own words." },
   { id: "split", part: 1, name: "Problem", blurb: "The problem your product implies." },
   { id: "deploy", part: 1, name: "Sample", blurb: "Who gets asked, and where they work." },
   { id: "listen", part: 1, name: "Responses", blurb: "Which problem each of them has." },
-  { id: "reveal", part: 1, name: "Result", blurb: "What the market's answer means." },
-  { id: "council", part: 1, name: "Council", blurb: "Five analysts assess one city." },
-  { id: "score", part: 1, name: "Validation", blurb: "Whether the problem is big enough." },
   { id: "pitch", part: 2, name: "Committee", blurb: "Defend it to a firm's partners." },
 ];
 
@@ -256,28 +251,9 @@ export function StageRail({
 }
 
 /** Where the founder is in Part 1. Each segment plays, then waits for them. */
-export type Segment =
-  | "idle"
-  | "split"
-  | "deploy"
-  | "listen"
-  | "heard"
-  | "result"
-  | "council"
-  | "deliberated"
-  | "scored";
+export type Segment = "idle" | "split" | "deploy" | "listen" | "heard" | "result";
 
-const ORDER: Segment[] = [
-  "idle",
-  "split",
-  "deploy",
-  "listen",
-  "heard",
-  "result",
-  "council",
-  "deliberated",
-  "scored",
-];
+const ORDER: Segment[] = ["idle", "split", "deploy", "listen", "heard", "result"];
 
 /** Derives rail state from the segment on screen, so it can never claim
  *  progress the founder has not actually been shown. */
@@ -290,10 +266,11 @@ export function deriveStages(segment: Segment, hasIdea: boolean): Record<StageId
     intake: hasIdea ? "done" : "active",
     split: stage(["split"], "split"),
     deploy: stage(["deploy"], "deploy"),
-    listen: stage(["listen", "heard"], "heard"),
-    reveal: stage(["result"], "result"),
-    council: stage(["council", "deliberated"], "deliberated"),
-    score: segment === "scored" ? "done" : "todo",
-    pitch: segment === "scored" ? "active" : "todo",
+    // Asking them and reading their answer are one step. The answer arrives in
+    // a card over this screen, not on a screen of its own.
+    listen: stage(["listen", "heard", "result"], "result"),
+    // Part 2 is a different room behind a door. It lights up when the founder
+    // walks through it, not while they are still reading Part 1's answer.
+    pitch: "todo",
   };
 }

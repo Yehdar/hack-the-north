@@ -30,7 +30,6 @@ type Props = {
   delta: SessionDelta[] | null;
   crowd: number;
   problemCount: number;
-  city: string | null;
   /** What the run means, in words. The numbers below are its evidence. */
   advice?: Assessment | null;
   refining: boolean;
@@ -65,7 +64,6 @@ export function Reveal({
   delta,
   crowd,
   problemCount,
-  city,
   advice,
   refining,
   onAccept,
@@ -217,12 +215,10 @@ export function Reveal({
               onClick={onAccept}
               className="bg-accent px-5 py-2.5 font-mono text-[11px] uppercase tracking-[0.14em] text-ground transition hover:brightness-110"
             >
-              {/* Say what pressing it does, not which field it sets. */}
-              {city
-                ? aligned
-                  ? `Study this problem in ${city}`
-                  : `Use their problem, and study it in ${city}`
-                : "Use their problem from here on"}
+              {/* Say where pressing it takes you. This is the last thing in
+                  Part 1: it adopts the market's problem and walks the founder
+                  into the committee room. */}
+              Take it to venture capitalists →
             </button>
           )}
 

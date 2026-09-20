@@ -11,7 +11,6 @@ export function ProcessingPanel({
   total,
   round,
   unit = "Agent turns",
-  live,
 }: {
   step: string;
   done: number;
@@ -19,13 +18,13 @@ export function ProcessingPanel({
   round?: string;
   /** What is being counted. People answering, or agents speaking. */
   unit?: string;
-  /** False once the work is finished. The caller knows before the counter
-   *  does — a step can end on its last tick, or short of its estimate — and a
-   *  panel that keeps pulsing after the answer is on screen reads as stuck. */
-  live?: boolean;
 }) {
   const pct = total > 0 ? (done / total) * 100 : 0;
-  const running = live ?? done < total;
+  // Finished is finished: the squares stop, the bar fills and the caption says
+  // so. A panel whose lights keep chasing each other over a full bar reading
+  // "120 / 120" is telling the founder two different things at once, and the
+  // one that moves is the one they believe.
+  const running = total <= 0 || done < total;
 
   return (
     <motion.div
@@ -63,7 +62,6 @@ export function ProcessingPanel({
         </div>
 
         <Progress
-          // Finished means full, whatever the counter landed on.
           pct={running ? pct : 100}
           live={running}
           right={running ? `${Math.max(0, total - done)} to go` : "done"}
