@@ -2,13 +2,12 @@
 
 import Link from "next/link";
 
-// Part 2 is three rooms in a fixed order. One strip, the same on each of them,
-// so it is always clear which room you are in and where the next one is.
+// Part 2 is two rooms now. The pitch used to be its own page; it happens at
+// the table, where the partners you are answering are sitting.
 
 const STEPS = [
   { href: "/committee", n: "01", name: "The room" },
-  { href: "/meeting", n: "02", name: "The pitch" },
-  { href: "/report", n: "03", name: "The verdict" },
+  { href: "/report", n: "02", name: "The verdict" },
 ] as const;
 
 export type PartTwoStep = (typeof STEPS)[number]["href"];

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
-import { Globe, type GlobeDot } from "@/components/globe/Globe";
+
 import { AgentBoot } from "@/components/hud/AgentBoot";
 import { ProcessingPanel } from "@/components/hud/ProcessingPanel";
 import { AgentFeed, type FeedItem } from "@/components/hud/AgentFeed";
@@ -13,9 +13,11 @@ import { Door, disarmDoor, doorArmed } from "@/components/Door";
 import { PartTwoNav } from "@/components/PartTwoNav";
 import { Wordmark } from "@/components/Logo";
 import { Narrator } from "@/components/Narrator";
-import { DeliberationGraph } from "@/components/DeliberationGraph";
-import { Hint } from "@/components/Hint";
-import { HUB_POINTS, hubById, seatPointsAt } from "@/data/globePoints";
+import { hubById } from "@/data/globePoints";
+import { RoundTable, Subtitles } from "@/components/RoundTable";
+import { TableChat, type ChatTurn } from "@/components/TableChat";
+import { CommitteeLean, TableLog, type LogLine } from "@/components/TableLog";
+import { leanOf, weightsOf } from "@/lib/lean";
 import { FIRMS } from "@/data/firms";
 import { useVenture, type DeliberationSnapshot } from "@/lib/store";
 import { SpeechQueue } from "@/lib/voice/agentVoices";
@@ -97,7 +99,52 @@ export default function Committee() {
   const narrated = useRef("");
   const [tier, setTier] = useState<VoiceTier | null>(null);
   const [nowSpeaking, setNowSpeaking] = useState<string | null>(null);
-  const [voicedId, setVoicedId] = useState<string | null>(null);
+  /** Who the current speaker is addressing, so the room turns to look. */
+  const [addressing, setAddressing] = useState<string | null>(null);
+  /** The line under the table. */
+  const [subtitle, setSubtitle] = useState<string | null>(null);
+  const [paused, setPaused] = useState(false);
+  /** One line per conversation the founder has had with a partner. */
+  const [chatSummaries, setChatSummaries] = useState<
+    { id: string; role: string; text: string }[]
+  >([]);
+  const [chat, setChat] = useState<Record<string, ChatTurn[]>>({});
+  const [chatBusy, setChatBusy] = useState(false);
+
+
+
+  // Lines wait their turn. The stream arrives far faster than anyone can read
+  // or listen, so without a queue the table would flicker through a meeting in
+  // two seconds and the subtitles would be unreadable.
+  const pending = useRef<Msg[]>([]);
+  const draining = useRef(false);
+  const pausedRef = useRef(false);
+  useEffect(() => {
+    pausedRef.current = paused;
+  }, [paused]);
+
+  const drain = useCallback(async () => {
+    if (draining.current) return;
+    draining.current = true;
+
+    while (pending.current.length > 0) {
+      while (pausedRef.current) await new Promise((r) => setTimeout(r, 120));
+
+      const m = pending.current.shift()!;
+      setNowSpeaking(m.from);
+      setAddressing(m.to === "room" ? null : m.to);
+      setSubtitle(m.text);
+
+      // Long enough to read at a natural pace, with a floor so a short line
+      // does not flash past.
+      const ms = Math.max(1800, Math.min(7000, m.text.split(/\s+/).length * 230));
+      await new Promise((r) => setTimeout(r, ms));
+    }
+
+    setNowSpeaking(null);
+    setAddressing(null);
+    draining.current = false;
+  }, []);
   const queue = useRef<SpeechQueue | null>(null);
   // Each run owns the room; a stuck one is aborted when the founder runs again.
   const runId = useRef(0);
@@ -129,11 +176,72 @@ export default function Committee() {
     return () => clearInterval(id);
   }, [running]);
   const firmId = useVenture((v) => v.firmId);
+  const roleOf = useCallback(
+    (id: string) => roster.find((r) => r.id === id)?.role ?? id,
+    [roster]
+  );
+
+  /**
+   * Ask one partner something, in private. Their answer can move their stance,
+   * which moves the room, which is the point of being able to talk to them at
+   * all. A conversation that cannot change anything is set dressing.
+   */
+  const askPartner = useCallback(
+    async (seatId: string, question: string) => {
+      const vf = useVenture.getState().ventureFile;
+      if (!vf) return;
+
+      setChat((c) => ({ ...c, [seatId]: [...(c[seatId] ?? []), { speaker: "founder", text: question }] }));
+      setChatBusy(true);
+
+      try {
+        const res = await fetch("/api/vc/ask", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            seatId,
+            question,
+            firmId,
+            ventureFile: vf,
+            history: chat[seatId] ?? [],
+            stance: stances[seatId]?.stance,
+          }),
+        });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error ?? "ask failed");
+
+        setChat((c) => ({
+          ...c,
+          [seatId]: [...(c[seatId] ?? []), { speaker: "agent", text: json.line }],
+        }));
+
+        if (typeof json.stance === "number") {
+          setStances((prev) => ({
+            ...prev,
+            [seatId]: { ...(prev[seatId] ?? { agentId: seatId, confidence: 0.6 }), ...json, stance: json.stance },
+          }));
+        }
+        if (json.summary) {
+          setChatSummaries((prev) => [
+            ...prev.filter((p) => p.id !== seatId),
+            { id: seatId, role: roleOf(seatId), text: json.summary },
+          ]);
+        }
+      } catch {
+        setChat((c) => ({
+          ...c,
+          [seatId]: [...(c[seatId] ?? []), { speaker: "agent", text: "Sorry, I lost my train of thought there." }],
+        }));
+      } finally {
+        setChatBusy(false);
+      }
+    },
+    [chat, firmId, stances, roleOf]
+  );
   const sidebar = useRef<HTMLDivElement>(null);
 
   const firm = FIRMS[firmId] ?? FIRMS.bessemer;
   const hq = hubById(firm.hqHubId) ?? hubById("sf")!;
-  const seats = seatPointsAt(firm.hqHubId);
 
   useEffect(() => {
     if (!throughDoor) return;
@@ -166,10 +274,9 @@ export default function Committee() {
         // Playback only needs synthesis, which browsers without speech
         // recognition still have, the "text" tier is about the microphone.
         (text, voice) => speak(text, voice, tier === "elevenlabs" ? "elevenlabs" : "browser"),
-        (agentId, id) => {
+        (agentId) => {
           // The narrator is not in the room; only partners show as speaking.
           setNowSpeaking(agentId === "narrator" ? null : agentId);
-          setVoicedId(agentId === "narrator" ? null : id);
         }
       ),
     [tier]
@@ -195,6 +302,17 @@ export default function Committee() {
 
     setRunning(true);
     setMessages([]); setFeed([]); setStances({}); setDecision(null); setMinutes(null);
+    pending.current = [];
+    setSubtitle(null);
+    setNowSpeaking(null);
+    setAddressing(null);
+    // The chair opens by putting the report on the table, which is what starts
+    // every one of these meetings in life.
+    setTimeout(() => {
+      setNowSpeaking("chair");
+      setSubtitle("Right. Let's look at the report.");
+      setTimeout(() => setNowSpeaking(null), 2200);
+    }, 350);
 
     queue.current?.clear();
     if (audio) ensureQueue();
@@ -230,6 +348,11 @@ export default function Committee() {
           const m = ev.message as Msg;
           setMessages((prev) => [...prev, m]);
           setRound(m.round);
+          // Drives the table: who is talking, who they are talking to, and the
+          // line under the table. The queue paces it so the room speaks one at
+          // a time rather than all at once.
+          pending.current.push(m);
+          drain();
           setStep(ROUND_LABEL[m.round] ?? "Deliberating");
           setFeed((f) =>
             [
@@ -326,37 +449,8 @@ export default function Committee() {
         setStep("Failed");
         setRunning(false);
       });
-  }, [replaceVenture, setDeliberation, firmId, audio, ensureQueue]);
+  }, [replaceVenture, setDeliberation, firmId, audio, ensureQueue, drain]);
 
-  const seatDots = Object.values(seats);
-  const dots: GlobeDot[] = [
-    // Cities stay dots. Except those under the committee's feet, which the
-    // row of partners would stand on top of. The beacon marks the HQ itself.
-    ...HUB_POINTS.filter(
-      (h) => Math.hypot(h.lat - hq.lat, (h.lon - hq.lon) * Math.cos((hq.lat * Math.PI) / 180)) > 7
-    ).map((h) => ({
-      id: `hub:${h.id}`,
-      lat: h.lat,
-      lon: h.lon,
-      label: h.label,
-      weight: 0.25,
-    })),
-    ...seatDots.map((s) => ({
-      id: s.id,
-      lat: s.lat,
-      lon: s.lon,
-      // Four seats round one city would stack four labels on top of each
-      // other. Only whoever is speaking is named.
-      label: active.has(s.id) ? s.label : "",
-      stance: stances[s.id]?.stance,
-      // The row reads as a panel only if nobody is dwarfed: size is the same
-      // for every partner, and voting weight stays in the side panel.
-      weight: 0.5,
-      active: active.has(s.id),
-      figure: s.figure,
-      figureScale: 1.35,
-    })),
-  ];
 
   // Once the room convenes the argument is the thing to watch: the panel
   // widens and the globe steps back to make room for it.
@@ -414,16 +508,32 @@ export default function Committee() {
       </AnimatePresence>
 
       <div className="flex h-full">
-        {/* ------------------------------- globe ------------------------------- */}
+        {/* ------------------------------- the room ---------------------------- */}
         <div className="relative flex-1">
-          <Globe
-            dots={dots}
-            onDotClick={(id) => setSelected(id.startsWith("hub:") ? null : id)}
+          {/* A committee sits at a table, not on a map. The globe belonged to
+              part one and meant nothing here. */}
+          <RoundTable
+            seats={roster
+              .filter((r) => r.weight > 0 || r.id === "chair")
+              .map((r) => ({
+                id: r.id,
+                role: r.role,
+                weight: r.weight,
+                stance: stances[r.id]?.stance,
+              }))}
+            speaking={nowSpeaking}
+            addressing={addressing}
+            thinking={active}
+            conceded={conceded}
             selected={selected}
-            focus={{ lat: hq.lat, lon: hq.lon }}
-            beacon={{ lat: hq.lat, lon: hq.lon }}
-            distance={convened ? 7.6 : undefined}
-            className="h-full w-full"
+            onSelect={setSelected}
+            shifted={Boolean(selected)}
+          />
+
+          <Subtitles
+            speaker={nowSpeaking ? roleOf(nowSpeaking) : null}
+            line={subtitle}
+            paused={paused}
           />
 
           <div className="absolute left-1/2 top-6 z-40 -translate-x-1/2">
@@ -591,10 +701,10 @@ export default function Committee() {
               {decision && !running ? (
                 <>
                   <Link
-                    href="/meeting"
+                    href="/report"
                     className="beam bg-accent px-5 py-2 font-mono text-[11px] uppercase tracking-[0.14em] text-ground transition hover:brightness-110"
                   >
-                    Now defend it →
+                    Read the verdict →
                   </Link>
                   <button
                     onClick={run}
@@ -615,10 +725,10 @@ export default function Committee() {
                     Run it again ↻
                   </button>
                   <Link
-                    href="/meeting"
+                    href="/report"
                     className="px-3 py-2 font-mono text-[11px] uppercase tracking-[0.14em] text-muted transition hover:text-ink"
                   >
-                    Skip to the pitch →
+                    Skip to the verdict →
                   </Link>
                 </>
               ) : (
@@ -640,7 +750,6 @@ export default function Committee() {
                   if (audio) {
                     queue.current?.clear();
                     setNowSpeaking(null);
-                    setVoicedId(null);
                   } else {
                     // Turned on mid-meeting: speak from the next line on.
                     ensureQueue();
@@ -660,9 +769,23 @@ export default function Committee() {
                 {audio ? "🔊 hearing them" : "🔈 hear them"}
               </button>
 
-              {nowSpeaking && (
+              {/* Pause the room. Useful when someone asks a question mid-demo
+                  and you need the table to stop talking over you. */}
+              {(nowSpeaking || paused) && (
+                <button
+                  onClick={() => setPaused((v) => !v)}
+                  className={`px-3 py-2 font-mono text-[11px] uppercase tracking-[0.14em] transition ${
+                    paused ? "text-accent" : "text-faint hover:text-ink"
+                  }`}
+                  title={paused ? "Let them carry on" : "Stop the room"}
+                >
+                  {paused ? "▶ resume" : "❚❚ pause"}
+                </button>
+              )}
+
+              {nowSpeaking && !paused && (
                 <span className="label animate-pulse px-1" style={{ color: "var(--accent)" }}>
-                  {nowSpeaking} speaking
+                  {roleOf(nowSpeaking)} speaking
                 </span>
               )}
 
@@ -672,66 +795,44 @@ export default function Committee() {
         </div>
 
         {/* ------------------------------ sidebar ------------------------------ */}
+        <AnimatePresence>
+          {selected && (
+            <TableChat
+              key={selected}
+              seatId={selected}
+              role={roleOf(selected)}
+              opening={stances[selected]?.position}
+              turns={chat[selected] ?? []}
+              thinking={chatBusy}
+              onAsk={(q) => void askPartner(selected, q)}
+              onClose={() => setSelected(null)}
+            />
+          )}
+        </AnimatePresence>
+
         <aside
           className={`flex shrink-0 flex-col border-l border-edge bg-surface/40 transition-[width] duration-500 ease-out ${
             convened ? "w-[min(560px,40vw)]" : "w-96"
           }`}
         >
-          <div className="border-b border-edge p-4">
-            <p className="label">
-              The room
-              <Hint align="left">
-                Run like a real partner meeting. The managing partner chairs and hands
-                each question to the partner whose job it is; the partners give their
-                view without hearing the others, then challenge each other by name,
-                answer (and may change their minds), and the devil&apos;s advocate argues
-                against wherever the room settled. Circle size is voting weight; colour is
-                stance; a green tick means that partner conceded.
-              </Hint>
-            </p>
-            {roster.length > 0 ? (
-              <>
-                <div className="mt-2">
-                  <DeliberationGraph
-                    seats={roster}
-                    stances={stances}
-                    messages={messages}
-                    active={active}
-                    conceded={conceded}
-                    voiced={audio ? voicedId : undefined}
-                  />
-                </div>
-                {/* Live stances while they argue; afterwards the minutes say
-                    where each partner stood, in words, so this would repeat. */}
-                <div className={`mt-3 space-y-1 border-t border-edge pt-3 ${minutes ? "hidden" : ""}`}>
-                  {roster.filter((r) => r.weight > 0).map((r) => {
-                    const v = stances[r.id];
-                    return (
-                      <button
-                        key={r.id}
-                        onClick={() => setSelected(r.id)}
-                        className="num flex w-full items-baseline justify-between text-left text-[11px] transition hover:text-ink"
-                      >
-                        <span className="text-ink/85">
-                          {r.role} <span className="text-faint">{(r.weight * 100).toFixed(0)}%</span>
-                        </span>
-                        <span className={v ? (v.stance >= 0 ? "text-positive" : "text-negative") : "text-faint"}>
-                          {v ? `${v.stance > 0 ? "+" : ""}${v.stance.toFixed(2)} · conf ${v.confidence.toFixed(2)}` : "—"}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </>
-            ) : (
-              <p className="mt-3 font-mono text-xs leading-relaxed text-faint">
-                Not yet convened. The lead partner who brought the deal, the principal who
-                did the diligence and a skeptical partner vote; a devil&apos;s advocate
-                argues against the room; the managing partner chairs and keeps the
-                minutes.
-              </p>
-            )}
-          </div>
+          {/* Where the room stands, and everything it has said. The graph
+              that used to live here drew the same five people the table now
+              shows, so it was saying it twice. */}
+          <CommitteeLean lean={leanOf(Object.values(stances), weightsOf(roster))} />
+
+          <TableLog
+            direction={running ? step : decision ? "The committee has decided." : undefined}
+            lines={messages.map((m): LogLine => ({
+              id: m.id,
+              from: roleOf(m.from),
+              to: m.to === "room" ? undefined : roleOf(m.to),
+              text: m.text,
+              kind: m.kind as LogLine["kind"],
+            }))}
+            summaries={chatSummaries}
+          />
+
+
 
           <div ref={sidebar} className="flex-1 overflow-y-auto p-4">
             {minutes && (
@@ -801,7 +902,7 @@ export default function Committee() {
                     )}
                   </p>
                   <div className="mt-2 flex gap-4">
-                    <Link href="/meeting" className="label transition hover:text-ink">
+                    <Link href="/report" className="label transition hover:text-ink">
                       Pitch them →
                     </Link>
                     <Link href="/report" className="label transition hover:text-ink">
