@@ -86,13 +86,13 @@ export default function Dashboard() {
                       clear();
                       setConfirming(false);
                     }}
-                    className="border border-negative/60 px-3 py-2 font-mono text-[11px] uppercase tracking-[0.14em] text-negative transition hover:bg-negative/10"
+                    className="border border-negative/60 px-3 py-2 font-mono text-[13px] uppercase tracking-[0.14em] text-negative transition hover:bg-negative/10"
                   >
                     Delete all {sessions.length}
                   </button>
                   <button
                     onClick={() => setConfirming(false)}
-                    className="px-3 py-2 font-mono text-[11px] uppercase tracking-[0.14em] text-faint transition hover:text-ink"
+                    className="px-3 py-2 font-mono text-[13px] uppercase tracking-[0.14em] text-faint transition hover:text-ink"
                   >
                     Keep them
                   </button>
@@ -100,14 +100,14 @@ export default function Dashboard() {
               ) : (
                 <button
                   onClick={() => setConfirming(true)}
-                  className="px-3 py-2 font-mono text-[11px] uppercase tracking-[0.14em] text-faint transition hover:text-ink"
+                  className="px-3 py-2 font-mono text-[13px] uppercase tracking-[0.14em] text-faint transition hover:text-ink"
                 >
                   Clear all
                 </button>
               ))}
             <button
               onClick={() => setCreating((v) => !v)}
-              className="bg-accent px-4 py-2 font-mono text-[11px] uppercase tracking-[0.14em] text-ground transition hover:brightness-110"
+              className="bg-accent px-4 py-2 font-mono text-[13px] uppercase tracking-[0.14em] text-ground transition hover:brightness-110"
             >
               {creating ? "Cancel" : "New project"}
             </button>
@@ -138,7 +138,7 @@ export default function Dashboard() {
             </p>
             <button
               onClick={() => setCreating(true)}
-              className="mt-5 bg-accent px-5 py-2.5 font-mono text-[11px] uppercase tracking-[0.14em] text-ground transition hover:brightness-110"
+              className="mt-5 bg-accent px-5 py-2.5 font-mono text-[13px] uppercase tracking-[0.14em] text-ground transition hover:brightness-110"
             >
               Start your first project
             </button>
@@ -197,15 +197,15 @@ function RunCard({
           {parent || parentMissing ? "Rewrite" : "Run"}
           {rewritten && " · rewritten since"}
         </p>
-        <p className="num text-[10px] text-faint">{when}</p>
+        <p className="num text-[12px] text-faint">{when}</p>
       </div>
 
       {/* The name first, because that is what a founder scans for. The idea
           underneath it, because that is what they actually pitched. */}
       {run.name && (
-        <h3 className="mt-2 text-[15px] leading-tight text-ink">{run.name}</h3>
+        <h3 className="mt-2 text-[17px] leading-tight text-ink">{run.name}</h3>
       )}
-      <p className="mt-1.5 line-clamp-2 text-[12px] leading-relaxed text-muted">
+      <p className="mt-1.5 line-clamp-2 text-[14px] leading-relaxed text-muted">
         &ldquo;{run.solution}&rdquo;
       </p>
 
@@ -227,7 +227,7 @@ function RunCard({
             )}
           </div>
 
-          <p className="num mt-3 text-[10px] text-muted">
+          <p className="num mt-3 text-[12px] text-muted">
             {run.crowdSize} asked · {run.engaged} full attention · sentiment{" "}
             {run.meanSentiment.toFixed(2)}
           </p>
@@ -238,15 +238,15 @@ function RunCard({
               {run.pvs !== undefined ? (
                 <p className="num mt-1 text-sm">
                   {run.pvs}
-                  <span className={`ml-1.5 text-[10px] ${run.pvsPassed ? "text-positive" : "text-negative"}`}>
+                  <span className={`ml-1.5 text-[12px] ${run.pvsPassed ? "text-positive" : "text-negative"}`}>
                     {run.pvsPassed ? "cleared" : "below the bar"}
                   </span>
                 </p>
               ) : (
-                <p className="mt-1 text-[11px] text-faint">No council sat</p>
+                <p className="mt-1 text-[13px] text-faint">No council sat</p>
               )}
               {run.topHub && (
-                <p className="num mt-0.5 text-[10px] text-faint">
+                <p className="num mt-0.5 text-[12px] text-faint">
                   {hubById(run.topHub.hubId)?.label ?? run.topHub.hubId} · fit {run.topHub.fitScore}
                 </p>
               )}
@@ -266,19 +266,19 @@ function RunCard({
                   >
                     {run.decision}
                     {run.score !== undefined && (
-                      <span className="ml-1.5 text-[10px] text-faint">{run.score.toFixed(2)}</span>
+                      <span className="ml-1.5 text-[12px] text-faint">{run.score.toFixed(2)}</span>
                     )}
                   </p>
-                  <p className="mt-0.5 truncate text-[10px] text-faint">{run.firmName}</p>
+                  <p className="mt-0.5 truncate text-[12px] text-faint">{run.firmName}</p>
                 </>
               ) : (
-                <p className="mt-1 text-[11px] text-faint">Not pitched yet</p>
+                <p className="mt-1 text-[13px] text-faint">Not pitched yet</p>
               )}
             </div>
           </div>
 
           {run.killShot && (
-            <p className="mt-3 border-l-2 border-negative/60 pl-2 text-[11px] leading-relaxed text-ink/75">
+            <p className="mt-3 border-l-2 border-negative/60 pl-2 text-[13px] leading-relaxed text-ink/75">
               {run.killShot}
             </p>
           )}
@@ -302,7 +302,7 @@ function RunCard({
             </div>
           )}
           {parentMissing && (
-            <p className="mt-4 border-t border-edge pt-3 text-[10px] text-faint">
+            <p className="mt-4 border-t border-edge pt-3 text-[12px] text-faint">
               The run this came from has been removed.
             </p>
           )}
@@ -312,13 +312,13 @@ function RunCard({
       <div className="mt-auto flex items-center gap-3 pt-4">
         <button
           onClick={onLoad}
-          className="border border-edge-bright px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.14em] text-ink/85 transition hover:bg-surface-2"
+          className="border border-edge-bright px-3 py-1.5 font-mono text-[12px] uppercase tracking-[0.14em] text-ink/85 transition hover:bg-surface-2"
         >
           Load this idea
         </button>
         <button
           onClick={onRemove}
-          className="font-mono text-[10px] uppercase tracking-[0.14em] text-faint transition hover:text-negative"
+          className="font-mono text-[12px] uppercase tracking-[0.14em] text-faint transition hover:text-negative"
         >
           Remove
         </button>
@@ -334,7 +334,7 @@ function Line({ k, v, struck, accent }: { k: string; v?: string; struck?: boolea
         {k}
       </span>
       <span
-        className={`text-[11px] leading-relaxed ${
+        className={`text-[13px] leading-relaxed ${
           struck ? "text-muted line-through decoration-negative/60" : "text-ink/85"
         }`}
       >

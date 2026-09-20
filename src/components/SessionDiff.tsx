@@ -12,7 +12,7 @@ export function SessionDiff({
 }) {
   if (deltas.length === 0) {
     return (
-      <p className={`text-[11px] ${onInsert ? "insert-muted" : "text-faint"}`}>
+      <p className={`text-[13px] ${onInsert ? "insert-muted" : "text-faint"}`}>
         Nothing a founder would check moved between the two runs.
       </p>
     );
@@ -32,17 +32,17 @@ export function SessionDiff({
             {prose ? (
               <>
                 <p className="label">{d.field}</p>
-                <p className={`mt-0.5 text-[11px] leading-snug line-through opacity-60 ${onInsert ? "" : "text-muted"}`}>
+                <p className={`mt-0.5 text-[13px] leading-snug line-through opacity-60 ${onInsert ? "" : "text-muted"}`}>
                   {d.before}
                 </p>
-                <p className="text-[12px] leading-snug" style={{ color: tone(d) }}>
+                <p className="text-[14px] leading-snug" style={{ color: tone(d) }}>
                   {d.after}
                 </p>
               </>
             ) : (
               <div className="flex items-baseline justify-between gap-3">
                 <span className="label">{d.field}</span>
-                <span className="num text-[12px]">
+                <span className="num text-[14px]">
                   <span className="opacity-50">{d.before}</span>
                   <span className="mx-1.5 opacity-50">→</span>
                   <span style={{ color: tone(d) }}>{d.after}</span>

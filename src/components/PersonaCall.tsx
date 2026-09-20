@@ -259,7 +259,7 @@ export function PersonaCall({
             speaking={speaking}
             size={124}
           />
-          <span className="absolute left-1.5 top-1.5 flex items-center gap-1 font-mono text-[9px] uppercase tracking-[0.14em] text-faint">
+          <span className="absolute left-1.5 top-1.5 flex items-center gap-1 font-mono text-[11px] uppercase tracking-[0.14em] text-faint">
             <span
               className={`inline-block h-1.5 w-1.5 rounded-full ${thinking && turns.length === 0 ? "animate-pulse" : ""}`}
               style={{ background: thinking && turns.length === 0 ? "var(--caution)" : "var(--go)" }}
@@ -293,11 +293,11 @@ export function PersonaCall({
           right={sentiment.toFixed(2)}
         />
         {shifted && (
-          <p className="mt-1 text-[10px] text-accent">You changed their mind.</p>
+          <p className="mt-1 text-[12px] text-accent">You changed their mind.</p>
         )}
       </div>
           {reaction?.reason && !turns.some((t) => t.speaker === "founder") && (
-            <p className="mt-3 text-[11px] leading-relaxed text-faint">
+            <p className="mt-3 text-[13px] leading-relaxed text-faint">
               They told the crowd: &ldquo;{reaction.reason}&rdquo;
             </p>
           )}
@@ -307,12 +307,12 @@ export function PersonaCall({
       {/* transcript */}
       <div ref={feed} className="mt-3 max-h-56 min-h-[64px] space-y-2 overflow-y-auto">
         {turns.length === 0 && !thinking && (
-          <p className="text-[11px] leading-relaxed text-faint">Ask them something.</p>
+          <p className="text-[13px] leading-relaxed text-faint">Ask them something.</p>
         )}
         {turns.map((t, i) => (
           <div key={i} className={t.speaker === "founder" ? "text-right" : ""}>
             <p
-              className={`inline-block max-w-[85%] px-2.5 py-1.5 text-[11px] leading-relaxed ${
+              className={`inline-block max-w-[85%] px-2.5 py-1.5 text-[13px] leading-relaxed ${
                 t.speaker === "founder"
                   ? "bg-surface-2 text-ink/85"
                   : "border border-edge bg-surface text-ink/90"
@@ -323,7 +323,7 @@ export function PersonaCall({
           </div>
         ))}
         {thinking && (
-          <p className="animate-pulse text-[10px] text-faint">
+          <p className="animate-pulse text-[12px] text-faint">
             {turns.length === 0 ? `calling ${persona.name.split(" ")[0]}…` : "thinking…"}
           </p>
         )}
@@ -336,7 +336,7 @@ export function PersonaCall({
             <button
               key={q}
               onClick={() => void ask(q)}
-              className="border border-edge px-2 py-1 text-left text-[10px] text-muted transition hover:border-edge-bright hover:text-ink"
+              className="border border-edge px-2 py-1 text-left text-[12px] text-muted transition hover:border-edge-bright hover:text-ink"
             >
               {q}
             </button>
@@ -349,7 +349,7 @@ export function PersonaCall({
         <button
           onClick={pushToTalk}
           disabled={thinking || !tier || tier === "text"}
-          className={`px-3 py-2 font-mono text-[10px] uppercase tracking-[0.14em] transition disabled:bg-edge disabled:text-faint ${
+          className={`px-3 py-2 font-mono text-[12px] uppercase tracking-[0.14em] transition disabled:bg-edge disabled:text-faint ${
             recording ? "bg-negative text-ground" : "bg-accent text-ground hover:brightness-110"
           }`}
         >
@@ -370,7 +370,7 @@ export function PersonaCall({
             value={typed}
             onChange={(e) => setTyped(e.target.value)}
             placeholder="ask them something"
-            className="min-w-0 flex-1 border border-edge bg-ground px-2 py-2 text-[11px] text-ink placeholder:text-faint focus:border-edge-bright focus:outline-none"
+            className="min-w-0 flex-1 border border-edge bg-ground px-2 py-2 text-[13px] text-ink placeholder:text-faint focus:border-edge-bright focus:outline-none"
           />
         </form>
       </div>
@@ -380,7 +380,7 @@ export function PersonaCall({
           <button
             onClick={() => void summarise()}
             disabled={summarising}
-            className="border border-edge px-2.5 py-1.5 font-mono text-[10px] uppercase tracking-[0.12em] text-muted transition hover:border-edge-bright hover:text-ink disabled:opacity-50"
+            className="border border-edge px-2.5 py-1.5 font-mono text-[12px] uppercase tracking-[0.12em] text-muted transition hover:border-edge-bright hover:text-ink disabled:opacity-50"
           >
             {summarising ? "Summarising…" : summarised ? "Summarise again →" : "Summarise conversation →"}
           </button>

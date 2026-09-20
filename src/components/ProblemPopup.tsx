@@ -72,14 +72,14 @@ export function ProblemPopup({
         {solution && (
           <div className="mt-5 border-t border-edge pt-4">
             <p className="label">The solution:</p>
-            <p className="mt-1.5 text-[13px] leading-relaxed text-ink">{solution}</p>
+            <p className="mt-1.5 text-[15px] leading-relaxed text-ink">{solution}</p>
           </div>
         )}
 
         {problem && (
           <div className="mt-4 border-t border-edge pt-4">
             <p className="label">The problem you said it solves:</p>
-            <p className="mt-1.5 text-[13px] leading-relaxed text-ink">{problem}</p>
+            <p className="mt-1.5 text-[15px] leading-relaxed text-ink">{problem}</p>
           </div>
         )}
 
@@ -96,7 +96,7 @@ export function ProblemPopup({
                     aria-hidden
                     className="mt-[7px] h-1 w-1 shrink-0 rounded-full bg-faint transition-colors group-hover:bg-accent"
                   />
-                  <p className="text-[12px] leading-relaxed text-ink/90 transition-colors group-hover:text-ink">
+                  <p className="text-[14px] leading-relaxed text-ink/90 transition-colors group-hover:text-ink">
                     {p.statement}
                   </p>
                 </li>
@@ -106,13 +106,13 @@ export function ProblemPopup({
         )}
 
         <div className="mt-5 flex items-center justify-between gap-3 border-t border-edge pt-4">
-          <p className="text-[10px] leading-relaxed text-faint">
+          <p className="text-[12px] leading-relaxed text-faint">
             {loading ? "Reading the pitch…" : "These stay with your solution, on the left, once you close this."}
           </p>
           <button
             onClick={onClose}
             disabled={loading}
-            className="bg-accent px-4 py-2 font-mono text-[11px] uppercase tracking-[0.14em] text-ground transition hover:brightness-110 disabled:bg-edge disabled:text-faint"
+            className="bg-accent px-4 py-2 font-mono text-[13px] uppercase tracking-[0.14em] text-ground transition hover:brightness-110 disabled:bg-edge disabled:text-faint"
           >
             {loading ? "Reading…" : "Close"}
           </button>

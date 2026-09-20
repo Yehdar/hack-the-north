@@ -50,7 +50,7 @@ export function Light({
         }}
       />
       {text && (
-        <span className="text-[10px] font-medium tracking-wide" style={{ color: tone.color }}>
+        <span className="text-[12px] font-medium tracking-wide" style={{ color: tone.color }}>
           {text}
         </span>
       )}
@@ -121,13 +121,13 @@ export function LightRow({
       />
       <span className="min-w-0 flex-1">
         <span className="flex items-baseline justify-between gap-2">
-          <span className="text-[12px] text-ink">{title}</span>
-          <span className="num shrink-0 text-[12px]" style={{ color }}>
+          <span className="text-[14px] text-ink">{title}</span>
+          <span className="num shrink-0 text-[14px]" style={{ color }}>
             {count}
-            <span className="ml-1 text-[10px] text-muted">of {total}</span>
+            <span className="ml-1 text-[12px] text-muted">of {total}</span>
           </span>
         </span>
-        <span className="mt-0.5 block text-[10px] leading-snug text-muted">
+        <span className="mt-0.5 block text-[12px] leading-snug text-muted">
           {note ?? `${pct}%`}
         </span>
       </span>

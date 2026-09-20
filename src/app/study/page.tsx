@@ -1238,7 +1238,7 @@ export default function Discover() {
                 <button
                   onClick={takeNextStep}
                   disabled={nextDisabled}
-                  className={`bg-accent px-5 py-2 font-mono text-[11px] uppercase tracking-[0.14em] text-ground transition hover:brightness-110 disabled:bg-edge disabled:text-faint ${
+                  className={`bg-accent px-5 py-2 font-mono text-[13px] uppercase tracking-[0.14em] text-ground transition hover:brightness-110 disabled:bg-edge disabled:text-faint ${
                     nextDisabled ? "" : "beam"
                   }`}
                 >
@@ -1250,7 +1250,7 @@ export default function Discover() {
                 <button
                   onClick={skip}
                   title="Finish this step now"
-                  className="px-3 py-2 font-mono text-[11px] uppercase tracking-[0.14em] text-faint transition hover:text-ink"
+                  className="px-3 py-2 font-mono text-[13px] uppercase tracking-[0.14em] text-faint transition hover:text-ink"
                 >
                   Skip ▸▸
                 </button>
@@ -1260,7 +1260,7 @@ export default function Discover() {
                 <button
                   onClick={moveOn}
                   title="Nothing new has arrived for a while. Carry on with what did."
-                  className="px-3 py-2 font-mono text-[11px] uppercase tracking-[0.14em] transition hover:brightness-125"
+                  className="px-3 py-2 font-mono text-[13px] uppercase tracking-[0.14em] transition hover:brightness-125"
                   style={{ color: "var(--caution)" }}
                 >
                   {moveOnLabel}
@@ -1272,7 +1272,7 @@ export default function Discover() {
               {segment === "result" && verdict && !verdict.marketProblemId && (
                 <button
                   onClick={forceCommittee}
-                  className="px-3 py-2 font-mono text-[11px] uppercase tracking-[0.14em] text-muted transition hover:text-ink"
+                  className="px-3 py-2 font-mono text-[13px] uppercase tracking-[0.14em] text-muted transition hover:text-ink"
                 >
                   Take it to the committee anyway →
                 </button>
@@ -1282,7 +1282,7 @@ export default function Discover() {
                 <button
                   onClick={() => void startRefine()}
                   disabled={refining}
-                  className="px-3 py-2 font-mono text-[11px] uppercase tracking-[0.14em] text-muted transition hover:text-ink disabled:opacity-50"
+                  className="px-3 py-2 font-mono text-[13px] uppercase tracking-[0.14em] text-muted transition hover:text-ink disabled:opacity-50"
                 >
                   {refining ? "Rewriting…" : "Rewrite · ask again"}
                 </button>
@@ -1291,7 +1291,7 @@ export default function Discover() {
               {segment === "result" && next !== "rerun" && (
                 <button
                   onClick={() => run()}
-                  className="px-3 py-2 font-mono text-[11px] uppercase tracking-[0.14em] text-faint transition hover:text-ink"
+                  className="px-3 py-2 font-mono text-[13px] uppercase tracking-[0.14em] text-faint transition hover:text-ink"
                 >
                   Run again
                 </button>
@@ -1300,7 +1300,7 @@ export default function Discover() {
               {personas.length > 0 && answered && (
                 <button
                   onClick={() => setOnlyEngaged((v) => !v)}
-                  className={`px-3 py-2 font-mono text-[11px] uppercase tracking-[0.14em] transition ${
+                  className={`px-3 py-2 font-mono text-[13px] uppercase tracking-[0.14em] transition ${
                     onlyEngaged ? "text-accent" : "text-muted hover:text-ink"
                   }`}
                 >
@@ -1355,7 +1355,7 @@ export default function Discover() {
                     />
                     {/* Spelled out. "2/4 have it · 1 would pay" reads as a
                         score line rather than a sentence about people. */}
-                    <p className="mt-1 text-[9px] leading-relaxed text-faint">
+                    <p className="mt-1 text-[11px] leading-relaxed text-faint">
                       {h.haveIt} of the {h.asked} we asked here have this problem
                       {h.haveIt > 0 && `, ${h.wouldPay} would pay to fix it`}
                     </p>
@@ -1414,7 +1414,7 @@ export default function Discover() {
                   />
                 </div>
                 {verdict && (
-                  <p className="mt-3 border-t border-edge pt-2 text-[10px] leading-relaxed text-muted">
+                  <p className="mt-3 border-t border-edge pt-2 text-[12px] leading-relaxed text-muted">
                     {verdict.sentimentSpread < 0.12
                       ? "They all felt much the same way, which usually means the crowd was too alike."
                       : "Opinions were genuinely split, which is what a real market looks like."}
@@ -1442,7 +1442,7 @@ export default function Discover() {
               </p>
 
               {signals.warning && (
-                <p className="glow-accent mt-2 p-2.5 text-[11px] leading-relaxed text-ink/90">
+                <p className="glow-accent mt-2 p-2.5 text-[13px] leading-relaxed text-ink/90">
                   {signals.warning}
                 </p>
               )}
@@ -1450,17 +1450,17 @@ export default function Discover() {
               <div className="mt-3 space-y-1.5">
                 {signals.signals.slice(0, 4).map((sig) => (
                   <div key={sig.attribute}>
-                    <div className="flex justify-between num text-[10px]">
+                    <div className="flex justify-between num text-[12px]">
                       <span className="text-muted">{sig.attribute}</span>
                       <span className={sig.delta > 0 ? "text-accent" : "text-cold"}>
                         {sig.engagedMean} vs {sig.ignoredMean}
                       </span>
                     </div>
-                    <p className="mt-0.5 text-[10px] leading-relaxed text-faint">{sig.reading}</p>
+                    <p className="mt-0.5 text-[12px] leading-relaxed text-faint">{sig.reading}</p>
                   </div>
                 ))}
                 {signals.signals.length === 0 && (
-                  <p className="text-[10px] text-faint">
+                  <p className="text-[12px] text-faint">
                     No attribute separates the people who engaged from the people who did not.
                     That is itself a finding: the response is not concentrated in a segment.
                   </p>
@@ -1471,7 +1471,7 @@ export default function Discover() {
                 <div>
                   <p className="label text-positive">Strongest yes</p>
                   {signals.positives.map((q) => (
-                    <p key={q.name} className="mt-1 text-[10px] leading-relaxed text-ink/70">
+                    <p key={q.name} className="mt-1 text-[12px] leading-relaxed text-ink/70">
                       <span className="text-muted">{q.name}, {q.title}:</span> &ldquo;{q.quote}&rdquo;
                     </p>
                   ))}
@@ -1479,7 +1479,7 @@ export default function Discover() {
                 <div>
                   <p className="label text-negative">Strongest no</p>
                   {signals.negatives.map((q) => (
-                    <p key={q.name} className="mt-1 text-[10px] leading-relaxed text-ink/70">
+                    <p key={q.name} className="mt-1 text-[12px] leading-relaxed text-ink/70">
                       <span className="text-muted">{q.name}, {q.title}:</span> &ldquo;{q.quote}&rdquo;
                     </p>
                   ))}
@@ -1499,7 +1499,7 @@ export default function Discover() {
                 </Hint>
               </p>
               {callReport.length > 0 && (
-                <span className="num text-[10px] text-faint">
+                <span className="num text-[12px] text-faint">
                   {callReport.length} {callReport.length === 1 ? "call" : "calls"}
                 </span>
               )}
@@ -1512,12 +1512,12 @@ export default function Discover() {
               <div className="mt-3 max-h-64 space-y-3 overflow-y-auto pr-1">
                 {callReport.map((entry) => (
                   <div key={entry.personaId} className="border-l-2 border-edge pl-3">
-                    <p className="text-[11px] text-ink">
+                    <p className="text-[13px] text-ink">
                       {entry.name} <span className="text-muted">· {entry.role}</span>
                     </p>
-                    <p className="mt-1 text-[11px] leading-relaxed text-ink/80">{entry.summary}</p>
+                    <p className="mt-1 text-[13px] leading-relaxed text-ink/80">{entry.summary}</p>
                     {entry.takeaway && (
-                      <p className="mt-1 text-[10px] leading-relaxed text-muted">{entry.takeaway}</p>
+                      <p className="mt-1 text-[12px] leading-relaxed text-muted">{entry.takeaway}</p>
                     )}
                   </div>
                 ))}
@@ -1582,17 +1582,17 @@ export default function Discover() {
                               }`,
                             }}
                           />
-                          <span className="truncate text-[11px] text-ink">
+                          <span className="truncate text-[13px] text-ink">
                             {p?.name ?? "Someone"}
                           </span>
-                          <span className="truncate text-[10px] text-muted">
+                          <span className="truncate text-[12px] text-muted">
                             {p?.label ?? p?.title ?? ""}
                           </span>
                         </div>
-                        <p className="mt-1 pl-4 text-[11px] leading-relaxed text-ink/80">
+                        <p className="mt-1 pl-4 text-[13px] leading-relaxed text-ink/80">
                           &ldquo;{r.reason}&rdquo;
                         </p>
-                        <p className="mt-0.5 pl-4 text-[10px] text-faint">
+                        <p className="mt-0.5 pl-4 text-[12px] text-faint">
                           {r.problemId
                             ? r.wouldPay
                               ? "Has this problem · would pay"

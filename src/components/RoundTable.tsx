@@ -129,7 +129,7 @@ export function RoundTable({
             />
 
             <p
-              className="mt-1 whitespace-nowrap text-[11px] leading-tight"
+              className="mt-1 whitespace-nowrap text-[13px] leading-tight"
               style={{
                 color: isSpeaking
                   ? "var(--accent)"
@@ -190,7 +190,7 @@ export function Subtitles({
                 {paused && " · paused"}
               </p>
             )}
-            <p className="mt-1 text-[15px] leading-snug text-ink">{line}</p>
+            <p className="mt-1 text-[17px] leading-snug text-ink">{line}</p>
           </motion.div>
         )}
       </AnimatePresence>

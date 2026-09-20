@@ -61,7 +61,7 @@ export function FirmPicker({ disabled }: { disabled?: boolean }) {
       <button
         onClick={() => setOpen((v) => !v)}
         disabled={disabled}
-        className="px-3 py-2 font-mono text-[11px] uppercase tracking-[0.14em] text-muted transition hover:text-ink disabled:opacity-40"
+        className="px-3 py-2 font-mono text-[13px] uppercase tracking-[0.14em] text-muted transition hover:text-ink disabled:opacity-40"
       >
         {current?.name ?? "choose firm"} ▾
       </button>
@@ -87,15 +87,15 @@ export function FirmPicker({ disabled }: { disabled?: boolean }) {
               }`}
             >
               <div className="flex items-baseline justify-between gap-2">
-                <span className="text-[12px] text-ink">
+                <span className="text-[14px] text-ink">
                   {f.name}
                   <span className="label ml-2">{hubById(f.hqHubId)?.label ?? f.hqHubId}</span>
                 </span>
-                <span className="num shrink-0 text-[9px] text-faint">
+                <span className="num shrink-0 text-[11px] text-faint">
                   ${(f.checkSize[0] / 1e6).toFixed(1)}M–${(f.checkSize[1] / 1e6).toFixed(0)}M
                 </span>
               </div>
-              <p className="mt-0.5 text-[10px] leading-relaxed text-muted">{f.thesis}</p>
+              <p className="mt-0.5 text-[12px] leading-relaxed text-muted">{f.thesis}</p>
               <p className="label mt-1">
                 {f.decisionStyle} · {f.stages.join(", ")}
                 {f.hasAntiPortfolio && (

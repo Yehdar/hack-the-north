@@ -85,7 +85,7 @@ export function Reveal({
             state: say which of the three it is, and what to do about it. */}
         {!market && noMarket ? (
           <div className="mt-5">
-            <p className="headline text-[30px] leading-tight">
+            <p className="headline text-[34px] leading-tight">
               <BlurWords text={noMarket.headline} delay={200} />
             </p>
             <p className="mt-4 text-sm leading-relaxed">{noMarket.evidence}</p>
@@ -105,7 +105,7 @@ export function Reveal({
         ) : !market ? null : aligned ? (
           <div className="mt-5">
             <p className="label">You pitched, and they have</p>
-            <p className="headline mt-2 text-[32px]">
+            <p className="headline mt-2 text-[36px]">
               <BlurWords text={market.statement} delay={250} />
             </p>
             <p className="insert-muted blur-word mt-3 text-xs" style={{ animationDelay: "900ms" }}>
@@ -124,7 +124,7 @@ export function Reveal({
               <p className="label blur-word" style={{ color: "var(--accent)", animationDelay: "1000ms" }}>
                 The problem they actually have
               </p>
-              <p className="headline mt-2 text-[32px]">
+              <p className="headline mt-2 text-[36px]">
                 <BlurWords text={market.statement} delay={1150} />
               </p>
               <p className="insert-muted blur-word mt-3 text-xs" style={{ animationDelay: "1900ms" }}>
@@ -138,8 +138,8 @@ export function Reveal({
             sentence. */}
         {advice && market && (
           <div className="mt-6 pt-4" style={{ borderTop: "1px solid var(--insert-2)" }}>
-            <p className="text-[17px] leading-snug">{advice.callToAction}</p>
-            <p className="insert-muted mt-2 text-[12px] leading-relaxed">
+            <p className="text-[19px] leading-snug">{advice.callToAction}</p>
+            <p className="insert-muted mt-2 text-[14px] leading-relaxed">
               <span className="label">Do this next</span> {advice.nextStep}
             </p>
           </div>
@@ -154,7 +154,7 @@ export function Reveal({
           <div className="mt-6 pt-4" style={{ borderTop: "1px solid var(--insert-2)" }}>
             <div className="mb-3 flex items-baseline justify-between gap-4">
               <p className="label">Against your first run</p>
-              <p className="insert-muted text-[10px]">
+              <p className="insert-muted text-[12px]">
                 same {crowd} people · same {problemCount} problems · only the pitch changed
               </p>
             </div>
@@ -166,7 +166,7 @@ export function Reveal({
           {market && (
             <button
               onClick={onAccept}
-              className="bg-accent px-5 py-2.5 font-mono text-[11px] uppercase tracking-[0.14em] text-ground transition hover:brightness-110"
+              className="bg-accent px-5 py-2.5 font-mono text-[13px] uppercase tracking-[0.14em] text-ground transition hover:brightness-110"
             >
               {/* Say where pressing it takes you. This is the last thing in
                   Part 1: it adopts the market's problem and walks the founder
@@ -179,7 +179,7 @@ export function Reveal({
             <button
               onClick={onRefine}
               disabled={refining}
-              className="border border-insert-ink/25 px-4 py-2.5 font-mono text-[11px] uppercase tracking-[0.14em] transition hover:border-insert-ink/60 disabled:opacity-50"
+              className="border border-insert-ink/25 px-4 py-2.5 font-mono text-[13px] uppercase tracking-[0.14em] transition hover:border-insert-ink/60 disabled:opacity-50"
             >
               {refining ? "Rewriting…" : market ? "Re-pitch it their way, ask again" : "Rewrite it and ask again"}
             </button>
@@ -187,7 +187,7 @@ export function Reveal({
 
           <button
             onClick={!market && onAnyway ? onAnyway : onClose}
-            className="insert-muted px-3 py-2.5 font-mono text-[11px] uppercase tracking-[0.14em] transition hover:opacity-70"
+            className="insert-muted px-3 py-2.5 font-mono text-[13px] uppercase tracking-[0.14em] transition hover:opacity-70"
           >
             {!market ? "Take it to the committee anyway" : aligned ? "Close" : "Keep my framing"}
           </button>

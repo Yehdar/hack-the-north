@@ -54,7 +54,7 @@ export function Assessment({
   const tone = TONE[advice.verdict];
 
   return (
-    <div className="text-[12px] leading-relaxed">
+    <div className="text-[14px] leading-relaxed">
       <p className="label">What it means</p>
 
       {bet && (
@@ -69,7 +69,7 @@ export function Assessment({
         <p className="label" style={{ color: tone.color }}>
           {tone.label}
         </p>
-        <p className="mt-1 text-[15px] leading-snug text-ink">{advice.callToAction}</p>
+        <p className="mt-1 text-[17px] leading-snug text-ink">{advice.callToAction}</p>
       </div>
 
       {have > 0 && (

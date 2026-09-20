@@ -22,6 +22,7 @@ import { leanOf, weightsOf } from "@/lib/lean";
 import { FIRMS } from "@/data/firms";
 import { useVenture, type DeliberationSnapshot } from "@/lib/store";
 import { SpeechQueue, voiceFor } from "@/lib/voice/agentVoices";
+import { SEATS, CHAIR, DEVILS_ADVOCATE } from "@/lib/agents/vc/seats";
 import { detectTier, speak, unlockAudio, type VoiceTier } from "@/lib/voice/client";
 import { mayStartSpeaking, narrationKey, useNarratorVoice } from "@/lib/voice/narrator";
 import { recordVerdict } from "@/lib/sessions";
@@ -47,6 +48,18 @@ type Msg = {
 };
 type Verdict = { agentId: string; stance: number; confidence: number; position: string };
 type RosterEntry = { id: string; role: string; weight: number };
+
+/**
+ * Who is in the room before anyone has spoken.
+ *
+ * The roster used to arrive with the first streamed event, so landing here
+ * showed an empty table and five chairs. They are already sitting there
+ * waiting for you, which is the whole feeling of the screen, and the run
+ * replaces this with the server's own list the moment it starts.
+ */
+const SEATED: RosterEntry[] = [SEATS.gp, SEATS.principal, SEATS.skeptic, DEVILS_ADVOCATE, CHAIR].map(
+  (a) => ({ id: a.id, role: a.role, weight: a.defaultWeight })
+);
 
 const ROUND_LABEL: Record<number, string> = {
   1: "Round 1 · each on their own",
@@ -82,7 +95,7 @@ export default function Committee() {
 
   const [running, setRunning] = useState(false);
   const [provider, setProvider] = useState("");
-  const [roster, setRoster] = useState<RosterEntry[]>([]);
+  const [roster, setRoster] = useState<RosterEntry[]>(SEATED);
   const [messages, setMessages] = useState<Msg[]>([]);
   const [feed, setFeed] = useState<FeedItem[]>([]);
   const [stances, setStances] = useState<Record<string, Verdict>>({});
@@ -485,7 +498,9 @@ export default function Committee() {
 
   // Once the room convenes the argument is the thing to watch: the panel
   // widens and the globe steps back to make room for it.
-  const convened = running || roster.length > 0;
+  // The room is seated from the start now, so a full roster no longer means
+  // the meeting has begun. Something has to have been said.
+  const convened = running || messages.length > 0 || Boolean(decision);
 
   const problem = ventureFile?.chosenProblem;
   const pvs = ventureFile?.pvs;
@@ -597,16 +612,16 @@ export default function Committee() {
                     <div className="panel mt-4 p-3">
                       <p className="label">The file they read</p>
                       {problem ? (
-                        <p className="mt-1.5 text-[11px] leading-relaxed text-ink/85">
+                        <p className="mt-1.5 text-[13px] leading-relaxed text-ink/85">
                           {problem.statement}
                         </p>
                       ) : (
-                        <p className="mt-1.5 text-[11px] leading-relaxed text-muted">
+                        <p className="mt-1.5 text-[13px] leading-relaxed text-muted">
                           &ldquo;{ventureFile.solution}&rdquo;, no validated problem. The
                           committee will treat that as a finding.
                         </p>
                       )}
-                      <div className="num mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-muted">
+                      <div className="num mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[12px] text-muted">
                         {pvs && (
                           <span>
                             PVS {pvs.total}
@@ -679,13 +694,13 @@ export default function Committee() {
                 <>
                   <Link
                     href="/report"
-                    className="beam bg-accent px-5 py-2 font-mono text-[11px] uppercase tracking-[0.14em] text-ground transition hover:brightness-110"
+                    className="beam bg-accent px-5 py-2 font-mono text-[13px] uppercase tracking-[0.14em] text-ground transition hover:brightness-110"
                   >
                     Read the verdict →
                   </Link>
                   <button
                     onClick={run}
-                    className="px-3 py-2 font-mono text-[11px] uppercase tracking-[0.14em] text-faint transition hover:text-ink"
+                    className="px-3 py-2 font-mono text-[13px] uppercase tracking-[0.14em] text-faint transition hover:text-ink"
                   >
                     Run again
                   </button>
@@ -696,14 +711,14 @@ export default function Committee() {
                 <>
                   <button
                     onClick={run}
-                    className="px-3 py-2 font-mono text-[11px] uppercase tracking-[0.14em] transition hover:brightness-125"
+                    className="px-3 py-2 font-mono text-[13px] uppercase tracking-[0.14em] transition hover:brightness-125"
                     style={{ color: "var(--caution)" }}
                   >
                     Run it again ↻
                   </button>
                   <Link
                     href="/report"
-                    className="px-3 py-2 font-mono text-[11px] uppercase tracking-[0.14em] text-muted transition hover:text-ink"
+                    className="px-3 py-2 font-mono text-[13px] uppercase tracking-[0.14em] text-muted transition hover:text-ink"
                   >
                     Skip to the verdict →
                   </Link>
@@ -712,7 +727,7 @@ export default function Committee() {
                 <button
                   onClick={run}
                   disabled={running || !ventureFile}
-                  className={`bg-accent px-5 py-2 font-mono text-[11px] uppercase tracking-[0.14em] text-ground transition hover:brightness-110 disabled:bg-edge disabled:text-faint ${
+                  className={`bg-accent px-5 py-2 font-mono text-[13px] uppercase tracking-[0.14em] text-ground transition hover:brightness-110 disabled:bg-edge disabled:text-faint ${
                     running || !ventureFile ? "" : "beam"
                   }`}
                 >
@@ -739,7 +754,7 @@ export default function Committee() {
                     ? "The room is speaking aloud"
                     : "Hear the partners argue out loud"
                 }
-                className={`px-3 py-2 font-mono text-[11px] uppercase tracking-[0.14em] transition ${
+                className={`px-3 py-2 font-mono text-[13px] uppercase tracking-[0.14em] transition ${
                   audio ? "text-accent" : "text-faint hover:text-ink"
                 }`}
               >
@@ -751,7 +766,7 @@ export default function Committee() {
               {(nowSpeaking || paused) && (
                 <button
                   onClick={() => setPaused((v) => !v)}
-                  className={`px-3 py-2 font-mono text-[11px] uppercase tracking-[0.14em] transition ${
+                  className={`px-3 py-2 font-mono text-[13px] uppercase tracking-[0.14em] transition ${
                     paused ? "text-accent" : "text-faint hover:text-ink"
                   }`}
                   title={paused ? "Let them carry on" : "Stop the room"}
@@ -861,7 +876,7 @@ export default function Committee() {
                 <div className="mb-3">
                   <p className="label text-positive">Minds changed</p>
                   {mindChanges.map((c) => (
-                    <p key={c.agentId} className="num mt-1 text-[11px] text-muted">
+                    <p key={c.agentId} className="num mt-1 text-[13px] text-muted">
                       {roleName(c.agentId)} {c.from.toFixed(2)} → {c.to.toFixed(2)}
                       {c.conceded && <span className="ml-1 text-positive">conceded</span>}
                     </p>
@@ -882,7 +897,7 @@ export default function Committee() {
                   >
                     {decision.decision}
                   </p>
-                  <p className="num text-[11px] text-faint">
+                  <p className="num text-[13px] text-faint">
                     score {decision.score.toFixed(3)}
                     {decision.dissents.length > 0 && (
                       <span className="text-accent"> · dissent: {decision.dissents.join(", ")}</span>

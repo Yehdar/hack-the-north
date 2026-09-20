@@ -320,7 +320,7 @@ export default function Report() {
           </Section>
         )}
 
-        <p className="mt-12 border-t border-edge pt-4 font-mono text-[10px] text-faint">
+        <p className="mt-12 border-t border-edge pt-4 font-mono text-[12px] text-faint">
           AI simulation. Not affiliated with, endorsed by, or representing this firm.
           Partner personas are composites, not real individuals.
         </p>
@@ -332,7 +332,7 @@ export default function Report() {
 function Section({ n, title, children }: { n: string; title: string; children: React.ReactNode }) {
   return (
     <section className="border-b border-edge py-8">
-      <p className="font-mono text-[10px] uppercase tracking-widest text-faint">{n}</p>
+      <p className="font-mono text-[12px] uppercase tracking-widest text-faint">{n}</p>
       <h2 className="mb-4 mt-1 font-mono text-sm uppercase tracking-widest text-muted">
         {title}
       </h2>

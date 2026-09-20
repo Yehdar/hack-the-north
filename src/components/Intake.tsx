@@ -72,7 +72,7 @@ export function Intake({ onDone, onCancel, cta = "Take it to the committee", ref
             </p>
             <div className="glow-accent mt-4 p-3">
               <p className="label">Leading with</p>
-              <p className="mt-1 text-[12px] leading-relaxed text-ink/90">
+              <p className="mt-1 text-[14px] leading-relaxed text-ink/90">
                 {refine.target.statement}
               </p>
             </div>
@@ -135,7 +135,7 @@ export function Intake({ onDone, onCancel, cta = "Take it to the committee", ref
               <p className="label">Suggestion</p>
               <button
                 onClick={() => setText(EXAMPLE)}
-                className="mt-2 border border-edge px-2 py-1 text-left font-mono text-[10px] text-faint transition hover:border-edge-bright hover:text-muted"
+                className="mt-2 border border-edge px-2 py-1 text-left font-mono text-[12px] text-faint transition hover:border-edge-bright hover:text-muted"
               >
                 {EXAMPLE.slice(0, 44)}…
               </button>
@@ -156,7 +156,7 @@ export function Intake({ onDone, onCancel, cta = "Take it to the committee", ref
           {onCancel && (
             <button
               onClick={onCancel}
-              className="font-mono text-[11px] uppercase tracking-widest text-faint transition hover:text-muted"
+              className="font-mono text-[13px] uppercase tracking-widest text-faint transition hover:text-muted"
             >
               Cancel
             </button>

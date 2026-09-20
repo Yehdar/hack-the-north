@@ -48,13 +48,13 @@ export function CommitteeLean({ lean, moved }: { lean: Lean; moved?: boolean }) 
           key={`${lean}-t`}
           initial={{ opacity: 0, y: 4 }}
           animate={{ opacity: 1, y: 0 }}
-          className="text-[15px] leading-tight"
+          className="text-[17px] leading-tight"
           style={{ color: tone.color }}
         >
           {tone.label}
         </motion.p>
       </div>
-      <p className="mt-1.5 text-[11px] leading-relaxed text-muted">{tone.note}</p>
+      <p className="mt-1.5 text-[13px] leading-relaxed text-muted">{tone.note}</p>
 
       <AnimatePresence>
         {moved && (
@@ -89,7 +89,7 @@ export function TableLog({
       {direction && (
         <div className="border-b border-edge px-4 py-3">
           <p className="label">Right now</p>
-          <p className="mt-1 text-[12px] leading-relaxed text-ink/85">{direction}</p>
+          <p className="mt-1 text-[14px] leading-relaxed text-ink/85">{direction}</p>
         </div>
       )}
 
@@ -100,7 +100,7 @@ export function TableLog({
             {summaries.map((s) => (
               <li key={s.id} className="border-l-2 border-accent/50 pl-2.5">
                 <p className="label">{s.role}</p>
-                <p className="mt-0.5 text-[11px] leading-relaxed text-ink/80">{s.text}</p>
+                <p className="mt-0.5 text-[13px] leading-relaxed text-ink/80">{s.text}</p>
               </li>
             ))}
           </ul>
@@ -111,7 +111,7 @@ export function TableLog({
         <p className="label">The meeting</p>
         <div className="mt-2 space-y-2.5">
           {lines.length === 0 && (
-            <p className="text-[11px] leading-relaxed text-faint">
+            <p className="text-[13px] leading-relaxed text-faint">
               Nothing said yet. The chair opens by putting the report on the table.
             </p>
           )}
@@ -127,7 +127,7 @@ export function TableLog({
                 {l.from}
                 {l.to && l.to !== "room" ? ` → ${l.to}` : ""}
               </p>
-              <p className="mt-0.5 text-[11px] leading-relaxed text-ink/75">{l.text}</p>
+              <p className="mt-0.5 text-[13px] leading-relaxed text-ink/75">{l.text}</p>
             </motion.div>
           ))}
         </div>

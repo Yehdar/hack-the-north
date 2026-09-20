@@ -90,8 +90,10 @@ type Props = {
 
 // Matches --accent in globals.css. Kept in sync by hand because a WebGL
 // uniform cannot read a CSS custom property.
-const ACCENT = new THREE.Color("#5aa9e6");
-const LAND_DOT = new THREE.Color("#5b5366");
+const ACCENT = new THREE.Color("#1d6fb8");
+// Darker than the sea by a wide margin. At a close value the two land
+// masses nearly vanished into the ocean they were meant to sit on.
+const LAND_DOT = new THREE.Color("#1c2634");
 const ARC_GROW_MS = 1100;
 const ARC_FADE_MS = 500;
 const RIPPLE_MS = 1100;
@@ -199,7 +201,7 @@ export function Globe({ dots, places, onDotClick, focus, arcs, beacon, distance,
         new THREE.SphereGeometry(RADIUS * 0.995, 64, 64),
         new THREE.ShaderMaterial({
           uniforms: {
-            base: { value: new THREE.Color(0x100e14) },
+            base: { value: new THREE.Color(0xaec4d8) },
             rim: { value: ACCENT.clone() },
           },
           vertexShader: viewNormal,
@@ -209,7 +211,7 @@ export function Globe({ dots, places, onDotClick, focus, arcs, beacon, distance,
             varying vec3 vNormal;
             void main() {
               float edge = 1.0 - clamp(dot(vNormal, vec3(0.0, 0.0, 1.0)), 0.0, 1.0);
-              gl_FragColor = vec4(base + rim * pow(edge, 4.0) * 0.28, 1.0);
+              gl_FragColor = vec4(base - rim * pow(edge, 3.0) * 0.30, 1.0);
             }`,
         })
       )
@@ -229,7 +231,7 @@ export function Globe({ dots, places, onDotClick, focus, arcs, beacon, distance,
           varying vec3 vNormal;
           void main() {
             float rim = clamp(-dot(vNormal, vec3(0.0, 0.0, 1.0)) * 5.5, 0.0, 1.0);
-            gl_FragColor = vec4(glow, 1.0) * pow(rim, 1.8) * 0.62;
+            gl_FragColor = vec4(glow, 1.0) * pow(rim, 1.8) * 0.26;
           }`,
         side: THREE.BackSide,
         blending: THREE.AdditiveBlending,
@@ -774,8 +776,8 @@ export function Globe({ dots, places, onDotClick, focus, arcs, beacon, distance,
         // A dark plate behind the text. Nine-pixel type over a dot matrix is
         // unreadable without one, and the crowd dots sit directly behind it.
         el.className =
-          "absolute left-0 top-0 whitespace-nowrap rounded-[2px] px-1.5 py-[3px] font-mono text-[10px] tracking-[0.12em] opacity-0 transition-opacity duration-300 pointer-events-none";
-        el.style.background = "rgba(12, 11, 15, 0.9)";
+          "absolute left-0 top-0 whitespace-nowrap rounded-[2px] px-1.5 py-[3px] font-mono text-[12px] tracking-[0.12em] opacity-0 transition-opacity duration-300 pointer-events-none";
+        el.style.background = "rgba(255, 255, 255, 0.93)";
         el.style.backdropFilter = "blur(2px)";
         layer.appendChild(el);
 
@@ -785,7 +787,7 @@ export function Globe({ dots, places, onDotClick, focus, arcs, beacon, distance,
 
       mark.pos.copy(latLonToVector3(place.lat, place.lon, RADIUS * 1.02));
       mark.el.textContent = place.name.toUpperCase();
-      mark.el.style.color = place.active ? "var(--accent)" : "rgba(232, 228, 238, 0.96)";
+      mark.el.style.color = place.active ? "var(--accent)" : "rgba(30, 33, 40, 0.92)";
       mark.el.style.border = place.active
         ? "1px solid color-mix(in srgb, var(--accent) 45%, transparent)"
         : "1px solid rgba(255,255,255,0.07)";
@@ -823,7 +825,7 @@ export function Globe({ dots, places, onDotClick, focus, arcs, beacon, distance,
 
       const head = new THREE.Mesh(
         new THREE.SphereGeometry(0.018, 10, 10),
-        new THREE.MeshBasicMaterial({ color: 0xdceefb })
+        new THREE.MeshBasicMaterial({ color: 0x14486f })
       );
       head.visible = false;
 

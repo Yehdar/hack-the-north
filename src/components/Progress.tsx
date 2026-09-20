@@ -110,7 +110,7 @@ export function Progress({
     <div className="w-full">
       <Track pct={pct} size={size} color={color} live={live} />
       {(left !== undefined || right !== undefined) && (
-        <div className="num mt-2 flex justify-between text-[11px] text-faint">
+        <div className="num mt-2 flex justify-between text-[13px] text-faint">
           <span>{left ?? `${Math.round(pct)}%`}</span>
           <span>{right}</span>
         </div>
@@ -142,15 +142,15 @@ export function Meter({
 
   return (
     <div className="w-full">
-      <div className="mb-1.5 flex items-baseline justify-between gap-3 text-[12px]">
+      <div className="mb-1.5 flex items-baseline justify-between gap-3 text-[14px]">
         <span className="text-ink/85">{label}</span>
         <span className="num shrink-0" style={{ color }}>
           {value}
-          {max !== 100 && <span className="ml-1 text-[10px] text-muted">of {max}</span>}
+          {max !== 100 && <span className="ml-1 text-[12px] text-muted">of {max}</span>}
         </span>
       </div>
       <Track pct={pct} size={size} color={color} live={false} />
-      {note && <p className="mt-1 text-[10px] leading-snug text-muted">{note}</p>}
+      {note && <p className="mt-1 text-[12px] leading-snug text-muted">{note}</p>}
     </div>
   );
 }

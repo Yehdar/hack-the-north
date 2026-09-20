@@ -147,7 +147,7 @@ export function DeliberationGraph({
 
         {/* The chair: routes the questions, never votes. */}
         <circle cx={cx} cy={cy} r={4} fill="var(--faint)" />
-        <text x={cx} y={cy + 16} textAnchor="middle" className="fill-[var(--faint)] font-mono text-[8px] uppercase tracking-[0.14em]">
+        <text x={cx} y={cy + 16} textAnchor="middle" className="fill-[var(--faint)] font-mono text-[10px] uppercase tracking-[0.14em]">
           chair
         </text>
 
@@ -249,7 +249,7 @@ export function DeliberationGraph({
                 x={p.x}
                 y={labelBelow ? p.y + r + 12 : p.y - r - 6}
                 textAnchor="middle"
-                className="fill-[var(--text)] font-mono text-[9px] uppercase tracking-[0.12em]"
+                className="fill-[var(--text)] font-mono text-[11px] uppercase tracking-[0.12em]"
               >
                 {SHORT[s.id] ?? s.role}
               </text>
@@ -258,7 +258,7 @@ export function DeliberationGraph({
                   x={p.x}
                   y={labelBelow ? p.y + r + 22 : p.y - r - 16}
                   textAnchor="middle"
-                  className="font-mono text-[8px]"
+                  className="font-mono text-[10px]"
                   fill={
                     v.stance > 0.2
                       ? "var(--go)"
@@ -277,18 +277,18 @@ export function DeliberationGraph({
 
       <div className="mt-1 min-h-[34px]">
         {caption ? (
-          <p key={caption.id} className="narrate text-[11px] leading-snug text-ink/80">
-            <span className="font-mono text-[9px] uppercase tracking-[0.12em]" style={{ color: EDGE[caption.kind] ?? "var(--muted)" }}>
+          <p key={caption.id} className="narrate text-[13px] leading-snug text-ink/80">
+            <span className="font-mono text-[11px] uppercase tracking-[0.12em]" style={{ color: EDGE[caption.kind] ?? "var(--muted)" }}>
               {SHORT[caption.from] ?? caption.from} → {caption.to === "room" ? "the room" : SHORT[caption.to] ?? caption.to} · {caption.kind}
             </span>{" "}
             {caption.text}
           </p>
         ) : (
-          <p className="text-[11px] text-faint">Nobody has spoken yet.</p>
+          <p className="text-[13px] text-faint">Nobody has spoken yet.</p>
         )}
       </div>
 
-      <div className="mt-2 flex gap-3 font-mono text-[9px] uppercase tracking-[0.12em] text-faint">
+      <div className="mt-2 flex gap-3 font-mono text-[11px] uppercase tracking-[0.12em] text-faint">
         <span style={{ color: "var(--accent)" }}>— challenge</span>
         <span>— rebuttal</span>
         <span style={{ color: "var(--positive)" }}>— concession</span>

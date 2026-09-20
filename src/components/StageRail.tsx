@@ -57,7 +57,7 @@ function ProjectName({
         title="Rename this project"
         className="group flex w-full items-baseline gap-2 text-left"
       >
-        <span className="min-w-0 flex-1 truncate text-[14px] leading-tight text-ink">
+        <span className="min-w-0 flex-1 truncate text-[16px] leading-tight text-ink">
           {name || "Untitled project"}
         </span>
         <span className="label shrink-0 opacity-0 transition group-hover:opacity-100">
@@ -86,7 +86,7 @@ function ProjectName({
         onKeyDown={(e) => {
           if (e.key === "Escape") setEditing(false);
         }}
-        className="w-full rounded-[3px] border border-edge-bright bg-ground px-2 py-1 text-[14px] text-ink focus:outline-none"
+        className="w-full rounded-[3px] border border-edge-bright bg-ground px-2 py-1 text-[16px] text-ink focus:outline-none"
       />
     </form>
   );
@@ -150,7 +150,7 @@ export function StageRail({
                 </button>
               )}
             </div>
-            <p className="mt-1 text-[12px] leading-relaxed text-ink/85">&ldquo;{solution}&rdquo;</p>
+            <p className="mt-1 text-[14px] leading-relaxed text-ink/85">&ldquo;{solution}&rdquo;</p>
             {under && <div className="mt-2.5">{under}</div>}
           </div>
         </>
@@ -190,7 +190,7 @@ export function StageRail({
                       screen. The number stays visible in every state so the
                       rail reads as a list of steps at a glance. */}
                   <span
-                    className="relative z-10 mt-0.5 flex h-[22px] w-[22px] items-center justify-center rounded-full border font-mono text-[11px] font-semibold tabular-nums"
+                    className="relative z-10 mt-0.5 flex h-[22px] w-[22px] items-center justify-center rounded-full border font-mono text-[13px] font-semibold tabular-nums"
                     style={{
                       borderColor: s === "todo" ? "var(--border)" : "var(--accent)",
                       background: s === "done" ? "var(--accent)" : "var(--ground)",
@@ -216,14 +216,14 @@ export function StageRail({
 
                 <span className="min-w-0 flex-1">
                   <span
-                    className={`block text-[15px] leading-tight ${
+                    className={`block text-[17px] leading-tight ${
                       s === "todo" ? "text-faint" : s === "active" ? "text-accent" : "text-ink/85"
                     }`}
                   >
                     {stage.name}
                   </span>
                   <span
-                    className={`mt-1 block text-[12px] leading-snug ${
+                    className={`mt-1 block text-[14px] leading-snug ${
                       s === "active" ? "text-muted" : "text-faint"
                     }`}
                   >
@@ -243,7 +243,7 @@ export function StageRail({
       >
         <span>← All projects</span>
       </Link>
-      <p className="p-4 text-[9px] leading-relaxed text-faint">
+      <p className="p-4 text-[11px] leading-relaxed text-faint">
         AI simulation. Not affiliated with or endorsed by any firm named here.
       </p>
     </nav>

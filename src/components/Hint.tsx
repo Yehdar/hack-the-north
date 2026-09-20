@@ -26,7 +26,7 @@ export function Hint({
         onMouseLeave={() => setOpen(false)}
         onFocus={() => setOpen(true)}
         onBlur={() => setOpen(false)}
-        className="ml-1.5 inline-flex h-3.5 w-3.5 items-center justify-center rounded-full border border-edge-bright font-sans text-[8px] leading-none text-faint transition hover:border-muted hover:text-ink"
+        className="ml-1.5 inline-flex h-3.5 w-3.5 items-center justify-center rounded-full border border-edge-bright font-sans text-[10px] leading-none text-faint transition hover:border-muted hover:text-ink"
       >
         ?
       </button>
@@ -34,7 +34,7 @@ export function Hint({
         <span
           role="tooltip"
           id={id}
-          className={`panel panel-bright absolute top-full z-[90] mt-1.5 w-60 p-2.5 font-sans text-[11px] normal-case leading-relaxed tracking-normal text-ink/90 shadow-xl ${
+          className={`panel panel-bright absolute top-full z-[90] mt-1.5 w-60 p-2.5 font-sans text-[13px] normal-case leading-relaxed tracking-normal text-ink/90 shadow-xl ${
             align === "right" ? "right-0" : "left-0"
           }`}
         >

@@ -105,7 +105,7 @@ export function TableChat({
           <p className="label" style={{ color: "var(--accent)" }}>
             In conversation with
           </p>
-          <p className="mt-1 text-[15px] text-ink">{role}</p>
+          <p className="mt-1 text-[17px] text-ink">{role}</p>
         </div>
         <button
           onClick={onClose}
@@ -119,7 +119,7 @@ export function TableChat({
         {opening && turns.length === 0 && (
           <div className="border-l-2 border-edge-bright pl-3">
             <p className="label">what they said to the room</p>
-            <p className="mt-1 text-[12px] leading-relaxed text-muted">
+            <p className="mt-1 text-[14px] leading-relaxed text-muted">
               &ldquo;{opening}&rdquo;
             </p>
           </div>
@@ -128,7 +128,7 @@ export function TableChat({
         {turns.map((t, i) => (
           <div key={i} className={t.speaker === "founder" ? "flex justify-end" : ""}>
             <p
-              className={`max-w-[86%] rounded-[10px] px-3 py-2 text-[13px] leading-relaxed ${
+              className={`max-w-[86%] rounded-[10px] px-3 py-2 text-[15px] leading-relaxed ${
                 t.speaker === "founder"
                   ? "bg-accent text-ground"
                   : "border border-edge bg-surface text-ink"
@@ -174,7 +174,7 @@ export function TableChat({
                   />
                 ))}
               </span>
-              <p className="flex-1 text-[12px] leading-relaxed text-ink">
+              <p className="flex-1 text-[14px] leading-relaxed text-ink">
                 {heard || <span className="text-muted">Listening…</span>}
               </p>
             </div>
@@ -193,7 +193,7 @@ export function TableChat({
           type="button"
           onClick={pushToTalk}
           disabled={!tier || tier === "text"}
-          className={`shrink-0 rounded-[6px] px-3 py-2.5 font-mono text-[11px] uppercase tracking-[0.14em] transition disabled:bg-edge disabled:text-faint ${
+          className={`shrink-0 rounded-[6px] px-3 py-2.5 font-mono text-[13px] uppercase tracking-[0.14em] transition disabled:bg-edge disabled:text-faint ${
             recording ? "bg-negative text-ink" : "bg-surface-2 text-ink hover:brightness-125"
           }`}
           title={recording ? "Stop and put it in the box" : "Hold the floor"}
@@ -211,12 +211,12 @@ export function TableChat({
             }
           }}
           placeholder={`Ask the ${role.toLowerCase()}…`}
-          className="min-h-[42px] flex-1 resize-none rounded-[6px] border border-edge bg-ground px-3 py-2.5 text-[13px] text-ink placeholder:text-faint focus:border-edge-bright focus:outline-none"
+          className="min-h-[42px] flex-1 resize-none rounded-[6px] border border-edge bg-ground px-3 py-2.5 text-[15px] text-ink placeholder:text-faint focus:border-edge-bright focus:outline-none"
         />
         <button
           type="submit"
           disabled={!typed.trim()}
-          className="shrink-0 rounded-[6px] bg-accent px-4 py-2.5 font-mono text-[11px] uppercase tracking-[0.14em] text-ground transition hover:brightness-110 disabled:bg-edge disabled:text-faint"
+          className="shrink-0 rounded-[6px] bg-accent px-4 py-2.5 font-mono text-[13px] uppercase tracking-[0.14em] text-ground transition hover:brightness-110 disabled:bg-edge disabled:text-faint"
         >
           Ask
         </button>

@@ -24,11 +24,11 @@ export function OtherProblems({
 
   return (
     <details className="group w-full">
-      <summary className="flex cursor-pointer select-none items-start gap-1.5 text-[11px] leading-snug text-muted transition hover:text-ink [&::-webkit-details-marker]:hidden">
+      <summary className="flex cursor-pointer select-none items-start gap-1.5 text-[13px] leading-snug text-muted transition hover:text-ink [&::-webkit-details-marker]:hidden">
         {/* A caret that turns, rather than another box on a screen of boxes. */}
         <span
           aria-hidden
-          className="mt-[3px] text-[9px] transition-transform duration-200 group-open:rotate-90"
+          className="mt-[3px] text-[11px] transition-transform duration-200 group-open:rotate-90"
         >
           ▶
         </span>
@@ -41,9 +41,9 @@ export function OtherProblems({
       <ul className="mt-2 max-h-[168px] space-y-3 overflow-y-auto pl-3.5 pr-1">
         {problems.map((p) => (
           <li key={p.id}>
-            <p className="text-[12px] leading-relaxed text-ink/85">{p.statement}</p>
+            <p className="text-[14px] leading-relaxed text-ink/85">{p.statement}</p>
             {p.whoHasIt && (
-              <p className="mt-1 text-[10px] leading-relaxed text-muted">Felt by {lower(p.whoHasIt)}</p>
+              <p className="mt-1 text-[12px] leading-relaxed text-muted">Felt by {lower(p.whoHasIt)}</p>
             )}
             {onUse && (
               <button

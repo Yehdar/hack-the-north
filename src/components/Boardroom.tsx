@@ -53,7 +53,7 @@ const FALLBACK_HAIR = 0x3a2a1e;
 
 // Five people, not one person copied five times. A room of identical figures
 // reads as placeholder art however well it is lit.
-const SUITS = [0x232a3a, 0x2b2c34, 0x1e2b33, 0x322e3a, 0x26303f];
+const SUITS = [0x2c3547, 0x36373f, 0x27353e, 0x3b3745, 0x2f3a4b];
 const SHIRTS = [0xe8eaf0, 0xd7e1f0, 0xefe8dc, 0xe8eaf0, 0xdbe6f2];
 
 type Look = {
@@ -179,7 +179,7 @@ export function Boardroom({
     if (!el || !layer) return;
 
     const scene = new THREE.Scene();
-    scene.fog = new THREE.Fog(0x0f1520, 9, 22);
+    scene.fog = new THREE.Fog(0xe9e5dc, 12, 30);
 
     const cam = new THREE.PerspectiveCamera(38, el.clientWidth / el.clientHeight, 0.1, 100);
     // At the head of the table, a little above eye level, looking down it.
@@ -199,9 +199,9 @@ export function Boardroom({
     renderer.domElement.style.cursor = "pointer";
 
     // ---- light ----------------------------------------------------------
-    scene.add(new THREE.HemisphereLight(0x9db4d6, 0x0d1220, 1.25));
+    scene.add(new THREE.HemisphereLight(0xfdfbf6, 0xbfb9ab, 1.9));
 
-    const key = new THREE.DirectionalLight(0xffffff, 1.5);
+    const key = new THREE.DirectionalLight(0xfffaf0, 1.35);
     key.position.set(3, 8, 5);
     key.castShadow = true;
     key.shadow.mapSize.set(1024, 1024);
@@ -214,18 +214,18 @@ export function Boardroom({
     key.shadow.bias = -0.0012;
     scene.add(key);
 
-    const fill = new THREE.DirectionalLight(0x6f86b8, 0.5);
+    const fill = new THREE.DirectionalLight(0xc9d6ea, 0.6);
     fill.position.set(-5, 3, -4);
     scene.add(fill);
 
     // A soft light from where you are sitting. The lamp is directly overhead,
     // so without this every face turned toward you is in its own shadow.
-    const faceLight = new THREE.DirectionalLight(0xcfd9ea, 0.55);
+    const faceLight = new THREE.DirectionalLight(0xfff4e2, 0.5);
     faceLight.position.set(0, 2.4, 9);
     scene.add(faceLight);
 
     // The lamp over the table, which is what makes it read as a room.
-    const lamp = new THREE.PointLight(0xffe6c4, 34, 14, 2);
+    const lamp = new THREE.PointLight(0xffe9cc, 22, 15, 2);
     lamp.position.set(0, 3.1, 0);
     scene.add(lamp);
 
@@ -234,7 +234,7 @@ export function Boardroom({
 
     const top = new THREE.Mesh(
       new THREE.CylinderGeometry(TABLE_RX, TABLE_RX, 0.14, 64),
-      new THREE.MeshStandardMaterial({ color: 0x2b2118, roughness: 0.45, metalness: 0.05 })
+      new THREE.MeshStandardMaterial({ color: 0x8a6544, roughness: 0.5, metalness: 0.04 })
     );
     top.scale.set(1, 1, TABLE_RZ / TABLE_RX);
     top.receiveShadow = true;
@@ -243,7 +243,7 @@ export function Boardroom({
 
     const plinth = new THREE.Mesh(
       new THREE.CylinderGeometry(1.3, 1.65, 0.9, 32),
-      new THREE.MeshStandardMaterial({ color: 0x1a202c, roughness: 0.8 })
+      new THREE.MeshStandardMaterial({ color: 0x6f5540, roughness: 0.82 })
     );
     plinth.scale.set(1, 1, 0.62);
     plinth.position.y = 0.45;
@@ -263,7 +263,7 @@ export function Boardroom({
     // floor, so the figures are standing somewhere
     const floor = new THREE.Mesh(
       new THREE.CircleGeometry(14, 48),
-      new THREE.MeshStandardMaterial({ color: 0x0c111b, roughness: 1 })
+      new THREE.MeshStandardMaterial({ color: 0xdedacf, roughness: 1 })
     );
     floor.rotation.x = -Math.PI / 2;
     floor.receiveShadow = true;
@@ -275,7 +275,7 @@ export function Boardroom({
     const wall = new THREE.Mesh(
       new THREE.CylinderGeometry(13, 13, 9, 48, 1, true),
       new THREE.MeshStandardMaterial({
-        color: 0x141c2b,
+        color: 0xeae5da,
         roughness: 0.96,
         side: THREE.BackSide,
       })
@@ -316,7 +316,7 @@ export function Boardroom({
       // chair
       const chair = new THREE.Mesh(
         new THREE.BoxGeometry(0.74, 0.92, 0.13),
-        new THREE.MeshStandardMaterial({ color: 0x151b28, roughness: 0.9 })
+        new THREE.MeshStandardMaterial({ color: 0x4a5160, roughness: 0.9 })
       );
       chair.position.set(0, 0.96, -0.46);
       chair.castShadow = true;
@@ -591,10 +591,10 @@ export function Boardroom({
       // nameplate
       const plate = document.createElement("div");
       plate.className =
-        "absolute left-0 top-0 whitespace-nowrap rounded-[2px] px-2 py-[2px] font-mono text-[10px] uppercase tracking-[0.1em] transition-opacity duration-200 pointer-events-none";
-      plate.style.background = "rgba(10,14,22,0.92)";
+        "absolute left-0 top-0 whitespace-nowrap rounded-[2px] px-2 py-[2px] font-mono text-[12px] uppercase tracking-[0.1em] transition-opacity duration-200 pointer-events-none";
+      plate.style.background = "rgba(255,255,255,0.94)";
       plate.style.border = "1px solid var(--border)";
-      plate.style.boxShadow = "0 2px 6px -2px rgb(0 0 0 / 0.9)";
+      plate.style.boxShadow = "0 2px 6px -2px rgb(23 26 32 / 0.35)";
       plate.textContent = s.role;
       layer.appendChild(plate);
       labels.current.set(s.id, plate);

@@ -41,7 +41,7 @@ export function Narrator({
             onClick={voice.onToggle}
             title={voice.on ? "The narrator reads this aloud. Click to mute." : "Read this aloud"}
             aria-label={voice.on ? "Mute the narrator" : "Read the narrator aloud"}
-            className="pointer-events-auto ml-2 align-middle text-[12px] normal-case tracking-normal opacity-70 transition hover:opacity-100"
+            className="pointer-events-auto ml-2 align-middle text-[14px] normal-case tracking-normal opacity-70 transition hover:opacity-100"
           >
             {voice.on ? "🔊" : "🔇"}
           </button>
@@ -49,7 +49,7 @@ export function Narrator({
       </p>
       {/* Keyed by stage, not by text: counts inside a line update in place
           instead of replaying the entrance on every batch. */}
-      <p key={`${step}:${title}`} className="narrate mt-1.5 text-[13px] leading-snug text-ink/90 [text-shadow:0_1px_12px_var(--ground)]">
+      <p key={`${step}:${title}`} className="narrate mt-1.5 text-[15px] leading-snug text-ink/90 [text-shadow:0_1px_12px_var(--ground)]">
         {line}
       </p>
     </div>

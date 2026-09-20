@@ -21,7 +21,7 @@ const DECISION_COLOR = {
 } as const;
 
 export function Minutes({ minutes, size = "sm" }: { minutes: MinutesDoc; size?: "sm" | "md" }) {
-  const body = size === "md" ? "text-sm" : "text-[12px]";
+  const body = size === "md" ? "text-sm" : "text-[14px]";
   const when = new Date(minutes.takenAt).toLocaleString(undefined, {
     month: "short",
     day: "numeric",
@@ -43,7 +43,7 @@ export function Minutes({ minutes, size = "sm" }: { minutes: MinutesDoc; size?: 
       <Part title="Decided">
         <p>
           <span
-            className="mr-2 font-mono text-[11px] uppercase tracking-[0.14em]"
+            className="mr-2 font-mono text-[13px] uppercase tracking-[0.14em]"
             style={{ color: DECISION_COLOR[minutes.decision.decision] }}
           >
             {minutes.decision.decision}
@@ -58,7 +58,7 @@ export function Minutes({ minutes, size = "sm" }: { minutes: MinutesDoc; size?: 
             <li key={`${v.role}:${i}`}>
               <p>
                 <span className="text-ink">{v.role}</span>
-                <span className="ml-2 inline-flex items-center gap-1 text-[11px]" style={{ color: LEAN[v.lean].color }}>
+                <span className="ml-2 inline-flex items-center gap-1 text-[13px]" style={{ color: LEAN[v.lean].color }}>
                   <span className="inline-block h-1.5 w-1.5 rounded-full" style={{ background: LEAN[v.lean].color }} />
                   {LEAN[v.lean].label}
                 </span>
@@ -83,10 +83,10 @@ export function Minutes({ minutes, size = "sm" }: { minutes: MinutesDoc; size?: 
           <ul className="space-y-2">
             {minutes.unanswered.map((u, i) => (
               <li key={i} className="border-l-2 pl-3" style={{ borderColor: "var(--stop)" }}>
-                <p className="text-[11px] leading-relaxed">
+                <p className="text-[13px] leading-relaxed">
                   &ldquo;{u.challenge}&rdquo;
                 </p>
-                <p className="insert-muted mt-0.5 text-[10px]">
+                <p className="insert-muted mt-0.5 text-[12px]">
                   {u.from} asked {u.to} · {u.reason}
                 </p>
               </li>

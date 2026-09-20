@@ -66,7 +66,7 @@ export function AgentFeed({
                 <div className={`mt-1.5 h-2 w-2 flex-shrink-0 ${ACCENT[item.kind]}`} />
                 <div className="min-w-0 flex-1">
                   <div className="mb-1 flex items-center justify-between gap-2">
-                    <span className="truncate font-mono text-[11px] font-semibold uppercase tracking-wider text-ink">
+                    <span className="truncate font-mono text-[13px] font-semibold uppercase tracking-wider text-ink">
                       {item.agent}
                     </span>
                     <button

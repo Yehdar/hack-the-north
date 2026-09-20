@@ -1,13 +1,13 @@
 @import "tailwindcss";
 
 /* ===========================================================================
-   VISION — blue slate, bone inserts, approval lights.
+   VISION — warm paper, raised cards, approval lights.
 
-   What makes this not look like every other dark AI dashboard is the warm/cool
-   split: the shell is a warm near-black (violet-leaning, never navy), and the
-   findings sit on raised BONE cards — actual light paper inside a dark app,
-   like printed inserts in a research binder. Data that matters gets printed;
-   chrome stays dark.
+   The shell is warm off-white rather than white: a sheet of paper on a desk,
+   not a browser default. Findings sit on raised white cards with a real
+   shadow, so the printed-inserts-in-a-binder idea survives the light theme —
+   what changed is that the cards now earn their separation with elevation
+   instead of by being the only light thing on screen.
 
    Rules:
      1. Sentiment runs slate -> coral. Not red-to-green: it reads as heat in a
@@ -21,38 +21,42 @@
    =========================================================================== */
 
 :root {
-  /* Deep blue-slate, not black. Reads considered rather than alarmed — an
-     instrument you sit down with, not a warning panel. */
-  --ground: #0f1520;
-  --surface: #182131;
-  --surface-2: #212c40;
-  --border: #2a3547;
-  --border-bright: #3d4c68;
+  /* Paper. The product's whole metaphor was printed findings inside a dark
+     binder; on a light shell the shell IS the paper, and the raised cards
+     become the things sitting on the desk. */
+  --ground: #f6f4ef;
+  --surface: #ffffff;
+  --surface-2: #ece8e0;
+  --border: #dcd6c9;
+  --border-bright: #b6ae9c;
 
-  /* The printed layer: findings on warm paper inside a calm dark shell. */
-  --insert: #f4f1ea;
-  --insert-2: #e4dfd3;
+  /* The printed layer. Still findings rather than chrome, but on a light
+     shell it earns its separation with a shadow and a crisper white rather
+     than by being the only light thing on screen. */
+  --insert: #ffffff;
+  --insert-2: #e6e0d3;
   --insert-ink: #16181d;
-  --insert-muted: #5f6672;
+  --insert-muted: #5d6470;
 
-  --text: #eaeef6;
-  --muted: #94a1b8;
-  --faint: #5b6880;
+  /* Ink. Warm near-black, not pure black: pure black on warm paper buzzes. */
+  --text: #191b20;
+  --muted: #5a6068;
+  --faint: #868c96;
 
-  /* Brand blue. Deliberately NOT red, amber or green, so it can never be
-     confused with the approval lights below. */
-  --accent: #5aa9e6;
-  --accent-dim: #2b5f8a;
+  /* Brand blue, darkened until it holds contrast on paper. The dark theme's
+     #5aa9e6 fails against a light background. */
+  --accent: #1d6fb8;
+  --accent-dim: #a9c8e4;
 
-  /* Approval lights. Everyone already knows what these mean, which is the
-     entire point — no legend required. */
-  --go: #3fb950;
-  --caution: #d9a441;
-  --stop: #e5534b;
+  /* Approval lights, darkened for the same reason. Everyone already knows
+     what they mean, which is the entire point: no legend required. */
+  --go: #1a7f37;
+  --caution: #8a6100;
+  --stop: #bf3227;
 
   --cold: #6b7a94;
-  --positive: #3fb950;
-  --negative: #e5534b;
+  --positive: #1a7f37;
+  --negative: #bf3227;
 }
 
 @theme inline {
@@ -76,6 +80,20 @@
   --color-stop: var(--stop);
   --color-positive: var(--positive);
   --color-negative: var(--negative);
+  /* The scale runs a step larger than Tailwind's default throughout. At the
+     stock sizes this app was consistently hard to read: a lot of 10 and 11px
+     mono, uppercase and letterspaced, which is the least legible combination
+     there is. */
+  --text-xs: 0.8125rem;   /* 13px, was 12 */
+  --text-xs--line-height: 1.5;
+  --text-sm: 0.9375rem;   /* 15px, was 14 */
+  --text-sm--line-height: 1.6;
+  --text-base: 1.0625rem; /* 17px, was 16 */
+  --text-base--line-height: 1.65;
+  --text-lg: 1.1875rem;   /* 19px, was 18 */
+  --text-xl: 1.375rem;    /* 22px, was 20 */
+  --text-2xl: 1.625rem;   /* 26px, was 24 */
+
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
   --font-serif: var(--font-instrument-serif);
@@ -105,9 +123,10 @@ body {
   background: var(--insert);
   color: var(--insert-ink);
   border-radius: 3px;
+  border: 1px solid var(--insert-2);
   box-shadow:
-    0 1px 0 0 var(--insert-2) inset,
-    0 18px 40px -18px rgb(0 0 0 / 0.8);
+    0 1px 2px rgb(23 26 32 / 0.06),
+    0 12px 28px -14px rgb(23 26 32 / 0.22);
 }
 
 .insert-muted {
@@ -123,8 +142,12 @@ body {
 
 .label {
   font-family: var(--font-geist-mono), ui-monospace, monospace;
-  font-size: 10px;
-  letter-spacing: 0.15em;
+  /* 10px uppercase mono at 0.15em tracking was the hardest thing in the app
+     to read. Bigger, and tracked a little less, because letterspacing costs
+     legibility at small sizes and only buys it back at large ones. */
+  font-size: 12px;
+  line-height: 1.5;
+  letter-spacing: 0.11em;
   text-transform: uppercase;
   color: var(--faint);
 }
@@ -154,8 +177,8 @@ body {
   position: fixed;
   inset: 0;
   z-index: 100;
-  opacity: 0.07;
-  mix-blend-mode: overlay;
+  opacity: 0.032;
+  mix-blend-mode: multiply;
   background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
 }
 

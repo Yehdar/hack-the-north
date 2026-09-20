@@ -41,7 +41,7 @@ export function Bet({
   return (
     <div className={`panel p-3 ${isMarket ? "glow-accent" : ""}`}>
       <div className="flex items-start justify-between gap-2">
-        {label && <span className="text-[11px] font-medium text-ink">{label}</span>}
+        {label && <span className="text-[13px] font-medium text-ink">{label}</span>}
         {vote && (
           <Light
             signal={
@@ -55,11 +55,11 @@ export function Bet({
 
       {draft === null ? (
         <>
-          <p className={`text-[12px] leading-relaxed text-ink/90 ${label ? "mt-1.5" : ""}`}>
+          <p className={`text-[14px] leading-relaxed text-ink/90 ${label ? "mt-1.5" : ""}`}>
             {text ?? problem.statement}
           </p>
           {!text && problem.whoHasIt && (
-            <p className="mt-1 text-[10px] leading-relaxed text-muted">Felt by {lower(problem.whoHasIt)}</p>
+            <p className="mt-1 text-[12px] leading-relaxed text-muted">Felt by {lower(problem.whoHasIt)}</p>
           )}
         </>
       ) : (
@@ -69,7 +69,7 @@ export function Bet({
             onChange={(e) => setDraft(e.target.value)}
             rows={4}
             autoFocus
-            className="w-full resize-none border border-edge bg-ground p-2 text-[12px] leading-relaxed text-ink focus:border-edge-bright focus:outline-none"
+            className="w-full resize-none border border-edge bg-ground p-2 text-[14px] leading-relaxed text-ink focus:border-edge-bright focus:outline-none"
           />
           <div className="mt-1.5 flex items-center gap-2">
             <button
@@ -78,13 +78,13 @@ export function Bet({
                 setDraft(null);
                 if (next && next !== problem.statement) onRewrite?.(next);
               }}
-              className="bg-accent px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.12em] text-ground transition hover:brightness-110"
+              className="bg-accent px-2.5 py-1 font-mono text-[12px] uppercase tracking-[0.12em] text-ground transition hover:brightness-110"
             >
               Ask them this instead
             </button>
             <button
               onClick={() => setDraft(null)}
-              className="font-mono text-[10px] uppercase tracking-[0.12em] text-faint transition hover:text-ink"
+              className="font-mono text-[12px] uppercase tracking-[0.12em] text-faint transition hover:text-ink"
             >
               Cancel
             </button>
@@ -93,7 +93,7 @@ export function Bet({
       )}
 
       {vote && (
-        <p className="mt-2 border-t border-edge pt-1.5 text-[10px] leading-relaxed text-muted">
+        <p className="mt-2 border-t border-edge pt-1.5 text-[12px] leading-relaxed text-muted">
           <span className="text-ink">{vote.votes} people</span> have this
           {vote.votes > 0 && (
             <>
