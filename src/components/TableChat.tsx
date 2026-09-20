@@ -63,7 +63,14 @@ export function TableChat({
 
   useEffect(() => {
     void detectTier().then(setTier);
-    return () => stopSpeaking();
+    return () => {
+      stopSpeaking();
+      // Walking out mid-sentence used to leave the capture running, which
+      // holds the microphone open and keeps the browser's recording indicator
+      // lit long after the panel is gone. The panel is keyed per seat, so
+      // clicking a different partner unmounts this one and lands here too.
+      void recorder.current?.stop().catch(() => "");
+    };
   }, []);
 
   useEffect(() => {

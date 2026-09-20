@@ -57,6 +57,21 @@ const DECISION_LINE: Record<ICVerdict["decision"], string> = {
   pass: "The committee passes, for now.",
 };
 
+/**
+ * How the worst unanswered objection is introduced, which depends entirely on
+ * whether it decided the outcome.
+ *
+ * This used to read "What sank it:" on every decision. On a pass that is the
+ * truth. On an invest it produced "The committee backs it. What sank it: ..."
+ * printed in green, a line that argues with itself and with its own colour,
+ * and it was the single most confusing thing on the report.
+ */
+const OPEN_ITEM_LEAD: Record<ICVerdict["decision"], string> = {
+  invest: "Still open",
+  conditional: "The condition that matters most",
+  pass: "What sank it",
+};
+
 /** "I did the homework on this one, and I'm not there yet. There's…" → its
  *  first sentence, which is the view; the rest is the argument for it. */
 function firstSentence(text: string): string {
@@ -169,7 +184,7 @@ export function writeMinutes(input: {
       decision: verdict.decision,
       score: verdict.score,
       line: verdict.killShot
-        ? `${DECISION_LINE[verdict.decision]} What sank it: ${verdict.killShot.replace(/[.]+$/, "")}.`
+        ? `${DECISION_LINE[verdict.decision]} ${OPEN_ITEM_LEAD[verdict.decision]}: ${verdict.killShot.replace(/[.]+$/, "")}.`
         : DECISION_LINE[verdict.decision],
     },
     conditions: verdict.conditions,
