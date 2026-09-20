@@ -14,7 +14,8 @@ import { PartTwoNav } from "@/components/PartTwoNav";
 import { Wordmark } from "@/components/Logo";
 import { Narrator } from "@/components/Narrator";
 import { hubById } from "@/data/globePoints";
-import { RoundTable, Subtitles } from "@/components/RoundTable";
+import { Boardroom } from "@/components/Boardroom";
+import { Subtitles } from "@/components/RoundTable";
 import { TableChat, type ChatTurn } from "@/components/TableChat";
 import { CommitteeLean, TableLog, type LogLine } from "@/components/TableLog";
 import { leanOf, weightsOf } from "@/lib/lean";
@@ -512,7 +513,8 @@ export default function Committee() {
         <div className="relative flex-1">
           {/* A committee sits at a table, not on a map. The globe belonged to
               part one and meant nothing here. */}
-          <RoundTable
+          <Boardroom
+            className="h-full w-full"
             seats={roster
               .filter((r) => r.weight > 0 || r.id === "chair")
               .map((r) => ({
@@ -527,33 +529,11 @@ export default function Committee() {
             conceded={conceded}
             selected={selected}
             onSelect={setSelected}
-            shifted={Boolean(selected)}
-          />
-
-          <Subtitles
-            speaker={nowSpeaking ? roleOf(nowSpeaking) : null}
-            line={subtitle}
-            paused={paused}
           />
 
           <div className="absolute left-1/2 top-6 z-40 -translate-x-1/2">
             <PartTwoNav current="/committee" />
           </div>
-          {ventureFile && (
-            <div className="absolute bottom-[76px] left-1/2 z-30 w-[520px] max-w-[calc(100%-48px)] -translate-x-1/2">
-              <Narrator
-                title={narration.title}
-                line={narration.line}
-                voice={{
-                  on: narratorOn,
-                  onToggle: () => {
-                    unlockAudio();
-                    toggleNarrator();
-                  },
-                }}
-              />
-            </div>
-          )}
 
           {/* header: the room, and the file it read. Below the Part 2 bar */}
           <div className="absolute left-6 top-20 z-40 w-[300px]">
@@ -694,9 +674,33 @@ export default function Committee() {
             )}
           </AnimatePresence>
 
-          {/* controls */}
-          <div className="absolute bottom-6 left-1/2 z-40 -translate-x-1/2">
-            <div className="panel flex items-center gap-1 whitespace-nowrap p-1.5">
+          {/* The bottom of the room, stacked rather than layered. What is being
+              said sits directly above where the round is named, above the
+              controls. Three absolutely positioned cards used to overlap. */}
+          <div className="pointer-events-none absolute inset-x-0 bottom-6 z-40 flex flex-col items-center gap-3 px-8">
+            <Subtitles
+              speaker={nowSpeaking ? roleOf(nowSpeaking) : null}
+              line={subtitle}
+              paused={paused}
+            />
+
+            {ventureFile && (
+              <div className="pointer-events-auto w-[520px] max-w-full">
+                <Narrator
+                  title={narration.title}
+                  line={narration.line}
+                  voice={{
+                    on: narratorOn,
+                    onToggle: () => {
+                      unlockAudio();
+                      toggleNarrator();
+                    },
+                  }}
+                />
+              </div>
+            )}
+
+            <div className="panel pointer-events-auto flex items-center gap-1 whitespace-nowrap p-1.5">
               <FirmPicker disabled={running} />
               {decision && !running ? (
                 <>

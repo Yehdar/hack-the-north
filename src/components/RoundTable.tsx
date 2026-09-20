@@ -174,7 +174,7 @@ export function Subtitles({
   paused?: boolean;
 }) {
   return (
-    <div className="pointer-events-none absolute inset-x-0 bottom-24 z-30 flex justify-center px-8">
+    <div className="pointer-events-none flex w-full justify-center">
       <AnimatePresence mode="wait">
         {line && (
           <motion.div
