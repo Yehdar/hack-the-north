@@ -1,6 +1,7 @@
 import OpenAI from "openai";
 import Anthropic from "@anthropic-ai/sdk";
 import { DemoProvider } from "@/lib/providers/demo";
+import { GeminiProvider } from "@/lib/providers/gemini";
 import { RecordingProvider, ReplayProvider } from "@/lib/providers/fixtures";
 
 // ============================================================================
@@ -230,6 +231,12 @@ export function activeModels(): { deep: string; fast: string } {
   const name = getLLM().name;
   if (name.startsWith("openai")) return { deep: DEEP_MODEL, fast: FAST_MODEL };
   if (name.startsWith("anthropic")) return { deep: ANTHROPIC_DEEP, fast: ANTHROPIC_FAST };
+  if (name.startsWith("gemini")) {
+    return {
+      deep: process.env.GEMINI_MODEL || "gemini-2.5-flash",
+      fast: process.env.GEMINI_FAST_MODEL || "gemini-2.5-flash-lite",
+    };
+  }
   return { deep: name, fast: name };
 }
 
@@ -255,14 +262,20 @@ function selectBase(): LLMProvider {
   const forced = process.env.LLM_PROVIDER;
   const openaiKey = process.env.OPENAI_API_KEY;
   const anthropicKey = process.env.ANTHROPIC_API_KEY;
+  const geminiKey = process.env.GEMINI_API_KEY;
 
   if (forced === "mock") return new MockProvider();
   if (forced === "demo") return new DemoProvider();
   if (forced === "openai" && openaiKey) return new OpenAIProvider(openaiKey);
   if (forced === "anthropic" && anthropicKey) return new AnthropicProvider(anthropicKey);
+  if (forced === "gemini" && geminiKey) return new GeminiProvider(geminiKey, new DemoProvider());
 
   if (openaiKey) return new OpenAIProvider(openaiKey);
   if (anthropicKey) return new AnthropicProvider(anthropicKey);
+  // Last of the real providers on purpose. It is the one with a free tier, so
+  // it is what the public deployment runs on, and anyone who has put a paid
+  // key in front of it meant to use that instead.
+  if (geminiKey) return new GeminiProvider(geminiKey, new DemoProvider());
   return new DemoProvider();
 }
 

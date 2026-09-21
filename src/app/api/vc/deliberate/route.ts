@@ -14,6 +14,12 @@ import type { VentureFile } from "@/lib/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+// Five rounds is about fifteen sequential model calls, which makes this the
+// longest request in the app by some margin. The discovery run has always
+// declared a ceiling and this one never did, so on a host with a shorter
+// default the room would be cut off partway through cross-examination and the
+// stream would simply stop with no verdict.
+export const maxDuration = 300;
 
 /**
  * Server-sent events, one JSON object per line. The committee takes real time

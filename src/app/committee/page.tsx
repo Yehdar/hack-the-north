@@ -131,12 +131,18 @@ export default function Committee() {
     setSubtitleLog((log) => [...log, { id, speaker, text }].slice(-40));
   }, []);
   const [paused, setPaused] = useState(false);
+  /** True when the pause was taken on the founder's behalf so they could talk
+   *  to one partner, rather than chosen from the pause button. Only the first
+   *  kind is lifted again when the conversation closes. */
+  const pausedByChat = useRef(false);
   /** One line per conversation the founder has had with a partner. */
   const [chatSummaries, setChatSummaries] = useState<
     { id: string; role: string; text: string }[]
   >([]);
   const [chat, setChat] = useState<Record<string, ChatTurn[]>>({});
-  const [chatBusy, setChatBusy] = useState(false);
+  /** The seat whose answer we are waiting on, or null. Per seat so the
+   *  thinking line only ever appears on the partner actually asked. */
+  const [chatBusy, setChatBusy] = useState<string | null>(null);
   const [chatSpeaking, setChatSpeaking] = useState<string | null>(null);
 
 
@@ -288,7 +294,7 @@ export default function Committee() {
       if (!vf) return;
 
       setChat((c) => ({ ...c, [seatId]: [...(c[seatId] ?? []), { speaker: "founder", text: question }] }));
-      setChatBusy(true);
+      setChatBusy(seatId);
 
       try {
         const res = await fetch("/api/vc/ask", {
@@ -335,7 +341,7 @@ export default function Committee() {
 
         // Out loud, in their voice. Part one's calls already answer this way;
         // here the reply arrived as text and nothing ever said it.
-        setChatBusy(false);
+        setChatBusy(null);
         if (json.line) {
           setChatSpeaking(seatId);
           await ensureQueue().say(
@@ -352,7 +358,7 @@ export default function Committee() {
           [seatId]: [...(c[seatId] ?? []), { speaker: "agent", text: "Sorry, I lost my train of thought there." }],
         }));
       } finally {
-        setChatBusy(false);
+        setChatBusy(null);
         setChatSpeaking(null);
       }
     },
@@ -653,6 +659,17 @@ export default function Committee() {
               // anything, and this is the only one on the way into a chat.
               unlockAudio();
               if (!id && selected) queue.current?.drop(selected);
+              // Taking a partner aside stops the room. The meeting used to
+              // carry on underneath the conversation: subtitles advancing and
+              // other partners talking over the person you pulled out, which
+              // made the chat feel broken rather than private. A pause the
+              // founder set themselves is left alone, and only a pause this
+              // opened is lifted again on the way out.
+              if (id && !selected && !paused) {
+                pausedByChat.current = true;
+                setPaused(true);
+                queue.current?.clear();
+              }
               setSelected(id);
             }}
           />
@@ -848,7 +865,10 @@ export default function Committee() {
               stance={stances[selected]?.stance}
               opening={stances[selected]?.position}
               turns={chat[selected] ?? []}
-              thinking={chatBusy}
+              // Per seat, not one flag for the room. A single boolean meant
+              // asking one partner a question and then clicking another showed
+              // the second one thinking about a question nobody had put to them.
+              thinking={chatBusy === selected}
               speakingNow={chatSpeaking === selected}
               onAsk={(q) => void askPartner(selected, q)}
               onClose={() => {
@@ -857,6 +877,10 @@ export default function Committee() {
                 queue.current?.drop(selected);
                 setChatSpeaking(null);
                 setSelected(null);
+                if (pausedByChat.current) {
+                  pausedByChat.current = false;
+                  setPaused(false);
+                }
               }}
             />
           )}

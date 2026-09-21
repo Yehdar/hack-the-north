@@ -21,10 +21,39 @@ const instrumentSerif = Instrument_Serif({
   subsets: ["latin"],
 });
 
+/**
+ * Where relative metadata URLs resolve from. Vercel sets VERCEL_URL on every
+ * deployment including previews, so a branch deploy advertises its own images
+ * rather than production's. SITE_URL overrides it for a custom domain.
+ */
+const siteUrl =
+  process.env.NEXT_PUBLIC_SITE_URL ??
+  (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
+
+const title = "Vision. See the problem, defend the answer";
+const description =
+  "Submit a product. A simulated market tells you which problem it actually solves, then an investment committee decides whether that problem is big enough.";
+
 export const metadata: Metadata = {
-  title: "Vision. See the problem, defend the answer",
-  description:
-    "Submit a product. A simulated market tells you which problem it actually solves, then an investment committee decides whether that problem is big enough.",
+  metadataBase: new URL(siteUrl),
+  title,
+  description,
+  applicationName: "Vision",
+  // Without these, the link is a bare URL everywhere it gets pasted. The card
+  // image itself is generated at src/app/opengraph-image.tsx.
+  openGraph: {
+    title,
+    description,
+    url: siteUrl,
+    siteName: "Vision",
+    type: "website",
+    locale: "en_CA",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title,
+    description,
+  },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

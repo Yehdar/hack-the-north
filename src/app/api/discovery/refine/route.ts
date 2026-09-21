@@ -4,6 +4,8 @@ import type { ProblemStatement } from "@/lib/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+// Rewriting the pitch is a model call on the critical path of the refine loop.
+export const maxDuration = 60;
 
 type RefineRequest = { solution?: string; problem?: ProblemStatement };
 

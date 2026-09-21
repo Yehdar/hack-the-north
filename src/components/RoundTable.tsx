@@ -134,8 +134,12 @@ export function RoundTable({
               style={{
                 color: isSpeaking
                   ? "var(--accent)"
+                  // --ink is not a variable. The token is --text; --color-ink
+                  // is only the Tailwind alias of it. An undefined var made
+                  // this declaration invalid, so a partner being spoken to
+                  // silently inherited its colour and never brightened.
                   : isAddressed
-                    ? "var(--ink)"
+                    ? "var(--text)"
                     : "var(--muted)",
               }}
             >
