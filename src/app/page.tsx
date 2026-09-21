@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useSyncExternalStore } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { Wordmark } from "@/components/Logo";
@@ -38,6 +38,17 @@ export default function Dashboard() {
   const start = useVenture((v) => v.start);
   const [confirming, setConfirming] = useState(false);
   const [creating, setCreating] = useState(false);
+
+  useEffect(() => {
+    if (!creating) return;
+
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setCreating(false);
+    };
+
+    document.addEventListener("keydown", closeOnEscape);
+    return () => document.removeEventListener("keydown", closeOnEscape);
+  }, [creating]);
 
   /** A project is one idea plus everything that happens to it. Creating one
    *  records it immediately, so it is in the list even if the founder never
@@ -106,10 +117,10 @@ export default function Dashboard() {
                 </button>
               ))}
             <button
-              onClick={() => setCreating((v) => !v)}
+              onClick={() => setCreating(true)}
               className="bg-accent px-4 py-2 font-mono text-[13px] uppercase tracking-[0.14em] text-ground transition hover:brightness-110"
             >
-              {creating ? "Cancel" : "New project"}
+              New project
             </button>
           </div>
         </header>
@@ -117,13 +128,34 @@ export default function Dashboard() {
         <AnimatePresence>
           {creating && (
             <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: "auto" }}
-              exit={{ opacity: 0, height: 0 }}
-              className="overflow-hidden"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 flex items-center justify-center bg-ink/45 p-4 backdrop-blur-sm"
+              onMouseDown={(event) => {
+                if (event.target === event.currentTarget) setCreating(false);
+              }}
             >
-              <div className="relative mt-4 min-h-[520px] overflow-hidden border border-edge-bright bg-surface/30">
-                <Intake cta="Ask the market" onDone={create} onCancel={() => setCreating(false)} />
+              <div
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="new-project-title"
+                className="relative max-h-[calc(100vh-2rem)] w-full max-w-3xl overflow-y-auto border border-edge-bright bg-ground shadow-2xl"
+              >
+                <div className="flex items-center justify-between border-b border-edge px-5 py-4">
+                  <p id="new-project-title" className="font-mono text-sm uppercase tracking-[0.14em] text-ink">
+                    New project
+                  </p>
+                  <button
+                    onClick={() => setCreating(false)}
+                    className="px-2 py-1 font-mono text-xs uppercase tracking-[0.14em] text-faint transition hover:text-ink"
+                  >
+                    Close
+                  </button>
+                </div>
+                <div className="min-h-[520px]">
+                  <Intake cta="Ask the market" onDone={create} onCancel={() => setCreating(false)} />
+                </div>
               </div>
             </motion.div>
           )}
