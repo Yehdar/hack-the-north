@@ -124,19 +124,20 @@ export class GeminiProvider implements LLMProvider {
       ? `\n\nRespond with JSON only, matching this schema:\n${JSON.stringify(req.schema.schema)}`
       : "";
 
-    // Omitted rather than sent as zero: the -lite models reject an explicit
-    // thinkingBudget of 0 with a 400, and the fast tier is the Moderator, so
-    // sending it would drop every speech turn to the demo provider mid-pitch.
-    // Left out, those models simply do not think, which is what we wanted.
-    const budget = req.tier === "fast" ? 0 : THINKING[EFFORT];
-
+    // The budget is sent even when it is zero, and must be. Thinking tokens
+    // bill against maxOutputTokens, so a model left to think freely spends the
+    // whole budget reasoning and returns a truncated candidate. Dropping this
+    // to satisfy the -lite models breaks every other model instead; point
+    // GEMINI_MODEL at a model that accepts an explicit zero, as the defaults do.
     const body = {
       systemInstruction: { parts: [{ text: req.system + schemaInstruction }] },
       contents: [{ role: "user", parts: [{ text: req.user }] }],
       generationConfig: {
         temperature: req.temperature ?? 0.7,
         maxOutputTokens: (req.maxTokens ?? 800) + THINKING[EFFORT],
-        ...(budget > 0 ? { thinkingConfig: { thinkingBudget: budget } } : {}),
+        thinkingConfig: {
+          thinkingBudget: req.tier === "fast" ? 0 : THINKING[EFFORT],
+        },
         ...(req.schema ? { responseMimeType: "application/json" } : {}),
       },
     };
@@ -178,10 +179,12 @@ export class GeminiProvider implements LLMProvider {
     return this.call(model, {
       contents: [{ role: "user", parts: [{ text: 'Reply with exactly: {"ok": true}' }] }],
       generationConfig: {
-        // No thinkingConfig here for the same reason as above: sending a zero
-        // budget 400s on the -lite models, and a health check that fails for a
-        // reason unrelated to the key is worse than no health check.
+        // 32 tokens only works because thinking is off. Remove the budget and
+        // the model reasons its way through all of them, returning `{"` and a
+        // health check that fails for a reason that has nothing to do with the
+        // key it exists to test.
         maxOutputTokens: 32,
+        thinkingConfig: { thinkingBudget: 0 },
         responseMimeType: "application/json",
       },
     });

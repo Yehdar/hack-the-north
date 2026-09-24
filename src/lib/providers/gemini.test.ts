@@ -123,18 +123,15 @@ describe("GeminiProvider", () => {
 
     const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
     const body = JSON.parse(init.body as string);
-    // Absent rather than zero: the -lite models answer 400 to an explicit
-    // thinkingBudget of 0, and the fast tier is the Moderator, so sending it
-    // would drop every speech turn to the demo provider. Left out, they do not
-    // think anyway, so the intent survives and the request is accepted.
-    expect(body.generationConfig.thinkingConfig).toBeUndefined();
+    expect(body.generationConfig.thinkingConfig.thinkingBudget).toBe(0);
   });
 
-  it("omits the thinking budget on the deep tier too at the default low effort", async () => {
-    // LLM_EFFORT defaults to low and THINKING.low is 0, so the deep tier asks
-    // for no thinking either unless the effort is raised. Worth pinning: it is
-    // the reason a -lite model used to 400 on every call rather than only the
-    // Moderator's, which made the failure look like a broken key.
+  it("sends the zero budget rather than omitting it, or output gets truncated", async () => {
+    // Regression. Dropping thinkingConfig when the budget is zero looks tidy and
+    // makes the -lite models stop answering 400, but thinking bills against
+    // maxOutputTokens: left free to reason, the model spends the whole budget
+    // and returns a fragment. The health check asks for 32 tokens and got back
+    // `{"`, which parsed as a dead provider on a perfectly good key.
     const fetchMock = vi.fn(async () => reply("ok"));
     vi.stubGlobal("fetch", fetchMock);
 
@@ -142,7 +139,7 @@ describe("GeminiProvider", () => {
 
     const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
     const body = JSON.parse(init.body as string);
-    expect(body.generationConfig.thinkingConfig).toBeUndefined();
+    expect(body.generationConfig.thinkingConfig).toBeDefined();
   });
 
   it("probe lets a failure through, so a dead key is visible at the health check", async () => {
