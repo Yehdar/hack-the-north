@@ -8,7 +8,7 @@
 [![React](https://img.shields.io/badge/React-19-61DAFB.svg?logo=react&logoColor=white)](https://react.dev)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6.svg?logo=typescript&logoColor=white)](https://typescriptlang.org)
 [![Three.js](https://img.shields.io/badge/three.js-r186-049EF4.svg?logo=three.js&logoColor=white)](https://threejs.org)
-[![Tests](https://img.shields.io/badge/tests-176%20passing-1a7f37.svg)](#-tests)
+[![Tests](https://img.shields.io/badge/tests-177%20passing-1a7f37.svg)](#-tests)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 ### Built at [Hack the North 2026](https://hackthenorth.com) · [Devpost](DEVPOST.md) · [Architecture](ARCHITECTURE.md)
@@ -308,7 +308,7 @@ useful warning the app gives.
 ## 🧪 Tests
 
 ```bash
-npm test          # 176 tests
+npm test          # 177 tests
 npm run lint
 npm run build
 npm run personas  # regenerate the persona library from hubs.json, deterministic

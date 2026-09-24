@@ -123,7 +123,26 @@ describe("GeminiProvider", () => {
 
     const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
     const body = JSON.parse(init.body as string);
-    expect(body.generationConfig.thinkingConfig.thinkingBudget).toBe(0);
+    // Absent rather than zero: the -lite models answer 400 to an explicit
+    // thinkingBudget of 0, and the fast tier is the Moderator, so sending it
+    // would drop every speech turn to the demo provider. Left out, they do not
+    // think anyway, so the intent survives and the request is accepted.
+    expect(body.generationConfig.thinkingConfig).toBeUndefined();
+  });
+
+  it("omits the thinking budget on the deep tier too at the default low effort", async () => {
+    // LLM_EFFORT defaults to low and THINKING.low is 0, so the deep tier asks
+    // for no thinking either unless the effort is raised. Worth pinning: it is
+    // the reason a -lite model used to 400 on every call rather than only the
+    // Moderator's, which made the failure look like a broken key.
+    const fetchMock = vi.fn(async () => reply("ok"));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await new GeminiProvider("key", fallbackSpy()).complete({ ...ask, tier: "deep" });
+
+    const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    const body = JSON.parse(init.body as string);
+    expect(body.generationConfig.thinkingConfig).toBeUndefined();
   });
 
   it("probe lets a failure through, so a dead key is visible at the health check", async () => {

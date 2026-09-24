@@ -20,10 +20,17 @@ import { parseJSON } from "@/lib/llm";
 
 const BASE = "https://generativelanguage.googleapis.com/v1beta/models";
 
-/** Deep tier: seat reasoning, cross-examination, rebuttal. 15 RPM / 1,500 RPD. */
-const DEEP = process.env.GEMINI_MODEL || "gemini-2.5-flash";
-/** Fast tier: the Moderator, on every founder speech turn. 30 RPM, same daily. */
-const FAST = process.env.GEMINI_FAST_MODEL || "gemini-2.5-flash-lite";
+// The 2.5 line is retired for keys issued after roughly mid-2026: the API
+// answers 404 "no longer available to new users", so a fresh clone with a fresh
+// key would silently serve demo output. Pinned rather than an alias on purpose —
+// gemini-flash-latest was returning 503 on most calls when this was chosen.
+/** Deep tier: seat reasoning, cross-examination, rebuttal. */
+const DEEP = process.env.GEMINI_MODEL || "gemini-3.6-flash";
+/** Fast tier: the Moderator, on every founder speech turn. Same model as the
+ *  deep tier by default, so the two share one rate limit: the -lite line is
+ *  cheaper and faster but was the least reliable of the models tested. Point
+ *  GEMINI_FAST_MODEL at a -lite model to split them again. */
+const FAST = process.env.GEMINI_FAST_MODEL || "gemini-3.6-flash";
 
 const TIMEOUT_MS = 30_000;
 
@@ -117,15 +124,19 @@ export class GeminiProvider implements LLMProvider {
       ? `\n\nRespond with JSON only, matching this schema:\n${JSON.stringify(req.schema.schema)}`
       : "";
 
+    // Omitted rather than sent as zero: the -lite models reject an explicit
+    // thinkingBudget of 0 with a 400, and the fast tier is the Moderator, so
+    // sending it would drop every speech turn to the demo provider mid-pitch.
+    // Left out, those models simply do not think, which is what we wanted.
+    const budget = req.tier === "fast" ? 0 : THINKING[EFFORT];
+
     const body = {
       systemInstruction: { parts: [{ text: req.system + schemaInstruction }] },
       contents: [{ role: "user", parts: [{ text: req.user }] }],
       generationConfig: {
         temperature: req.temperature ?? 0.7,
         maxOutputTokens: (req.maxTokens ?? 800) + THINKING[EFFORT],
-        thinkingConfig: {
-          thinkingBudget: req.tier === "fast" ? 0 : THINKING[EFFORT],
-        },
+        ...(budget > 0 ? { thinkingConfig: { thinkingBudget: budget } } : {}),
         ...(req.schema ? { responseMimeType: "application/json" } : {}),
       },
     };
@@ -167,8 +178,10 @@ export class GeminiProvider implements LLMProvider {
     return this.call(model, {
       contents: [{ role: "user", parts: [{ text: 'Reply with exactly: {"ok": true}' }] }],
       generationConfig: {
+        // No thinkingConfig here for the same reason as above: sending a zero
+        // budget 400s on the -lite models, and a health check that fails for a
+        // reason unrelated to the key is worse than no health check.
         maxOutputTokens: 32,
-        thinkingConfig: { thinkingBudget: 0 },
         responseMimeType: "application/json",
       },
     });
