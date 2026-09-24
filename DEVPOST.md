@@ -261,12 +261,12 @@ you could act on directly.
 
 ## Try it out
 
-- **Live app**, no sign up and no API key needed — https://vision-phi-lovat.vercel.app
-- **GitHub repository** — https://github.com/jaineelmodi11/vision
-- **The architecture writeup**, for the protocol in full —
+- **Live app**, no sign up and no API key needed: https://vision-phi-lovat.vercel.app
+- **GitHub repository**: https://github.com/jaineelmodi11/vision
+- **The architecture writeup**, for the protocol in full:
   [ARCHITECTURE.md](ARCHITECTURE.md)
 - **Health check**, which probes underneath the fallback rather than reporting a
-  degraded run as healthy — https://vision-phi-lovat.vercel.app/api/system/check
+  degraded run as healthy: https://vision-phi-lovat.vercel.app/api/system/check
 
 The deployment runs on Gemini's free tier, so the link costs nothing to keep up
 and nothing for a judge to use.

@@ -138,7 +138,7 @@ flowchart TD
 
 The same five rounds, seen as who actually says what to whom:
 
-![The deliberation protocol as a swimlane across five seats — the chair decomposes and assigns by lane, agents answer blind, issue directed challenges at each other, rebut or concede, the chair rules each challenge answered or dodged, and the devil's advocate attacks the settled consensus before weighted synthesis](docs/protocol.svg)
+![The deliberation protocol as a swimlane across five seats: the chair decomposes and assigns by lane, agents answer blind, issue directed challenges at each other, rebut or concede, the chair rules each challenge answered or dodged, and the devil's advocate attacks the settled consensus before weighted synthesis](docs/protocol.svg)
 
 Agents are blind in round 1 on purpose. Seeing each other's positions before
 forming their own is anchoring, and anchoring is precisely how N agents quietly
@@ -252,7 +252,7 @@ healthy is worse than no health check.
 
 ## 🏗️ How it is built
 
-![Vision system architecture — five layers: the Next.js client, API route handlers, an engine layer where a Discovery Engine and a Defense Engine both feed one shared deliberation protocol, a swappable provider layer, and the external APIs underneath](docs/architecture.svg)
+![Vision system architecture in five layers: the Next.js client, API route handlers, an engine layer where a Discovery Engine and a Defense Engine both feed one shared deliberation protocol, a swappable provider layer, and the external APIs underneath](docs/architecture.svg)
 
 Five layers, arrows pointing one way. The band worth reading twice is the middle
 one: **Part 1 and Part 2 are different rosters driving the same engine.** The

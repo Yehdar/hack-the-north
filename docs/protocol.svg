@@ -16,7 +16,7 @@
 
   <rect x="0" y="0" width="1180" height="570" fill="#f2efe6"/>
 
-  <text x="24" y="30" font-family="system-ui, -apple-system, Segoe UI, Roboto, sans-serif" font-size="15" font-weight="700" fill="#22262c">The deliberation protocol — one engine, five rounds</text>
+  <text x="24" y="30" font-family="system-ui, -apple-system, Segoe UI, Roboto, sans-serif" font-size="15" font-weight="700" fill="#22262c">The deliberation protocol · one engine, five rounds</text>
   <text x="1156" y="30" text-anchor="end" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="10.5" fill="#6b7079">src/lib/agents/protocol.ts</text>
 
   <!-- lane stripes -->
@@ -70,7 +70,7 @@
     <text x="148" y="381">structural · temp 1.0</text>
   </g>
 
-  <!-- ===== ROUND 0 — chair decomposes and assigns ===== -->
+  <!-- ===== ROUND 0 · chair decomposes and assigns ===== -->
   <rect x="184" y="106" width="132" height="36" rx="5" fill="#dcd7c6" stroke="#8b8577"/>
   <text x="250" y="121" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="9.5" fill="#2c2a24">splits into 5–7</text>
   <text x="250" y="134" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="9.5" fill="#2c2a24">diligence tasks</text>
@@ -82,7 +82,7 @@
     <path d="M250 304 L326 304" marker-end="url(#pDim)"/>
   </g>
 
-  <!-- ===== ROUND 1 — blind independent pass ===== -->
+  <!-- ===== ROUND 1 · blind independent pass ===== -->
   <g>
     <rect x="348" y="166" width="132" height="36" rx="5" fill="#fbf9f4" stroke="#b9b3a2"/>
     <text x="414" y="181" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="9.5" fill="#22262c">market + fund math</text>
@@ -97,7 +97,7 @@
     <text x="414" y="314" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="9" fill="#8b8577">stance + confidence</text>
   </g>
 
-  <!-- ===== ROUND 2 — directed challenges ===== -->
+  <!-- ===== ROUND 2 · directed challenges ===== -->
   <g stroke="#e0512c" stroke-width="1.4" fill="none">
     <path d="M540 236 L540 194" marker-end="url(#pCoral)"/>
     <path d="M578 296 L578 194" marker-end="url(#pCoral)"/>
@@ -109,7 +109,7 @@
     <circle cx="616" cy="192" r="2.4"/>
   </g>
 
-  <!-- ===== ROUND 3 — rebuttal and belief revision ===== -->
+  <!-- ===== ROUND 3 · rebuttal and belief revision ===== -->
   <g stroke="#4d7ead" stroke-width="1.4" fill="none">
     <path d="M706 194 L706 234" marker-end="url(#pSteel)"/>
     <path d="M742 194 L742 294" marker-end="url(#pSteel)"/>
@@ -119,11 +119,11 @@
 
   <!-- ===== CHAIR RULES ===== -->
   <rect x="840" y="106" width="132" height="36" rx="5" fill="#dcd7c6" stroke="#8b8577"/>
-  <text x="906" y="121" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="9.5" fill="#2c2a24">answered — yes/no</text>
+  <text x="906" y="121" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="9.5" fill="#2c2a24">answered · yes/no</text>
   <text x="906" y="134" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="9.5" fill="#2c2a24">+ reason</text>
   <path d="M906 300 L906 148" stroke="#8b8577" stroke-width="1.3" stroke-dasharray="4 4" fill="none" marker-end="url(#pDim)"/>
 
-  <!-- ===== ROUND 4 — adversarial ===== -->
+  <!-- ===== ROUND 4 · adversarial ===== -->
   <path d="M1070 196 L1070 342" stroke="#8b8577" stroke-width="1.3" stroke-dasharray="4 4" fill="none" marker-end="url(#pDim)"/>
   <rect x="1019" y="346" width="102" height="36" rx="5" fill="#ffe0d5" stroke="#ff6a45"/>
   <text x="1070" y="361" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="9.5" fill="#40190f">attacks the</text>
@@ -132,7 +132,7 @@
   <!-- ===== PER-ROUND CAPTIONS ===== -->
   <g text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="9" fill="#8b8577">
     <text x="250" y="404">assigned by lane</text>
-    <text x="414" y="404">blind — nobody anchors</text>
+    <text x="414" y="404">blind · nobody anchors</text>
     <text x="578" y="404">≤2, addressed by id</text>
     <text x="742" y="404">answer or concede</text>
     <text x="906" y="404">restating ≠ answering</text>
@@ -146,9 +146,9 @@
   <path d="M1070 382 L1070 428" stroke="#e0512c" stroke-width="1.4" fill="none" marker-end="url(#pCoral)"/>
 
   <rect x="168" y="432" width="984" height="74" rx="6" fill="#dcd7c6" stroke="#8b8577"/>
-  <text x="188" y="454" font-family="system-ui, sans-serif" font-size="12.5" font-weight="700" fill="#2c2a24">Weighted synthesis — confidence gates seat authority, dissent is preserved rather than smoothed</text>
+  <text x="188" y="454" font-family="system-ui, sans-serif" font-size="12.5" font-weight="700" fill="#2c2a24">Weighted synthesis · confidence gates seat authority, dissent is preserved rather than smoothed</text>
   <text x="188" y="476" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="10.5" fill="#2c2a24">S = Σ(w′ᵢ · cᵢ · sᵢ) / Σ(w′ᵢ · cᵢ)   −   0.08 × unanswered      →      S ≥ 0.35 invest   ·   −0.10…0.35 conditional   ·   &lt; −0.10 pass</text>
-  <text x="188" y="495" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="10" fill="#6b6555">a lone hard no is promoted to the top of the report when |sᵢ − S| &gt; 0.6 — the one output averaging destroys</text>
+  <text x="188" y="495" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="10" fill="#6b6555">a lone hard no is promoted to the top of the report when |sᵢ − S| &gt; 0.6 · the one output averaging destroys</text>
 
   <!-- ===== LEGEND ===== -->
   <g font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="10" fill="#6b7079">
@@ -162,7 +162,7 @@
     <text x="344" y="542">observes / rules</text>
 
     <circle cx="486" cy="538" r="4.5" fill="#e0512c"/>
-    <text x="498" y="542">concession — stance moves</text>
+    <text x="498" y="542">concession · stance moves</text>
 
     <text x="1152" y="542" text-anchor="end" fill="#8b8577">typed + threaded by inReplyTo</text>
   </g>

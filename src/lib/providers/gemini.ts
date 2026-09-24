@@ -22,7 +22,7 @@ const BASE = "https://generativelanguage.googleapis.com/v1beta/models";
 
 // The 2.5 line is retired for keys issued after roughly mid-2026: the API
 // answers 404 "no longer available to new users", so a fresh clone with a fresh
-// key would silently serve demo output. Pinned rather than an alias on purpose —
+// key would silently serve demo output. Pinned rather than an alias on purpose:
 // gemini-flash-latest was returning 503 on most calls when this was chosen.
 /** Deep tier: seat reasoning, cross-examination, rebuttal. */
 const DEEP = process.env.GEMINI_MODEL || "gemini-3.6-flash";
