@@ -11,7 +11,7 @@
 [![Tests](https://img.shields.io/badge/tests-177%20passing-1a7f37.svg)](#-tests)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-### Built at [Hack the North 2026](https://hackthenorth.com) · [Devpost](DEVPOST.md) · [Architecture](ARCHITECTURE.md)
+### Final round at [Hack the North 2026](https://hackthenorth.com) · [Devpost](https://devpost.com/software/vision-xqn16g) · [Architecture](ARCHITECTURE.md)
 
 </div>
 
