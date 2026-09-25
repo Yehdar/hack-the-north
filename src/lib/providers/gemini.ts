@@ -20,10 +20,17 @@ import { parseJSON } from "@/lib/llm";
 
 const BASE = "https://generativelanguage.googleapis.com/v1beta/models";
 
-/** Deep tier: seat reasoning, cross-examination, rebuttal. 15 RPM / 1,500 RPD. */
-const DEEP = process.env.GEMINI_MODEL || "gemini-2.5-flash";
-/** Fast tier: the Moderator, on every founder speech turn. 30 RPM, same daily. */
-const FAST = process.env.GEMINI_FAST_MODEL || "gemini-2.5-flash-lite";
+// The 2.5 line is retired for keys issued after roughly mid-2026: the API
+// answers 404 "no longer available to new users", so a fresh clone with a fresh
+// key would silently serve demo output. Pinned rather than an alias on purpose:
+// gemini-flash-latest was returning 503 on most calls when this was chosen.
+/** Deep tier: seat reasoning, cross-examination, rebuttal. */
+const DEEP = process.env.GEMINI_MODEL || "gemini-3.6-flash";
+/** Fast tier: the Moderator, on every founder speech turn. Same model as the
+ *  deep tier by default, so the two share one rate limit: the -lite line is
+ *  cheaper and faster but was the least reliable of the models tested. Point
+ *  GEMINI_FAST_MODEL at a -lite model to split them again. */
+const FAST = process.env.GEMINI_FAST_MODEL || "gemini-3.6-flash";
 
 const TIMEOUT_MS = 30_000;
 
@@ -117,6 +124,11 @@ export class GeminiProvider implements LLMProvider {
       ? `\n\nRespond with JSON only, matching this schema:\n${JSON.stringify(req.schema.schema)}`
       : "";
 
+    // The budget is sent even when it is zero, and must be. Thinking tokens
+    // bill against maxOutputTokens, so a model left to think freely spends the
+    // whole budget reasoning and returns a truncated candidate. Dropping this
+    // to satisfy the -lite models breaks every other model instead; point
+    // GEMINI_MODEL at a model that accepts an explicit zero, as the defaults do.
     const body = {
       systemInstruction: { parts: [{ text: req.system + schemaInstruction }] },
       contents: [{ role: "user", parts: [{ text: req.user }] }],
@@ -167,6 +179,10 @@ export class GeminiProvider implements LLMProvider {
     return this.call(model, {
       contents: [{ role: "user", parts: [{ text: 'Reply with exactly: {"ok": true}' }] }],
       generationConfig: {
+        // 32 tokens only works because thinking is off. Remove the budget and
+        // the model reasons its way through all of them, returning `{"` and a
+        // health check that fails for a reason that has nothing to do with the
+        // key it exists to test.
         maxOutputTokens: 32,
         thinkingConfig: { thinkingBudget: 0 },
         responseMimeType: "application/json",

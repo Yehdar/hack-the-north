@@ -200,7 +200,7 @@ speech and then to text. No network at all replays recorded fixtures. Nothing in
 the critical path needs the internet, which is why the deployed link still works
 for whoever opens it next year.
 
-176 tests, a clean build, and three of those tests exist purely to stop us
+177 tests, a clean build, and three of those tests exist purely to stop us
 fooling ourselves.
 
 ---
@@ -261,9 +261,15 @@ you could act on directly.
 
 ## Try it out
 
-- Live app, no sign up and no API key needed
-- GitHub repository
-- The architecture writeup, for the protocol in full
+- **Live app**, no sign up and no API key needed: https://vision-phi-lovat.vercel.app
+- **GitHub repository**: https://github.com/jaineelmodi11/vision
+- **The architecture writeup**, for the protocol in full:
+  [ARCHITECTURE.md](ARCHITECTURE.md)
+- **Health check**, which probes underneath the fallback rather than reporting a
+  degraded run as healthy: https://vision-phi-lovat.vercel.app/api/system/check
+
+The deployment runs on Gemini's free tier, so the link costs nothing to keep up
+and nothing for a judge to use.
 
 ---
 

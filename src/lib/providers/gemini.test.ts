@@ -126,6 +126,22 @@ describe("GeminiProvider", () => {
     expect(body.generationConfig.thinkingConfig.thinkingBudget).toBe(0);
   });
 
+  it("sends the zero budget rather than omitting it, or output gets truncated", async () => {
+    // Regression. Dropping thinkingConfig when the budget is zero looks tidy and
+    // makes the -lite models stop answering 400, but thinking bills against
+    // maxOutputTokens: left free to reason, the model spends the whole budget
+    // and returns a fragment. The health check asks for 32 tokens and got back
+    // `{"`, which parsed as a dead provider on a perfectly good key.
+    const fetchMock = vi.fn(async () => reply("ok"));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await new GeminiProvider("key", fallbackSpy()).complete({ ...ask, tier: "deep" });
+
+    const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    const body = JSON.parse(init.body as string);
+    expect(body.generationConfig.thinkingConfig).toBeDefined();
+  });
+
   it("probe lets a failure through, so a dead key is visible at the health check", async () => {
     vi.stubGlobal(
       "fetch",

@@ -8,10 +8,10 @@
 [![React](https://img.shields.io/badge/React-19-61DAFB.svg?logo=react&logoColor=white)](https://react.dev)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6.svg?logo=typescript&logoColor=white)](https://typescriptlang.org)
 [![Three.js](https://img.shields.io/badge/three.js-r186-049EF4.svg?logo=three.js&logoColor=white)](https://threejs.org)
-[![Tests](https://img.shields.io/badge/tests-176%20passing-1a7f37.svg)](#-tests)
+[![Tests](https://img.shields.io/badge/tests-177%20passing-1a7f37.svg)](#-tests)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-### Built at [Hack the North 2026](https://hackthenorth.com) · [Devpost](DEVPOST.md) · [Architecture](ARCHITECTURE.md)
+### Final round at [Hack the North 2026](https://hackthenorth.com) · [Devpost](https://devpost.com/software/vision-xqn16g) · [Architecture](ARCHITECTURE.md)
 
 </div>
 
@@ -136,6 +136,10 @@ flowchart TD
     SYN --> V[Verdict]
 ```
 
+The same five rounds, seen as who actually says what to whom:
+
+![The deliberation protocol as a swimlane across five seats: the chair decomposes and assigns by lane, agents answer blind, issue directed challenges at each other, rebut or concede, the chair rules each challenge answered or dodged, and the devil's advocate attacks the settled consensus before weighted synthesis](docs/protocol.svg)
+
 Agents are blind in round 1 on purpose. Seeing each other's positions before
 forming their own is anchoring, and anchoring is precisely how N agents quietly
 become one agent. Challenges in round 2 must name a recipient, because a
@@ -248,6 +252,14 @@ healthy is worse than no health check.
 
 ## 🏗️ How it is built
 
+![Vision system architecture in five layers: the Next.js client, API route handlers, an engine layer where a Discovery Engine and a Defense Engine both feed one shared deliberation protocol, a swappable provider layer, and the external APIs underneath](docs/architecture.svg)
+
+Five layers, arrows pointing one way. The band worth reading twice is the middle
+one: **Part 1 and Part 2 are different rosters driving the same engine.** The
+provider layer sits at the bottom on purpose, which is why swapping Gemini for
+the demo provider, or ElevenLabs for the browser's own speech synthesis, never
+touches anything above it.
+
 ```
 src/
 ├── app/
@@ -296,7 +308,7 @@ useful warning the app gives.
 ## 🧪 Tests
 
 ```bash
-npm test          # 176 tests
+npm test          # 177 tests
 npm run lint
 npm run build
 npm run personas  # regenerate the persona library from hubs.json, deterministic

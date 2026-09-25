@@ -85,6 +85,18 @@ flowchart TD
     SYN --> V[ICVerdict]
 ```
 
+The flowchart above is the round order. This is the same protocol seen as who
+actually says what to whom, which is the part that makes it a committee rather
+than a queue:
+
+![The deliberation protocol as a swimlane across five seats: the chair decomposes and assigns by lane, agents answer blind, issue directed challenges at each other, rebut or concede, the chair rules each challenge answered or dodged, and the devil's advocate attacks the settled consensus before weighted synthesis](docs/protocol.svg)
+
+Note the step the flowchart leaves implicit: between the rebuttal and the
+adversarial round, the Chair rules each challenge **answered or dodged**. A reply
+that restates the original position is not an answer; conceding honestly is. Every
+challenge it rules unanswered costs the final score `0.08`, which is how "what you
+dodged" becomes a number rather than a feeling.
+
 ### Round 0 · Decompose
 
 A non-voting Chair splits the decision into 5-7 concrete diligence questions and
